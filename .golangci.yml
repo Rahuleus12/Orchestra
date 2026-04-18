@@ -6,6 +6,8 @@
 #   golangci-lint run --fix ./...
 #   make lint
 
+version: "2"
+
 run:
   # Timeout for analysis
   timeout: 5m
@@ -17,377 +19,375 @@ run:
   build-tags:
     - integration
 
-  # Directories to skip
-  skip-dirs:
-    - docs
-    - scripts
-    - configs
-    - api
-
-  # Files to skip
-  skip-files:
-    - ".*_test\\.go$"
-
   # Modules download mode
   modules-download-mode: readonly
 
 output:
-  # Sort results by: filepath, line, column
-  sort-results: true
-
-  # Print lines of code with issue
-  print-issued-lines: true
-
-  # Print linter name in the end of issue text
-  print-linter-name: true
-
-  # Make issues output unique by line
-  uniq-by-line: true
-
-  # Add a prefix to the output file references
-  path-prefix: ""
-
-  # Output format: colored-line-number, line-number, json, tab, checkstyle, code-climate
+  # Output formats
   formats:
-    - format: colored-line-number
+    text:
+      path: stdout
 
 linters:
-  # Enable all available linters
-  enable-all: false
-
   # Enable specific linters
   enable:
     # --- Default linters ---
-    - errcheck        # Check for unchecked errors
-    - gosimple        # Simplify code
-    - govet           # Vet examines Go source code
-    - ineffassign     # Detect ineffectual assignments
-    - staticcheck     # Go vet on steroids
-    - unused          # Check for unused constants, variables, functions
+    - errcheck # Check for unchecked errors
+    - gosimple # Simplify code
+    - govet # Vet examines Go source code
+    - ineffassign # Detect ineffectual assignments
+    - staticcheck # Go vet on steroids
+    - unused # Check for unused constants, variables, functions
 
     # --- Additional linters ---
-    - asasalint       # Check for pass []any as any in variadic func(...any)
-    - asciicheck      # Check for non-ASCII identifiers
-    - bidichk         # Check for dangerous unicode character sequences
-    - bodyclose       # Check HTTP response body is closed
+    - asasalint # Check for pass []any as any in variadic func(...any)
+    - asciicheck # Check for non-ASCII identifiers
+    - bidichk # Check for dangerous unicode character sequences
+    - bodyclose # Check HTTP response body is closed
     - canonicalheader # Check for canonical headers
-    - containedctx    # Check for struct-contained context.Context
-    - contextcheck    # Check for context.Context inheritance
-    - copyloopvar     # Check for loop variable copies
-    - cyclop          # Check cyclomatic complexity
-    - decorder        # Check declaration order and number
-    - dogsled         # Check assignments with too many blank identifiers
-    - dupl            # Check for code clones
-    - dupword         # Check for duplicate words
-    - durationcheck   # Check for two durations multiplied together
-    - err113          # Check for dynamic errors (errorlint alternative)
-    - errchkjson      # Check types passed to json.Marshal
-    - errname         # Check for sentinel errors naming
-    - errorlint       # Check for error wrapping and comparison best practices
-    - exhaustive      # Check for exhaustive switch statements
-    - exhaustruct     # Check for exhaustive struct initialization
-    - exportloopref   # Check for loop variable export
-    - forbidigo       # Forbid specific identifiers
+    - containedctx # Check for struct-contained context.Context
+    - contextcheck # Check for context.Context inheritance
+    - copyloopvar # Check for loop variable copies
+    - cyclop # Check cyclomatic complexity
+    - decorder # Check declaration order and number
+    - dogsled # Check assignments with too many blank identifiers
+    - dupl # Check for code clones
+    - dupword # Check for duplicate words
+    - durationcheck # Check for two durations multiplied together
+    - err113 # Check for dynamic errors (errorlint alternative)
+    - errchkjson # Check types passed to json.Marshal
+    - errname # Check for sentinel errors naming
+    - errorlint # Check for error wrapping and comparison best practices
+    - exhaustive # Check for exhaustive switch statements
+    - exhaustruct # Check for exhaustive struct initialization
+    - forbidigo # Forbid specific identifiers
     - forcetypeassert # Force type assertion checks
-    - funlen          # Check function length
-    - gci             # Control golang package import order
-    - ginkgolinter    # Enforce standards for ginkgo/gomega tests
+    - funlen # Check function length
+    - gci # Control golang package import order
+    - ginkgolinter # Enforce standards for ginkgo/gomega tests
     - gocheckcompilerdirectives # Check compiler directives
-    - gochecknoglobals  # Check for global variables
-    - gochecknoinits   # Check for init functions
-    - gochecksumtype   # Check sum types exhaustiveness
-    - gocognit         # Check cognitive complexity
-    - goconst          # Check for repeated strings that could be constants
-    - gocritic         # Provide diagnostics for Go source code
-    - gocyclo          # Check cyclomatic complexity
-    - godot            # Check comments end with a period
-    - gofmt            # Check whether code is gofmt-ed
-    - gofumpt          # Stricter gofmt
-    - goheader         # Check license headers
-    - goimports        # Check import statements are formatted
-    - gomoddirectives  # Check go.mod directives
-    - gomodguard       # Check for allowed/blocked module dependencies
+    - gochecknoglobals # Check for global variables
+    - gochecknoinits # Check for init functions
+    - gochecksumtype # Check sum types exhaustiveness
+    - gocognit # Check cognitive complexity
+    - goconst # Check for repeated strings that could be constants
+    - gocritic # Provide diagnostics for Go source code
+    - gocyclo # Check cyclomatic complexity
+    - godot # Check comments end with a period
+    - gofmt # Check whether code is gofmt-ed
+    - gofumpt # Stricter gofmt
+    - goheader # Check license headers
+    - goimports # Check import statements are formatted
+    - gomoddirectives # Check go.mod directives
+    - gomodguard # Check for allowed/blocked module dependencies
     - goprintffuncname # Check printf-like function names
-    - gosec            # Inspects source code for security problems
-    - gosmopolitan     # Check for internationalization issues
-    - grouper          # Analyze expression groups
-    - importas         # Enforce consistent import aliases
-    - inamedparam      # Checks interface method parameter names
-    - interfacebloat   # Check for large interfaces
-    - intrange         # Check for range over integers
-    - ireturn          # Accept Interfaces, Return Concrete Types
-    - lll              # Check line length
-    - loggercheck      # Check for structured logger usage
-    - maintidx         # Check maintainability index
-    - makezero         # Check that append is initialized properly
-    - mirror           # Check for duplicate types that can be replaced
-    - misspell         # Check for misspelled words
-    - musttag          # Check struct field tags
-    - nakedret         # Check for naked returns
-    - nestif           # Check for deeply nested if statements
-    - nilerr           # Check for nil error returns
-    - nilnil           # Check for return nil, nil
-    - nlreturn         # Check for newlines before return
-    - noctx            # Check for HTTP requests without context.Context
-    - nolintlint       # Check for nolint directives
-    - nonamedreturns   # Check for named returns
+    - gosec # Inspects source code for security problems
+    - gosmopolitan # Check for internationalization issues
+    - grouper # Analyze expression groups
+    - importas # Enforce consistent import aliases
+    - inamedparam # Checks interface method parameter names
+    - interfacebloat # Check for large interfaces
+    - intrange # Check for range over integers
+    - ireturn # Accept Interfaces, Return Concrete Types
+    - lll # Check line length
+    - loggercheck # Check for structured logger usage
+    - maintidx # Check maintainability index
+    - makezero # Check that append is initialized properly
+    - mirror # Check for duplicate types that can be replaced
+    - misspell # Check for misspelled words
+    - musttag # Check struct field tags
+    - nakedret # Check for naked returns
+    - nestif # Check for deeply nested if statements
+    - nilerr # Check for nil error returns
+    - nilnil # Check for return nil, nil
+    - nlreturn # Check for newlines before return
+    - noctx # Check for HTTP requests without context.Context
+    - nolintlint # Check for nolint directives
+    - nonamedreturns # Check for named returns
     - nosprintfhostport # Check for sprintf with host:port
-    - paralleltest     # Check for parallel test patterns
-    - perfsprint       # Check for fmt.Sprintf performance
-    - prealloc         # Check for slice preallocation
-    - predeclared      # Check for shadowed predeclared identifiers
-    - promlinter       # Check Prometheus metric naming
-    - protogetter      # Check for proto getter usage
-    - reassign         # Check for reassignment of package variables
-    - recvcheck        # Check for receiver type consistency
-    - revive           # Drop-in replacement for golint
-    - rowserrcheck     # Check for sql.Rows.Err() usage
-    - sloglint         # Check for structured logging best practices
-    - spancheck        # Check for OpenTelemetry span errors
-    - sqlclosecheck    # Check for sql.Rows/Stmt close
-    - stylecheck       # Stylecheck is a replacement for golint
-    - tagalign         # Check for struct tag alignment
-    - tagliatelle      # Check for struct tag conventions
+    - paralleltest # Check for parallel test patterns
+    - perfsprint # Check for fmt.Sprintf performance
+    - prealloc # Check for slice preallocation
+    - predeclared # Check for shadowed predeclared identifiers
+    - promlinter # Check Prometheus metric naming
+    - protogetter # Check for proto getter usage
+    - reassign # Check for reassignment of package variables
+    - recvcheck # Check for receiver type consistency
+    - revive # Drop-in replacement for golint
+    - rowserrcheck # Check for sql.Rows.Err() usage
+    - sloglint # Check for structured logging best practices
+    - spancheck # Check for OpenTelemetry span errors
+    - sqlclosecheck # Check for sql.Rows/Stmt close
+    - stylecheck # Stylecheck is a replacement for golint
+    - tagalign # Check for struct tag alignment
+    - tagliatelle # Check for struct tag conventions
     - testableexamples # Check for testable examples
-    - testifylint      # Check for testify best practices
-    - testpackage      # Check for test package naming
-    - thelper          # Check for test helper functions
-    - tparallel        # Check for parallel test patterns
-    - typecheck        # Type-check the code
-    - unconvert        # Check for unnecessary type conversions
-    - unparam          # Check for unused function parameters
-    - usestdlibvars    # Check for stdlib variable usage
-    - varnamelen       # Check for variable name length
-    - wastedassign     # Check for wasted assignments
-    - whitespace       # Check for unnecessary whitespace
-    - wrapcheck        # Check for error wrapping
-    - wsl              # Whitespace Linter
-    - zerologlint      # Check for zerolog usage
+    - testifylint # Check for testify best practices
+    - testpackage # Check for test package naming
+    - thelper # Check for test helper functions
+    - tparallel # Check for parallel test patterns
+    - typecheck # Type-check the code
+    - unconvert # Check for unnecessary type conversions
+    - unparam # Check for unused function parameters
+    - usestdlibvars # Check for stdlib variable usage
+    - varnamelen # Check for variable name length
+    - wastedassign # Check for wasted assignments
+    - whitespace # Check for unnecessary whitespace
+    - wrapcheck # Check for error wrapping
+    - wsl # Whitespace Linter
+    - zerologlint # Check for zerolog usage
 
   # Disable specific linters
   disable:
-    - exhaustruct      # Too strict for initial development; re-enable later
+    - exhaustruct # Too strict for initial development; re-enable later
     - gochecknoglobals # Registry pattern needs globals
-    - gochecknoinits   # Useful for registration
-    - goheader         # No license header requirement yet
-    - gomnd            # Too noisy; re-enable with specific exclusions later
-    - ireturn          # Provider interface pattern returns interfaces intentionally
-    - nlreturn         # Too opinionated about newlines
-    - nonamedreturns   # Named returns are useful for documentation
-    - wsl              # Too opinionated about whitespace formatting
+    - gochecknoinits # Useful for registration
+    - goheader # No license header requirement yet
+    - mnd # Too noisy; re-enable with specific exclusions later
+    - ireturn # Provider interface pattern returns interfaces intentionally
+    - nlreturn # Too opinionated about newlines
+    - nonamedreturns # Named returns are useful for documentation
+    - wsl # Too opinionated about whitespace formatting
 
-linters-settings:
-  # Cyclomatic complexity
-  cyclop:
-    max-complexity: 15
-    package-average: 10.0
-    skip-tests: true
+  settings:
+    # Cyclomatic complexity
+    cyclop:
+      max-complexity: 15
+      package-average: 10.0
 
-  # Cognitive complexity
-  gocognit:
-    min-complexity: 20
+    # Cognitive complexity
+    gocognit:
+      min-complexity: 20
 
-  # Function length
-  funlen:
-    lines: 80
-    statements: 60
-    ignore-comments: true
+    # Function length
+    funlen:
+      lines: 80
+      statements: 60
+      ignore-comments: true
 
-  # Line length
-  lll:
-    line-length: 120
+    # Line length
+    lll:
+      line-length: 120
 
-  # Nesting depth
-  nestif:
-    min-complexity: 4
+    # Nesting depth
+    nestif:
+      min-complexity: 4
 
-  # Cyclomatic complexity (gocyclo)
-  gocyclo:
-    min-complexity: 15
+    # Cyclomatic complexity (gocyclo)
+    gocyclo:
+      min-complexity: 15
 
-  # Go const checker
-  goconst:
-    min-len: 3
-    min-occurrences: 4
-    ignore-tests: true
+    # Go const checker
+    goconst:
+      min-len: 3
+      min-occurrences: 4
 
-  # Go critic
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-      - experimental
-      - opinionated
-    disabled-checks:
-      - hugeParam        # Large structs are often passed by pointer already
-      - rangeValCopy     # Sometimes copying is intentional
+    # Go critic
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+        - opinionated
+      disabled-checks:
+        - hugeParam # Large structs are often passed by pointer already
+        - rangeValCopy # Sometimes copying is intentional
 
-  # Error lint
-  errorlint:
-    errorf: true
-    asserts: true
-    comparison: true
+    # Error lint
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
 
-  # Gosec
-  gosec:
-    excludes:
-      - G104   # Audit errors not checked (handled by errcheck)
-      - G404   # Use of weak random (we use crypto/rand in generateID)
+    # Gosec
+    gosec:
+      excludes:
+        - G104 # Audit errors not checked (handled by errcheck)
+        - G404 # Use of weak random (we use crypto/rand in generateID)
 
-  # Revive
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: increment-decrement
-      - name: indent-error-flow
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: var-declaration
-      - name: var-naming
-        arguments:
-          - ["ID", "API", "HTTP", "URL", "JSON", "YAML", "LLM", "OTLP"] # allowed initialisms
-
-  # Goimports
-  goimports:
-    local-prefixes: github.com/user/orchestra
-
-  # Gofumpt
-  gofumpt:
-    extra-rules: true
-
-  # Misspell
-  misspell:
-    locale: US
-    ignore-words:
-      - cancelled    # Common in Go context package
-      - cancelling
-
-  # Tagliatelle
-  tagliatelle:
-    case:
+    # Revive
+    revive:
       rules:
-        json: snake
-        yaml: snake
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: var-declaration
+        - name: var-naming
+          arguments:
+            - ["ID", "API", "HTTP", "URL", "JSON", "YAML", "LLM", "OTLP"] # allowed initialisms
 
-  # Wrapcheck
-  wrapcheck:
-    ignorePackageGlobs:
-      - github.com/user/orchestra/internal/*
-      - github.com/user/orchestra/pkg/*
+    # Misspell
+    misspell:
+      locale: US
+      ignore-rules:
+        - cancelled # Common in Go context package
+        - cancelling
 
-  # Variable name length
-  varnamelen:
-    min-name-length: 2
-    ignore-names:
-      - id
-      - ID
-      - ok
-      - err
-      - mu
-      - ch
-      - fn
-      - t
-      - b
-      - r
-      - w
-      - i
-      - j
-      - k
-      - v
-      - n
-      - m
-      - p
-      - ctx
-      - req
-      - cfg
-      - msg
-      - tt
-    ignore-type-assert-ok: true
-    ignore-map-index-ok: true
-    ignore-chan-recv-ok: true
-    ignore-declarations:
-      - t *testing.T
-      - w io.Writer
+    # Tagliatelle
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
 
-  # Interface bloat
-  interfacebloat:
-    max: 10
+    # Wrapcheck
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/user/orchestra/internal/*
+        - github.com/user/orchestra/pkg/*
 
-  # Maintainability index
-  maintidx:
-    under: 20
+    # Variable name length
+    varnamelen:
+      min-name-length: 2
+      ignore-names:
+        - id
+        - ID
+        - ok
+        - err
+        - mu
+        - ch
+        - fn
+        - t
+        - b
+        - r
+        - w
+        - i
+        - j
+        - k
+        - v
+        - n
+        - m
+        - p
+        - ctx
+        - req
+        - cfg
+        - msg
+        - tt
+      ignore-type-assert-ok: true
+      ignore-map-index-ok: true
+      ignore-chan-recv-ok: true
+      ignore-decls:
+        - t *testing.T
+        - w io.Writer
 
-  # Slog linter
-  sloglint:
-    no-mixed-args: true
-    kv-only: false
-    attr-only: true
-    context: "scope"
-    static-msg: true
-    no-raw-keys: true
-    key-naming-case: snake
+    # Interface bloat
+    interfacebloat:
+      max: 10
 
-  # Parallel test
-  paralleltest:
-    ignore-missing-subtests: true
+    # Maintainability index
+    maintidx:
+      under: 20
 
-  # Prealloc
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: false
+    # Slog linter
+    sloglint:
+      no-mixed-args: true
+      kv-only: false
+      attr-only: true
+      context: "scope"
+      static-msg: true
+      no-raw-keys: true
+      key-naming-case: snake
 
-  # Naked return
-  nakedret:
-    max-func-lines: 30
+    # Parallel test
+    paralleltest:
+      ignore-missing-subtests: true
 
-  # Unused
-  unused:
-    exported-fields-are-used: false
-    local-variables-are-used: false
+    # Prealloc
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
 
-  # Errcheck
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-      - fmt.Fprintf
-      - fmt.Fprintln
-      - fmt.Fprint
-      - fmt.Sprintf
-      - fmt.Sprintf
-      - (io.Writer).Write
+    # Naked return
+    nakedret:
+      max-func-lines: 30
 
-  # Duplicate code
-  dupl:
-    threshold: 100
+    # Unused
+    unused:
+      exported-fields-are-used: false
+      local-variables-are-used: false
 
-  # Testifylint
-  testifylint:
-    enable-all: true
+    # Errcheck
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - fmt.Sprintf
+        - (io.Writer).Write
 
-  # Importas
-  importas:
-    no-unaliased: true
-    no-extra-aliases: true
-    alias:
-      - pkg: github.com/user/orchestra/internal/message
-        alias: message
-      - pkg: github.com/user/orchestra/internal/provider
-        alias: provider
-      - pkg: github.com/user/orchestra/internal/config
-        alias: config
+    # Duplicate code
+    dupl:
+      threshold: 100
+
+    # Testifylint
+    testifylint:
+      enable-all: true
+
+    # Importas
+    importas:
+      no-unaliased: true
+      no-extra-aliases: true
+      alias:
+        - pkg: github.com/user/orchestra/internal/message
+          alias: message
+        - pkg: github.com/user/orchestra/internal/provider
+          alias: provider
+        - pkg: github.com/user/orchestra/internal/config
+          alias: config
+
+  # Exclusion rules
+  exclusions:
+    rules:
+      # Exclude test files from certain linters
+      - path: _test\.go
+        linters:
+          - dupl
+          - funlen
+          - gocognit
+          - goconst
+          - govet
+          - wrapcheck
+          - errcheck
+          - varnamelen
+          - maintidx
+
+      # Exclude generated files
+      - path: ".*generated.*\\.go$"
+        linters:
+          - all
+
+      # Allow global registry variable
+      - linters:
+          - gochecknoglobals
+        text: "GlobalRegistry"
+
+      # Allow fmt.Fprint family in cmd/
+      - path: cmd/
+        linters:
+          - forbidigo
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
 
 issues:
   # Maximum issue count per linter (0 = unlimited)
@@ -402,44 +402,8 @@ issues:
   # Fix found issues
   fix: false
 
-  # Exclude rules
-  exclude-rules:
-    # Exclude test files from certain linters
-    - path: _test\.go
-      linters:
-        - dupl
-        - funlen
-        - gocognit
-        - goconst
-        - govet
-        - wrapcheck
-        - errcheck
-        - varnamelen
-        - maintidx
-
-    # Exclude generated files
-    - path: ".*generated.*\\.go$"
-      linters:
-        - all
-
-    # Allow global registry variable
-    - linters:
-        - gochecknoglobals
-      text: "GlobalRegistry"
-
-    # Allow fmt.Fprint family in cmd/
-    - path: cmd/
-      linters:
-        - forbidigo
-
-  # Exclude generated files
-  exclude-generated: strict
-
-  # Show all issues from a linter
-  show-all-issues-in-tests: false
-
 severity:
-  default-severity: warning
+  default: warning
   rules:
     - linters:
         - gosec
