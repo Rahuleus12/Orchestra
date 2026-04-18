@@ -1,0 +1,40 @@
+# Orchestra — Multi-Agent AI Orchestration Engine
+# Default Configuration
+#
+# Environment variables can be referenced using ${VAR} or ${VAR:-default} syntax.
+# Provider-specific overrides can be set via ORCHESTRA_PROVIDER_<NAME>_<FIELD> env vars.
+# See docs/PLAN.md for full configuration reference.
+
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.openai.com/v1
+    default_model: gpt-4-turbo
+    rate_limit:
+      requests_per_minute: 60
+      tokens_per_minute: 150000
+    retry:
+      max_attempts: 3
+      initial_backoff: 1s
+
+  anthropic:
+    api_key: ${ANTHROPIC_API_KEY}
+    default_model: claude-sonnet-4-20250514
+    rate_limit:
+      requests_per_minute: 60
+
+  ollama:
+    base_url: http://localhost:11434
+    default_model: llama3
+
+logging:
+  level: info
+  format: json
+
+observability:
+  tracing:
+    enabled: true
+    endpoint: http://localhost:4318
+  metrics:
+    enabled: true
+    endpoint: http://localhost:9090/metrics

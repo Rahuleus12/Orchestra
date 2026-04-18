@@ -1,0 +1,142 @@
+# Orchestra — Multi-Agent AI Orchestration Engine
+# Docker Compose Configuration
+#
+# Usage:
+#   docker compose up              # Start all services
+#   docker compose up orchestra    # Start only Orchestra
+#   docker compose up -d           # Start in detached mode
+#   docker compose logs -f         # Follow logs
+#   docker compose down            # Stop and remove containers
+
+services:
+  # ---------------------------------------------------------------------------
+  # Orchestra Service
+  # ---------------------------------------------------------------------------
+  orchestra:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestra
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # --- Top-level settings ---
+      - ORCHESTRA_DEFAULT_PROVIDER=${ORCHESTRA_DEFAULT_PROVIDER:-openai}
+      - ORCHESTRA_DEFAULT_MODEL=${ORCHESTRA_DEFAULT_MODEL:-gpt-4-turbo}
+      - ORCHESTRA_LOGGING_LEVEL=${ORCHESTRA_LOGGING_LEVEL:-info}
+      - ORCHESTRA_LOGGING_FORMAT=${ORCHESTRA_LOGGING_FORMAT:-json}
+      - ORCHESTRA_TRACING_ENABLED=${ORCHESTRA_TRACING_ENABLED:-true}
+      - ORCHESTRA_TRACING_ENDPOINT=http://otel-collector:4318
+      - ORCHESTRA_METRICS_ENABLED=${ORCHESTRA_METRICS_ENABLED:-true}
+      - ORCHESTRA_METRICS_ENDPOINT=http://prometheus:9090/metrics
+
+      # --- Provider: OpenAI ---
+      - ORCHESTRA_PROVIDER_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ORCHESTRA_PROVIDER_OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - ORCHESTRA_PROVIDER_OPENAI_DEFAULT_MODEL=${OPENAI_DEFAULT_MODEL:-gpt-4-turbo}
+      - ORCHESTRA_PROVIDER_OPENAI_RATE_LIMIT_RPM=${OPENAI_RATE_LIMIT_RPM:-60}
+      - ORCHESTRA_PROVIDER_OPENAI_RETRY_MAX_ATTEMPTS=${OPENAI_RETRY_MAX_ATTEMPTS:-3}
+
+      # --- Provider: Anthropic ---
+      - ORCHESTRA_PROVIDER_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ORCHESTRA_PROVIDER_ANTHROPIC_DEFAULT_MODEL=${ANTHROPIC_DEFAULT_MODEL:-claude-sonnet-4-20250514}
+      - ORCHESTRA_PROVIDER_ANTHROPIC_RATE_LIMIT_RPM=${ANTHROPIC_RATE_LIMIT_RPM:-60}
+
+      # --- Provider: Ollama ---
+      - ORCHESTRA_PROVIDER_OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - ORCHESTRA_PROVIDER_OLLAMA_DEFAULT_MODEL=${OLLAMA_DEFAULT_MODEL:-llama3}
+    volumes:
+      - ./configs:/app/configs:ro
+    depends_on:
+      otel-collector:
+        condition: service_started
+    networks:
+      - orchestra-net
+    healthcheck:
+      test: ["/app/orchestra", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Ollama (Local LLM Runtime)
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - orchestra-net
+    # Uncomment to pull a model on startup:
+    # command: >
+    #   sh -c "ollama serve & sleep 5 && ollama pull llama3 && wait"
+
+  # ---------------------------------------------------------------------------
+  # OpenTelemetry Collector
+  # ---------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./configs/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus exporter metrics
+    networks:
+      - orchestra-net
+
+  # ---------------------------------------------------------------------------
+  # Prometheus (Metrics)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - orchestra-net
+
+  # ---------------------------------------------------------------------------
+  # Jaeger (Distributed Tracing UI)
+  # ---------------------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger collector HTTP
+    networks:
+      - orchestra-net
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  ollama-data:
+    driver: local
+  prometheus-data:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  orchestra-net:
+    driver: bridge
+    name: orchestra-network
