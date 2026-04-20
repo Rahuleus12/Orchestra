@@ -582,7 +582,7 @@ func WithCircuitBreaker(threshold int, resetTimeout time.Duration) ProviderMiddl
 
 ## 7. Phase 3 — Agent Runtime & Lifecycle
 
-**Status:** Not Started
+**Status:** 🔧 In Progress
 **Depends On:** Phase 1, Phase 2
 
 ### Objectives
@@ -591,11 +591,11 @@ Build the Agent abstraction — the primary building block that users interact w
 
 ### Tasks
 
-#### 3.1 Agent Definition
-- [ ] Define `Agent` struct with configuration and runtime state
-- [ ] Define functional options for agent creation
-- [ ] Implement agent lifecycle: create → run → stop
-- [ ] Support agent cloning for parallel execution
+#### 3.1 Agent Definition ✅
+- [x] Define `Agent` struct with configuration and runtime state
+- [x] Define functional options for agent creation
+- [x] Implement agent lifecycle: create → run → stop
+- [x] Support agent cloning for parallel execution
 
 ```go
 // internal/agent/agent.go
@@ -630,12 +630,12 @@ func WithMaxTurns(n int) Option
 func WithMiddleware(m ...middleware.ProviderMiddleware) Option
 ```
 
-#### 3.2 Agent Execution Loop
-- [ ] Implement the generate → tool call → feed result → generate loop
-- [ ] Track conversation turns within a single `Run` call
-- [ ] Handle `maxTurns` to prevent infinite tool loops
-- [ ] Emit events at each stage for observability
-- [ ] Support graceful cancellation via context
+#### 3.2 Agent Execution Loop ✅
+- [x] Implement the generate → tool call → feed result → generate loop
+- [x] Track conversation turns within a single `Run` call
+- [x] Handle `maxTurns` to prevent infinite tool loops
+- [x] Emit events at each stage for observability
+- [x] Support graceful cancellation via context
 
 ```go
 // Execution loop pseudocode:
@@ -648,11 +648,11 @@ func WithMiddleware(m ...middleware.ProviderMiddleware) Option
 // 4. Return final response
 ```
 
-#### 3.3 Agent Result & Events
-- [ ] Define `AgentResult` with full execution trace
-- [ ] Define `AgentEvent` for streaming and observability
-- [ ] Track token usage across the entire execution loop
-- [ ] Capture tool execution details in result
+#### 3.3 Agent Result & Events ✅
+- [x] Define `AgentResult` with full execution trace
+- [x] Define `AgentEvent` for streaming and observability
+- [x] Track token usage across the entire execution loop
+- [x] Capture tool execution details in result
 
 ```go
 type AgentResult struct {
@@ -683,20 +683,25 @@ type AgentEvent struct {
 }
 ```
 
-#### 3.4 Prompt Template System
-- [ ] Define a Go template-based prompt system
-- [ ] Support variable injection (e.g., `{{.Task}}`, `{{.Context}}`)
-- [ ] Support conditional blocks and loops in prompts
-- [ ] Include built-in template functions (json, yaml, indent, etc.)
-- [ ] Support prompt loading from embedded filesystem
+#### 3.4 Prompt Template System ✅
+- [x] Define a Go template-based prompt system
+- [x] Support variable injection (e.g., `{{.Task}}`, `{{.Context}}`)
+- [x] Support conditional blocks and loops in prompts
+- [x] Include built-in template functions (json, yaml, indent, etc.)
+- [x] Support prompt loading from embedded filesystem
 
 ### Deliverables
 
-- [ ] Agent type with full lifecycle management
-- [ ] Execution loop with tool calling support
-- [ ] Streaming agent events
-- [ ] Prompt template system
-- [ ] Agent cloning for parallel use
+- [x] Agent type with full lifecycle management
+- [x] Execution loop with tool calling support
+- [x] Streaming agent events
+- [x] Prompt template system
+- [x] Agent cloning for parallel use
+
+### Remaining
+- [ ] Public API re-exports in `pkg/orchestra/orchestra.go` for agent types
+- [ ] Test verification (tests written but not yet validated due to environment issues)
+- [ ] Phase 3 completion report (`docs/PHASE3_REPORT.md`)
 
 ### Milestone Criteria
 
