@@ -1,7 +1,7 @@
 # Orchestra — Multi-Agent AI Orchestration Engine
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/user/orchestra.svg)](https://pkg.go.dev/github.com/user/orchestra)
-[![CI](https://github.com/user/orchestra/actions/workflows/ci.yml/badge.svg)](https://github.com/user/orchestra/actions/workflows/ci.yml)
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/user/orchestra)](https://goreportcard.com/report/github.com/user/orchestra)
 
 Orchestra is a Go-based framework for orchestrating multiple AI agents that use different LLM providers (OpenAI, Anthropic, Google Gemini, Ollama, Mistral, Cohere, etc.) and models. It provides a unified abstraction layer over heterogeneous LLM backends and enables complex multi-agent workflows including sequential pipelines, parallel fan-out/fan-in, dynamic routing, debate loops, and hierarchical delegation.
@@ -444,7 +444,7 @@ The GitHub Actions pipeline runs on every push and pull request:
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1 | Foundation & Core Abstractions | ✅ Complete |
-| 2 | Provider Integrations (OpenAI, Anthropic, Gemini, Ollama, Mistral, Cohere) | 🔲 Planned |
+| 2 | Provider Integrations (OpenAI, Anthropic, Gemini, Ollama, Mistral, Cohere) | ✅ Complete |
 | 3 | Agent Runtime & Lifecycle | 🔲 Planned |
 | 4 | Orchestration Engine (DAG-based workflows) | 🔲 Planned |
 | 5 | Inter-Agent Communication (Message Bus) | 🔲 Planned |
