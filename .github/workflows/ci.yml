@@ -18,12 +18,12 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
       - develop
       - "feature/**"
   pull_request:
     branches:
-      - main
+      - master
       - develop
 
 # Cancel in-progress runs for the same branch/PR
