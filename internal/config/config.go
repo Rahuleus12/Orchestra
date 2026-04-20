@@ -220,7 +220,7 @@ type LoggingConfig struct {
 	AddSource bool `json:"add_source,omitempty" yaml:"add_source,omitempty"`
 
 	// TimeFormat is the format string for timestamps. Defaults to RFC3339.
-	TimeFormat string `json:"time_format,omitempty" yaml:"time_time,omitempty"`
+	TimeFormat string `json:"time_format,omitempty" yaml:"time_format,omitempty"`
 }
 
 // GetLevel returns the log level, defaulting to "info".

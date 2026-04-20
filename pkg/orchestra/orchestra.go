@@ -19,6 +19,16 @@
 //	    Messages: []orchestra.Message{orchestra.UserMessage("Hello!")},
 //	})
 //
+// # Functional Options
+//
+// Use functional options to configure generation parameters:
+//
+//	opts := orchestra.NewGenerateOptions(
+//	    orchestra.WithTemperature(0.7),
+//	    orchestra.WithMaxTokens(1024),
+//	    orchestra.WithJSONMode(),
+//	)
+//
 // # Configuration
 //
 // Load configuration from YAML or environment variables:
@@ -36,12 +46,20 @@
 package orchestra
 
 import (
-	"context"
+	"log/slog"
+	"time"
 
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
+	"github.com/user/orchestra/internal/middleware"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/anthropic"
+	"github.com/user/orchestra/internal/provider/cohere"
+	"github.com/user/orchestra/internal/provider/gemini"
+	"github.com/user/orchestra/internal/provider/mistral"
 	"github.com/user/orchestra/internal/provider/mock"
+	"github.com/user/orchestra/internal/provider/ollama"
+	"github.com/user/orchestra/internal/provider/openai"
 )
 
 // ---------------------------------------------------------------------------
@@ -164,6 +182,9 @@ type GenerateResult = provider.GenerateResult
 // GenerateOptions configures how a model generates its response.
 type GenerateOptions = provider.GenerateOptions
 
+// GenerateOption is a functional option for configuring GenerateOptions.
+type GenerateOption = provider.GenerateOption
+
 // StreamEvent represents a single event in a streaming response.
 type StreamEvent = provider.StreamEvent
 
@@ -225,20 +246,71 @@ type ToolDefinition = provider.ToolDefinition
 // FunctionDef describes a function that can be called by the model.
 type FunctionDef = provider.FunctionDef
 
-// ProviderConfig holds the configuration needed to create a Provider instance.
-type ProviderConfig = provider.ProviderConfig
-
-// RateLimitConfig configures rate limiting behavior for a provider.
-type RateLimitConfig = provider.RateLimitConfig
-
-// RetryConfig configures retry behavior for transient failures.
-type RetryConfig = provider.RetryConfig
+// ProviderError wraps an error from a provider with additional context.
+type ProviderError = provider.ProviderError
 
 // ProviderFactory is a function that creates a new Provider instance.
 type ProviderFactory = provider.ProviderFactory
 
-// ProviderError wraps an error from a provider with additional context.
-type ProviderError = provider.ProviderError
+// ---------------------------------------------------------------------------
+// Functional Options
+// ---------------------------------------------------------------------------
+
+// NewGenerateOptions creates a GenerateOptions by applying the given
+// functional options to a zero-valued GenerateOptions.
+func NewGenerateOptions(opts ...GenerateOption) GenerateOptions {
+	return provider.NewGenerateOptions(opts...)
+}
+
+// WithTemperature sets the generation temperature.
+func WithTemperature(t float64) GenerateOption {
+	return provider.WithTemperature(t)
+}
+
+// WithTopP sets the top-p sampling parameter.
+func WithTopP(p float64) GenerateOption {
+	return provider.WithTopP(p)
+}
+
+// WithMaxTokens sets the maximum number of output tokens.
+func WithMaxTokens(n int) GenerateOption {
+	return provider.WithMaxTokens(n)
+}
+
+// WithStopSequences sets the stop sequences that halt generation.
+func WithStopSequences(seqs ...string) GenerateOption {
+	return provider.WithStopSequences(seqs...)
+}
+
+// WithSeed sets the deterministic sampling seed.
+func WithSeed(s int64) GenerateOption {
+	return provider.WithSeed(s)
+}
+
+// WithResponseFormat sets the output format constraint.
+func WithResponseFormat(rf *ResponseFormat) GenerateOption {
+	return provider.WithResponseFormat(rf)
+}
+
+// WithJSONMode enables JSON object output mode.
+func WithJSONMode() GenerateOption {
+	return provider.WithJSONMode()
+}
+
+// WithTextMode enables plain text output mode.
+func WithTextMode() GenerateOption {
+	return provider.WithTextMode()
+}
+
+// WithJSONSchema enables structured JSON output conforming to the schema.
+func WithJSONSchema(schema map[string]any) GenerateOption {
+	return provider.WithJSONSchema(schema)
+}
+
+// WithExtra sets a provider-specific option.
+func WithExtra(key string, value any) GenerateOption {
+	return provider.WithExtra(key, value)
+}
 
 // Response format constructors
 
@@ -271,6 +343,11 @@ func NewProviderError(providerName, model string, err error) *ProviderError {
 	return provider.NewProviderError(providerName, model, err)
 }
 
+// NewProviderErrorWithCode creates a new ProviderError with a code and HTTP status.
+func NewProviderErrorWithCode(providerName, model, code string, statusCode int, err error) *ProviderError {
+	return provider.NewProviderErrorWithCode(providerName, model, code, statusCode, err)
+}
+
 // ---------------------------------------------------------------------------
 // Provider Registry
 // ---------------------------------------------------------------------------
@@ -286,13 +363,13 @@ func NewRegistry() *Registry {
 // Global registry functions
 
 // RegisterProvider registers a provider factory in the global registry.
-func RegisterProvider(name string, factory ProviderFactory, config ProviderConfig) error {
-	return provider.Register(name, factory, config)
+func RegisterProvider(name string, factory ProviderFactory, cfg config.ProviderConfig) error {
+	return provider.Register(name, factory, cfg)
 }
 
 // MustRegisterProvider registers a provider factory, panicking on error.
-func MustRegisterProvider(name string, factory ProviderFactory, config ProviderConfig) {
-	provider.MustRegister(name, factory, config)
+func MustRegisterProvider(name string, factory ProviderFactory, cfg config.ProviderConfig) {
+	provider.MustRegister(name, factory, cfg)
 }
 
 // GetProvider retrieves a provider from the global registry.
@@ -332,12 +409,195 @@ type MockResponse = mock.MockResponse
 // StreamChunk configures a single chunk in a streaming response.
 type StreamChunk = mock.StreamChunk
 
-// ModelConfig describes a model available in the mock provider.
-type ModelConfig = mock.ModelConfig
+// MockModelConfig describes a model available in the mock provider.
+// Named MockModelConfig to avoid collision with config.ModelConfig.
+type MockModelConfig = mock.ModelConfig
 
 // NewMockProvider creates a new mock provider with the given name.
 func NewMockProvider(name string) *MockProvider {
 	return mock.NewProvider(name)
+}
+
+// ---------------------------------------------------------------------------
+// Provider Factories (Phase 2)
+// ---------------------------------------------------------------------------
+//
+// Each provider factory creates a new provider.Provider from a ProviderConfig.
+// Register them with the global registry:
+//
+//	orchestra.RegisterProvider("openai", orchestra.OpenAIFactory, cfg)
+//	orchestra.RegisterProvider("anthropic", orchestra.AnthropicFactory, cfg)
+
+// OpenAIFactory creates a new OpenAI provider from the given configuration.
+// Requires cfg.APIKey to be set. Supports GPT-4o, GPT-4-Turbo, o1/o3, etc.
+var OpenAIFactory = openai.Factory
+
+// AnthropicFactory creates a new Anthropic provider from the given configuration.
+// Requires cfg.APIKey to be set. Supports Claude Sonnet, Opus, Haiku models.
+var AnthropicFactory = anthropic.Factory
+
+// GeminiFactory creates a new Google Gemini provider from the given configuration.
+// Requires cfg.APIKey to be set. Supports Gemini 2.5/2.0/1.5 models.
+var GeminiFactory = gemini.Factory
+
+// OllamaFactory creates a new Ollama provider from the given configuration.
+// Does not require an API key. Uses cfg.BaseURL (defaults to http://localhost:11434).
+var OllamaFactory = ollama.Factory
+
+// MistralFactory creates a new Mistral AI provider from the given configuration.
+// Requires cfg.APIKey to be set. Supports Mistral Large, Medium, Small, Nemo.
+var MistralFactory = mistral.Factory
+
+// CohereFactory creates a new Cohere provider from the given configuration.
+// Requires cfg.APIKey to be set. Supports Command R+, Command R, Aya models.
+var CohereFactory = cohere.Factory
+
+// NewOpenAIProvider creates a new OpenAI provider directly.
+func NewOpenAIProvider(cfg ProviderConfig) (*openai.Provider, error) {
+	return openai.NewProvider(cfg)
+}
+
+// NewAnthropicProvider creates a new Anthropic provider directly.
+func NewAnthropicProvider(cfg ProviderConfig) (*anthropic.Provider, error) {
+	return anthropic.NewProvider(cfg)
+}
+
+// NewGeminiProvider creates a new Google Gemini provider directly.
+func NewGeminiProvider(cfg ProviderConfig) (*gemini.Provider, error) {
+	return gemini.NewProvider(cfg)
+}
+
+// NewOllamaProvider creates a new Ollama provider directly.
+func NewOllamaProvider(cfg ProviderConfig) (*ollama.Provider, error) {
+	return ollama.NewProvider(cfg)
+}
+
+// NewMistralProvider creates a new Mistral provider directly.
+func NewMistralProvider(cfg ProviderConfig) (*mistral.Provider, error) {
+	return mistral.NewProvider(cfg)
+}
+
+// NewCohereProvider creates a new Cohere provider directly.
+func NewCohereProvider(cfg ProviderConfig) (*cohere.Provider, error) {
+	return cohere.NewProvider(cfg)
+}
+
+// RegisterAllProviders registers all built-in provider factories into the
+// given registry using the provided configuration map. Only providers with
+// a corresponding entry in the configs map will be registered.
+//
+// Example:
+//
+//	cfg, _ := orchestra.LoadConfig("orchestra.yaml")
+//	registry := orchestra.NewRegistry()
+//	orchestra.RegisterAllProviders(registry, cfg.Providers)
+func RegisterAllProviders(reg *Registry, configs map[string]ProviderConfig) {
+	factories := map[string]ProviderFactory{
+		"openai":    OpenAIFactory,
+		"anthropic": AnthropicFactory,
+		"gemini":    GeminiFactory,
+		"ollama":    OllamaFactory,
+		"mistral":   MistralFactory,
+		"cohere":    CohereFactory,
+	}
+	for name, factory := range factories {
+		if cfg, ok := configs[name]; ok {
+			if cfg.IsEnabled() {
+				reg.MustRegister(name, factory, cfg)
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Middleware (Phase 2)
+// ---------------------------------------------------------------------------
+//
+// Middleware wraps providers with cross-cutting concerns like retry,
+// rate limiting, logging, caching, and circuit breaking.
+//
+// Compose multiple middleware using Chain:
+//
+//	p := orchestra.Chain(
+//	    orchestra.WithLogging(slog.Default()),
+//	    orchestra.WithCircuitBreaker(5, 30*time.Second),
+//	    orchestra.WithRetry(3, nil),
+//	    orchestra.WithRateLimit(60, 0),
+//	)(baseProvider)
+
+// ProviderMiddleware is a function that wraps a Provider with additional behavior.
+type ProviderMiddleware = middleware.ProviderMiddleware
+
+// BackoffStrategy calculates the delay between retry attempts.
+type BackoffStrategy = middleware.BackoffStrategy
+
+// ExponentialBackoff implements BackoffStrategy with exponential delays and jitter.
+type ExponentialBackoff = middleware.ExponentialBackoff
+
+// ConstantBackoff implements BackoffStrategy with a fixed delay.
+type ConstantBackoff = middleware.ConstantBackoff
+
+// CacheStore is the interface for caching Generate results.
+type CacheStore = middleware.CacheStore
+
+// MemoryCacheStore implements CacheStore with an in-memory map.
+type MemoryCacheStore = middleware.MemoryCacheStore
+
+// CircuitState represents the state of a circuit breaker.
+type CircuitState = middleware.CircuitState
+
+// CircuitBreakerStats holds current circuit breaker statistics.
+type CircuitBreakerStats = middleware.CircuitBreakerStats
+
+const (
+	// CircuitClosed means requests flow through normally.
+	CircuitClosed = middleware.CircuitClosed
+	// CircuitOpen means requests are rejected immediately.
+	CircuitOpen = middleware.CircuitOpen
+	// CircuitHalfOpen means a limited number of requests probe for recovery.
+	CircuitHalfOpen = middleware.CircuitHalfOpen
+)
+
+// WithRetry returns a middleware that retries failed requests up to maxAttempts
+// times with the given backoff strategy. Pass nil for backoff to use defaults
+// (exponential with jitter, starting at 1s, max 30s).
+func WithRetry(maxAttempts int, backoff BackoffStrategy) ProviderMiddleware {
+	return middleware.WithRetry(maxAttempts, backoff)
+}
+
+// WithRateLimit returns a middleware that limits the rate of requests.
+// rpm is requests per minute; tpm is tokens per minute. Zero means unlimited.
+func WithRateLimit(rpm, tpm int) ProviderMiddleware {
+	return middleware.WithRateLimit(rpm, tpm)
+}
+
+// WithLogging returns a middleware that logs each request with structured logging.
+// Pass nil for logger to use slog.Default().
+func WithLogging(logger *slog.Logger) ProviderMiddleware {
+	return middleware.WithLogging(logger)
+}
+
+// WithCaching returns a middleware that caches Generate results.
+// Stream calls are never cached. Tool call results are not cached.
+func WithCaching(store CacheStore, ttl time.Duration) ProviderMiddleware {
+	return middleware.WithCaching(store, ttl)
+}
+
+// WithCircuitBreaker returns a middleware implementing the circuit breaker pattern.
+// After threshold consecutive failures, the circuit opens for resetTimeout duration.
+func WithCircuitBreaker(threshold int, resetTimeout time.Duration) ProviderMiddleware {
+	return middleware.WithCircuitBreaker(threshold, resetTimeout)
+}
+
+// Chain composes multiple middleware into a single ProviderMiddleware.
+// The first middleware in the list is the outermost wrapper.
+func Chain(middlewares ...ProviderMiddleware) ProviderMiddleware {
+	return middleware.Chain(middlewares...)
+}
+
+// NewMemoryCacheStore creates a new in-memory cache store.
+func NewMemoryCacheStore() *MemoryCacheStore {
+	return middleware.NewMemoryCacheStore()
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +606,11 @@ func NewMockProvider(name string) *MockProvider {
 
 // Config is the top-level configuration for the Orchestra framework.
 type Config = config.Config
+
+// ProviderConfig holds the configuration for a single LLM provider.
+// This is the canonical type used by both the config loader and the
+// provider registry — there is no separate provider-specific config type.
+type ProviderConfig = config.ProviderConfig
 
 // LoggingConfig configures the logging subsystem.
 type LoggingConfig = config.LoggingConfig
@@ -362,11 +627,15 @@ type MetricsConfig = config.MetricsConfig
 // AgentDefaults holds default configuration values applied to all agents.
 type AgentDefaults = config.AgentDefaults
 
-// ModelConfig (from config package) holds model-specific configuration overrides.
-//
-// Note: This is different from mock.ModelConfig. Use the fully qualified
-// config package name if you need to disambiguate.
-type ConfigModelConfig = config.ModelConfig
+// ModelConfig holds model-specific configuration overrides from the config package.
+// This is distinct from MockModelConfig (the mock provider's model type).
+type ModelConfig = config.ModelConfig
+
+// RateLimitConfig configures rate limiting behavior for a provider.
+type RateLimitConfig = config.RateLimitConfig
+
+// RetryConfig configures retry behavior for transient failures.
+type RetryConfig = config.RetryConfig
 
 // LoadConfig reads configuration from a YAML file with environment variable
 // interpolation. Returns an error if the file cannot be read, parsed, or
@@ -396,17 +665,3 @@ func DefaultConfig() *Config {
 func MergeConfig(configs ...*Config) *Config {
 	return config.Merge(configs...)
 }
-
-// ---------------------------------------------------------------------------
-// Context helpers
-// ---------------------------------------------------------------------------
-
-// The following type aliases ensure that the public API has access to
-// context.Context without requiring additional imports in consumer code.
-// This is purely for documentation clarity; consumers still need to import
-// "context" in their own code.
-
-// No-op type alias for documentation — consumers use context.Context directly.
-type (
-	_ context.Context
-)

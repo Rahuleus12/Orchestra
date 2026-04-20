@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 )
 
@@ -197,6 +198,15 @@ type StreamEvent struct {
 	Error error `json:"-" yaml:"-"`
 }
 
+// ---------------------------------------------------------------------------
+// Functional Options for GenerateOptions
+// ---------------------------------------------------------------------------
+
+// GenerateOption is a functional option that configures a GenerateOptions.
+// Use this with NewGenerateOptions or GenerateOptions.Apply to build
+// generation parameters declaratively.
+type GenerateOption func(*GenerateOptions)
+
 // GenerateOptions configures how a model generates its response.
 // All pointer fields are optional — nil means "use the provider default".
 type GenerateOptions struct {
@@ -226,6 +236,100 @@ type GenerateOptions struct {
 	// standard fields above. Keys are provider-specific.
 	Extra map[string]any `json:"extra,omitempty" yaml:"extra,omitempty"`
 }
+
+// NewGenerateOptions creates a GenerateOptions by applying the given
+// functional options to a zero-valued GenerateOptions.
+func NewGenerateOptions(opts ...GenerateOption) GenerateOptions {
+	o := GenerateOptions{}
+	o.Apply(opts...)
+	return o
+}
+
+// Apply applies the given functional options to this GenerateOptions,
+// mutating it in place. Returns itself for chaining.
+func (o *GenerateOptions) Apply(opts ...GenerateOption) *GenerateOptions {
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
+// WithTemperature sets the generation temperature.
+func WithTemperature(t float64) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.Temperature = &t
+	}
+}
+
+// WithTopP sets the top-p sampling parameter.
+func WithTopP(p float64) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.TopP = &p
+	}
+}
+
+// WithMaxTokens sets the maximum number of output tokens.
+func WithMaxTokens(n int) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.MaxTokens = &n
+	}
+}
+
+// WithStopSequences sets the stop sequences that halt generation.
+func WithStopSequences(seqs ...string) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.StopSequences = seqs
+	}
+}
+
+// WithSeed sets the deterministic sampling seed.
+func WithSeed(s int64) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.Seed = &s
+	}
+}
+
+// WithResponseFormat sets the output format constraint.
+func WithResponseFormat(rf *ResponseFormat) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.ResponseFormat = rf
+	}
+}
+
+// WithJSONMode enables JSON object output mode.
+func WithJSONMode() GenerateOption {
+	return func(o *GenerateOptions) {
+		o.ResponseFormat = JSONResponseFormat()
+	}
+}
+
+// WithTextMode enables plain text output mode.
+func WithTextMode() GenerateOption {
+	return func(o *GenerateOptions) {
+		o.ResponseFormat = TextResponseFormat()
+	}
+}
+
+// WithJSONSchema enables structured JSON output conforming to the schema.
+func WithJSONSchema(schema map[string]any) GenerateOption {
+	return func(o *GenerateOptions) {
+		o.ResponseFormat = JSONSchemaResponseFormat(schema)
+	}
+}
+
+// WithExtra sets a provider-specific option.
+func WithExtra(key string, value any) GenerateOption {
+	return func(o *GenerateOptions) {
+		if o.Extra == nil {
+			o.Extra = make(map[string]any)
+		}
+		o.Extra[key] = value
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Request / Result Types
+// ---------------------------------------------------------------------------
 
 // GenerateRequest represents a request to generate a completion from a model.
 type GenerateRequest struct {
@@ -317,57 +421,15 @@ func (r *GenerateResult) Text() string {
 	return r.Message.Text()
 }
 
-// ProviderConfig holds the configuration needed to create a Provider instance.
-// Each provider implementation defines its own config structure; this provides
-// the common base.
-type ProviderConfig struct {
-	// APIKey is the authentication key for the provider's API.
-	APIKey string `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-
-	// BaseURL is the provider's API endpoint. If empty, the provider default is used.
-	BaseURL string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-
-	// DefaultModel is the model used when none is specified in a request.
-	DefaultModel string `json:"default_model" yaml:"default_model"`
-
-	// RateLimit specifies rate limiting configuration.
-	RateLimit RateLimitConfig `json:"rate_limit,omitempty" yaml:"rate_limit,omitempty"`
-
-	// Retry specifies retry configuration for transient failures.
-	Retry RetryConfig `json:"retry,omitempty" yaml:"retry,omitempty"`
-
-	// Extra contains provider-specific configuration options.
-	Extra map[string]any `json:"extra,omitempty" yaml:"extra,omitempty"`
-}
-
-// RateLimitConfig configures rate limiting behavior for a provider.
-type RateLimitConfig struct {
-	// RequestsPerMinute is the maximum number of API requests per minute.
-	RequestsPerMinute int `json:"requests_per_minute,omitempty" yaml:"requests_per_minute,omitempty"`
-
-	// TokensPerMinute is the maximum number of tokens (prompt + completion) per minute.
-	TokensPerMinute int `json:"tokens_per_minute,omitempty" yaml:"tokens_per_minute,omitempty"`
-}
-
-// RetryConfig configures retry behavior for transient failures.
-type RetryConfig struct {
-	// MaxAttempts is the maximum number of retry attempts (0 = no retries).
-	MaxAttempts int `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
-
-	// InitialBackoff is the duration to wait before the first retry.
-	InitialBackoff time.Duration `json:"initial_backoff,omitempty" yaml:"initial_backoff,omitempty"`
-
-	// MaxBackoff is the maximum backoff duration between retries.
-	MaxBackoff time.Duration `json:"max_backoff,omitempty" yaml:"max_backoff,omitempty"`
-
-	// BackoffMultiplier is the factor by which backoff increases after each retry.
-	// A value of 2.0 means each retry waits twice as long as the previous.
-	BackoffMultiplier float64 `json:"backoff_multiplier,omitempty" yaml:"backoff_multiplier,omitempty"`
-}
+// ---------------------------------------------------------------------------
+// Provider Interface & Factory
+// ---------------------------------------------------------------------------
 
 // ProviderFactory is a function that creates a new Provider instance
-// from the given configuration.
-type ProviderFactory func(config ProviderConfig) (Provider, error)
+// from the given configuration. The config.ProviderConfig is the
+// canonical type loaded from YAML or environment variables — provider
+// implementations should read the fields they need and ignore the rest.
+type ProviderFactory func(config.ProviderConfig) (Provider, error)
 
 // Provider is the core interface that all LLM backends must implement.
 // It provides a uniform API for generating completions and streaming
@@ -397,6 +459,10 @@ type Provider interface {
 	// Capabilities returns the feature flags for a specific model.
 	Capabilities(model string) ModelCapabilities
 }
+
+// ---------------------------------------------------------------------------
+// Error Types
+// ---------------------------------------------------------------------------
 
 // ProviderError wraps an error from a provider with additional context.
 type ProviderError struct {
@@ -442,7 +508,8 @@ func NewProviderError(provider, model string, err error) *ProviderError {
 	}
 }
 
-// NewProviderErrorWithCode creates a new ProviderError with a specific code.
+// NewProviderErrorWithCode creates a new ProviderError with a specific code
+// and HTTP status code.
 func NewProviderErrorWithCode(provider, model, code string, statusCode int, err error) *ProviderError {
 	return &ProviderError{
 		Provider:   provider,

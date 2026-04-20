@@ -1,4 +1,4 @@
-# Orchestra — Multi-Agent AI Orchestration Engine
+# Orchestra — CLI Coding Tool & Multi-Agent AI Orchestration Engine
 
 ## Project Plan
 
@@ -32,9 +32,9 @@
 
 ## 1. Executive Summary
 
-Orchestra is a Go-based framework for orchestrating multiple AI agents that use different providers (OpenAI, Anthropic, Google Gemini, Ollama, Mistral, Cohere, etc.) and models. It provides a unified abstraction layer over heterogeneous LLM backends and enables complex multi-agent workflows including sequential pipelines, parallel fan-out/fan-in, dynamic routing, debate loops, and hierarchical delegation.
+Orchestra is a Go-based **CLI coding tool** that assists developers with code generation, refactoring, debugging, and exploration — powered by multiple AI providers (OpenAI, Anthropic, Google Gemini, Ollama, Mistral, Cohere, etc.) and models. Beyond single-turn coding assistance, Orchestra also supports **multi-agent workflows**, enabling complex orchestration patterns including sequential pipelines, parallel fan-out/fan-in, dynamic routing, debate loops, and hierarchical delegation where multiple specialized agents collaborate on a task.
 
-The system is designed as a library-first framework with an optional standalone server mode, making it embeddable in existing Go applications while also deployable as a microservice.
+The system is designed as a CLI-first tool with a library-first core, making it both a powerful developer companion on the command line and an embeddable framework in existing Go applications. An optional standalone server mode allows deployment as a microservice.
 
 ---
 
@@ -42,6 +42,8 @@ The system is designed as a library-first framework with an optional standalone 
 
 ### Goals
 
+- **CLI coding assistant**: First-class command-line interface for code generation, refactoring, debugging, and codebase exploration.
+- **Multi-agent workflows**: Multiple specialized agents that can collaborate on complex tasks via sequential pipelines, parallel fan-out/fan-in, dynamic routing, and hierarchical delegation.
 - **Provider-agnostic**: Uniform Go interface across all LLM providers and models.
 - **Composable agents**: Agents that can be combined into arbitrarily complex workflows.
 - **First-class Go idioms**: Interfaces, context propagation, error wrapping, goroutine-based concurrency.
@@ -65,38 +67,47 @@ The system is designed as a library-first framework with an optional standalone 
 ### High-Level Component Diagram
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      Application                         │
-│                                                          │
-│  ┌────────────┐  ┌──────────────────────────────────┐   │
-│  │  Workflow   │  │         Orchestration Engine      │   │
-│  │  Builder    │  │  (DAG executor, scheduler, router)│   │
-│  └──────┬─────┘  └──────────┬───────────────────────┘   │
-│         │                   │                            │
-│  ┌──────┴───────────────────┴────────────────────┐      │
-│  │              Agent Runtime                      │      │
-│  │  (lifecycle, prompt assembly, tool dispatch)   │      │
-│  └──────────────────┬────────────────────────────┘      │
-│                     │                                    │
-│  ┌──────────────────┴────────────────────────────┐      │
-│  │             Provider Layer                      │      │
-│  │  ┌──────┐ ┌─────────┐ ┌───────┐ ┌──────────┐  │      │
-│  │  │OpenAI│ │Anthropic│ │Gemini │ │ Ollama   │  │      │
-│  │  └──────┘ └─────────┘ └───────┘ └──────────┘  │      │
-│  │  ┌──────┐ ┌─────────┐ ┌─────────────────────┐ │      │
-│  │  │Mistral│ │Cohere  │ │ Custom / HTTP       │ │      │
-│  │  └──────┘ └─────────┘ └─────────────────────┘ │      │
-│  └─────────────────────────────────────────────────┘      │
-│                                                          │
-│  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │  Tool System   │  │    Memory     │  │   Message     │  │
-│  │  (functions)   │  │   (context)   │  │     Bus       │  │
-│  └───────────────┘  └──────────────┘  └──────────────┘  │
-│                                                          │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │            Observability (trace, metrics, logs)    │  │
-│  └───────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                         CLI Layer                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │ orchestra    │  │ orchestra    │  │  orchestra       │  │
+│  │ chat (REPL)  │  │ run (one-shot│  │  pipeline (multi │  │
+│  │              │  │  coding task)│  │  -agent workflow) │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
+└─────────┼─────────────────┼───────────────────┼────────────┘
+          │                 │                   │
+┌─────────┴─────────────────┴───────────────────┴────────────┐
+│                      Application / Library                  │
+│                                                             │
+│  ┌────────────┐  ┌──────────────────────────────────┐      │
+│  │  Workflow   │  │         Orchestration Engine      │      │
+│  │  Builder    │  │  (DAG executor, scheduler, router)│      │
+│  └──────┬─────┘  └──────────┬───────────────────────┘      │
+│         │                   │                               │
+│  ┌──────┴───────────────────┴────────────────────┐         │
+│  │              Agent Runtime                      │         │
+│  │  (lifecycle, prompt assembly, tool dispatch)   │         │
+│  └──────────────────┬────────────────────────────┘         │
+│                     │                                       │
+│  ┌──────────────────┴────────────────────────────┐         │
+│  │             Provider Layer                      │         │
+│  │  ┌──────┐ ┌─────────┐ ┌───────┐ ┌──────────┐  │         │
+│  │  │OpenAI│ │Anthropic│ │Gemini │ │ Ollama   │  │         │
+│  │  └──────┘ └─────────┘ └───────┘ └──────────┘  │         │
+│  │  ┌──────┐ ┌─────────┐ ┌─────────────────────┐ │         │
+│  │  │Mistral│ │Cohere  │ │ Custom / HTTP       │ │         │
+│  │  └──────┘ └─────────┘ └─────────────────────┘ │         │
+│  └─────────────────────────────────────────────────┘         │
+│                                                             │
+│  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Tool System   │  │    Memory     │  │   Message     │     │
+│  │  (functions)   │  │   (context)   │  │     Bus       │     │
+│  └───────────────┘  └──────────────┘  └──────────────┘     │
+│                                                             │
+│  ┌───────────────────────────────────────────────────┐     │
+│  │            Observability (trace, metrics, logs)    │     │
+│  └───────────────────────────────────────────────────┘     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Principles
@@ -245,8 +256,6 @@ Orchestra/
 ├── go.mod
 ├── go.sum
 ├── Makefile
-├── Dockerfile
-├── docker-compose.yaml
 ├── .golangci.yml
 └── README.md
 ```
@@ -255,29 +264,38 @@ Orchestra/
 
 ## 5. Phase 1 — Foundation & Core Abstractions
 
-**Status:** Not Started
+**Status:** ✅ Core Complete — CLI coding commands remaining
 
 ### Objectives
 
-Establish the project skeleton, core interfaces, and type system that all subsequent phases build upon.
+Establish the project skeleton, core interfaces, CLI entry point, and type system that all subsequent phases build upon. The foundation (types, interfaces, registry, config) is complete; remaining work adds CLI coding subcommands (`chat`, `run`, `pipeline`).
 
 ### Tasks
 
 #### 1.1 Project Bootstrapping
-- [ ] Initialize Go module (`github.com/user/orchestra`)
-- [ ] Set up `Makefile` with build, test, lint, and fmt targets
-- [ ] Configure `.golangci.yml` with strict linting rules
-- [ ] Create `Dockerfile` (multi-stage build) and `docker-compose.yaml`
-- [ ] Set up CI pipeline (GitHub Actions: lint, test, build on push/PR)
-- [ ] Add `README.md` with project overview and quickstart
+- [x] Initialize Go module (`github.com/user/orchestra`)
+- [x] Set up `Makefile` with build, test, lint, and fmt targets
+- [x] Configure `.golangci.yml` with strict linting rules
+- [x] Set up CI pipeline (GitHub Actions: lint, test, build on push/PR)
+- [x] Add `README.md` with project overview and quickstart
+
+#### 1.1b CLI Entry Point
+- [x] Scaffold `cmd/orchestra/main.go` as the CLI entry point (stdlib-based, no framework)
+- [x] Implement root command with `version`, `help`, `serve`, `healthcheck` subcommands
+- [x] Implement global flags (`--config`, `--help`, `--version`) and build-time ldflags
+- [ ] Implement `orchestra chat` subcommand for interactive coding sessions (REPL-style)
+- [ ] Implement `orchestra run` subcommand for one-shot code generation / refactoring tasks
+- [ ] Implement `orchestra pipeline` subcommand for running multi-agent workflow definitions from YAML
+- [ ] Add `--model` flag for quick model override on any command
+- [ ] Write CLI smoke tests
 
 #### 1.2 Core Message Types
-- [ ] Define `Role` type (`System`, `User`, `Assistant`, `Tool`, `Function`)
-- [ ] Define `Message` struct with content, role, name, tool calls, tool results, metadata
-- [ ] Define `ContentBlock` for multi-modal content (text, image, file)
-- [ ] Define `Conversation` type as an ordered sequence of messages
-- [ ] Implement conversation utilities: truncation, filtering, formatting
-- [ ] Write comprehensive table-driven tests for all message types
+- [x] Define `Role` type (`System`, `User`, `Assistant`, `Tool`, `Function`)
+- [x] Define `Message` struct with content, role, name, tool calls, tool results, metadata
+- [x] Define `ContentBlock` for multi-modal content (text, image, file)
+- [x] Define `Conversation` type as an ordered sequence of messages
+- [x] Implement conversation utilities: truncation, filtering, formatting
+- [x] Write comprehensive table-driven tests for all message types
 
 ```go
 // internal/message/role.go
@@ -317,13 +335,13 @@ type Conversation struct {
 ```
 
 #### 1.3 Provider Interface
-- [ ] Define the core `Provider` interface
-- [ ] Define `ProviderConfig` for provider-level configuration
-- [ ] Define `GenerateOptions` (temperature, max tokens, stop sequences, etc.)
-- [ ] Define `GenerateResult` (content, usage, finish reason, model info)
-- [ ] Define streaming interfaces (`StreamEvent`, `StreamChunk`, `StreamReader`)
-- [ ] Define model capability flags (streaming, tools, vision, etc.)
-- [ ] Write mock provider for testing
+- [x] Define the core `Provider` interface
+- [x] Define `ProviderConfig` for provider-level configuration
+- [x] Define `GenerateOptions` (temperature, max tokens, stop sequences, etc.)
+- [x] Define `GenerateResult` (content, usage, finish reason, model info)
+- [x] Define streaming interfaces (`StreamEvent`, `StreamChunk`, `StreamReader`)
+- [x] Define model capability flags (streaming, tools, vision, etc.)
+- [x] Write mock provider for testing
 
 ```go
 // internal/provider/provider.go
@@ -382,10 +400,10 @@ type GenerateOptions struct {
 ```
 
 #### 1.4 Provider Registry
-- [ ] Implement a global and scoped provider registry
-- [ ] Support lazy initialization with provider factories
-- [ ] Support provider aliases (e.g., `gpt4` → `openai::gpt-4-turbo`)
-- [ ] Thread-safe registration and lookup
+- [x] Implement a global and scoped provider registry
+- [x] Support lazy initialization with provider factories
+- [x] Support provider aliases (e.g., `gpt4` → `openai::gpt-4-turbo`)
+- [x] Thread-safe registration and lookup
 
 ```go
 // internal/provider/registry.go
@@ -402,10 +420,10 @@ func (r *Registry) Resolve(modelRef string) (Provider, string, error)
 ```
 
 #### 1.5 Configuration System
-- [ ] Define hierarchical YAML-based configuration schema
-- [ ] Support environment variable overrides (`ORCHESTRA_PROVIDER_OPENAI_API_KEY`)
-- [ ] Support programmatic configuration via Go options pattern
-- [ ] Implement config validation with clear error messages
+- [x] Define hierarchical YAML-based configuration schema
+- [x] Support environment variable overrides (`ORCHESTRA_PROVIDER_OPENAI_API_KEY`)
+- [x] Support programmatic configuration via Go options pattern
+- [x] Implement config validation with clear error messages
 
 ```yaml
 # configs/orchestra.yaml
@@ -446,19 +464,21 @@ observability:
 
 ### Deliverables
 
-- [ ] Working Go module with all core types and interfaces
-- [ ] Mock provider that passes all interface compliance tests
-- [ ] Provider registry with factory pattern
-- [ ] Configuration loading and validation
-- [ ] CI pipeline running on every PR
-- [ ] 90%+ test coverage on core types
+- [x] Working Go module with all core types and interfaces
+- [x] Mock provider that passes all interface compliance tests
+- [x] Provider registry with factory pattern
+- [x] Configuration loading and validation
+- [x] CI pipeline running on every PR
+- [x] 90%+ test coverage on core types
+- [ ] CLI binary with `chat`, `run`, and `pipeline` coding subcommands
 
 ### Milestone Criteria
 
-- All interfaces compile and are documented with GoDoc
-- Mock provider demonstrates the full generate and stream lifecycle
-- Configuration loads from YAML and environment variables
-- `make test` passes cleanly
+- All interfaces compile and are documented with GoDoc ✅
+- Mock provider demonstrates the full generate and stream lifecycle ✅
+- Configuration loads from YAML and environment variables ✅
+- `make test` passes cleanly ✅
+- CLI `chat`, `run`, and `pipeline` subcommands accept input and produce output (pending provider integration in Phase 2)
 
 ---
 
@@ -1011,6 +1031,8 @@ type FunctionDef struct {
 - [ ] Tool execution logging and metrics
 
 #### 6.3 Built-in Tools
+
+**General-Purpose Tools**
 - [ ] `http_request` — HTTP GET/POST/PUT/DELETE with configurable headers
 - [ ] `calculator` — Mathematical expression evaluation
 - [ ] `code_interpreter` — Execute code in a sandboxed environment
@@ -1018,6 +1040,14 @@ type FunctionDef struct {
 - [ ] `web_search` — Web search via configurable backend (SerpAPI, Brave, etc.)
 - [ ] `json_transform` — JSON manipulation (jq-like)
 - [ ] `sql_query` — Execute SQL queries (read-only, configurable)
+
+**Coding-Specific Tools (CLI Mode)**
+- [ ] `file_edit` — Apply targeted edits to files (search-and-replace blocks, line-range replacement, patch-style diffs)
+- [ ] `code_search` — Search codebase by text (grep), symbol name, or AST pattern; return matching file paths, line numbers, and context
+- [ ] `shell_exec` — Execute shell commands in a sandboxed working directory with configurable allowlists and timeouts
+- [ ] `git_operations` — Common Git operations (`diff`, `log`, `blame`, `status`, `apply`) for understanding and modifying codebases
+- [ ] `list_directory` — Recursively list files and directories with ignore-file support (`.gitignore`, `.orchestaignore`)
+- [ ] `diagnostics` — Run linters, type-checkers, and test runners; parse and return structured error output
 
 #### 6.4 Tool Helper Utilities
 - [ ] Go struct → JSON Schema generator for easy tool definition
@@ -1043,7 +1073,7 @@ type SearchInput struct {
 ### Deliverables
 
 - [ ] Tool interface, registry, and execution engine
-- [ ] Seven built-in tools
+- [ ] Thirteen built-in tools (7 general-purpose + 6 coding-specific)
 - [ ] Tool builder with schema generation from Go types
 - [ ] Parallel tool execution
 
@@ -1053,6 +1083,9 @@ type SearchInput struct {
 - Multiple tool calls in a single turn execute in parallel
 - Tool schemas are correctly generated from Go structs
 - Built-in tools pass integration tests
+- Coding-specific tools (`file_edit`, `code_search`, `shell_exec`, `git_operations`) work end-to-end in CLI mode — an agent can read, search, edit, and verify code changes
+</newtext>
+
 
 ---
 
@@ -1335,11 +1368,14 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 - [ ] Configuration hot-reload
 - [ ] Graceful shutdown with in-flight request draining
 
-#### 10.5 Deployment
-- [ ] Multi-stage Dockerfile (< 50MB image size)
-- [ ] Docker Compose for local development with observability stack
-- [ ] Kubernetes manifests (Deployment, Service, ConfigMap)
-- [ ] Helm chart for production deployment
+#### 10.5 Distribution & Deployment
+- [ ] Build and release static binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64 via GoReleaser or equivalent
+- [ ] Publish binaries to GitHub Releases with checksums and signatures
+- [ ] Homebrew formula for macOS/Linux installation
+- [ ] `go install` support for latest development builds
+- [ ] (Optional) Multi-stage Dockerfile for server-mode deployment
+- [ ] (Optional) Docker Compose for local development with observability stack
+- [ ] (Optional) Kubernetes manifests (Deployment, Service, ConfigMap) and Helm chart
 
 #### 10.6 Performance Optimization
 - [ ] Profile and optimize hot paths
@@ -1352,17 +1388,19 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 - [ ] 80%+ test coverage
 - [ ] Complete documentation and examples
 - [ ] Zero lint warnings
-- [ ] Docker image < 50MB
-- [ ] Kubernetes deployment manifests
-- [ ] Helm chart
+- [ ] Static binaries for all platforms with automated release pipeline
+- [ ] Homebrew formula and `go install` working
+- [ ] (Optional) Docker image < 50MB for server mode
+- [ ] (Optional) Kubernetes deployment manifests and Helm chart
 - [ ] REST and gRPC API definitions
 
 ### Milestone Criteria
 
 - All tests pass consistently (no flaky tests)
 - Documentation covers every public API
-- Docker image builds and runs correctly
-- Example deployment works on a local Kubernetes cluster
+- Static binaries build and run on all target platforms
+- `go install` and Homebrew install work end-to-end
+- (Optional) Docker image builds and runs correctly for server mode
 - Performance benchmarks show acceptable latency overhead (< 5ms per agent call beyond provider time)
 
 ---
@@ -1402,11 +1440,11 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 
 **Rationale:** Reduces supply chain risk, avoids version conflicts, and keeps the project maintainable. Users can bring their own HTTP transports, loggers, etc.
 
-### TDR-005: Embeddable Library First, Server Second
+### TDR-005: CLI-First, Library-Native, Server Optional
 
-**Decision:** Orchestra is primarily a Go library. The server mode (REST/gRPC) is an optional layer on top.
+**Decision:** Orchestra is primarily a CLI coding tool and a Go library. The CLI (`cmd/orchestra`) is the primary user-facing interface for code generation, refactoring, debugging, and multi-agent workflows. All core logic lives in importable Go packages so users can also embed it in their own applications. The server mode (REST/gRPC) is an optional layer on top.
 
-**Rationale:** Many users will want to embed multi-agent orchestration directly into their Go applications. A server mode adds operational overhead that not all users need.
+**Rationale:** Developers interact with coding tools on the command line — a CLI-first approach meets users where they work. Keeping the core as importable Go packages ensures the same functionality is available to users who want to embed multi-agent orchestration directly into their Go applications. A server mode adds operational overhead that not all users need, so it remains optional.
 
 ---
 
@@ -1444,12 +1482,15 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 ### Performance Metrics
 - [ ] < 5ms overhead per agent call (beyond provider latency)
 - [ ] < 1ms overhead for DAG scheduling (beyond step execution)
-- [ ] < 50MB Docker image size
+- [ ] < 30MB static binary size (per platform)
 - [ ] Support 100+ concurrent agent executions
 
 ### Developer Experience Metrics
-- [ ] New user can create a working agent in < 10 lines of code
-- [ ] New user can create a working pipeline in < 30 lines of code
+- [ ] `orchestra chat` starts an interactive session in < 2 seconds
+- [ ] `orchestra run` produces output for a one-shot task in < 5 seconds (excluding provider latency)
+- [ ] `orchestra pipeline` executes a multi-agent workflow from a YAML definition with zero Go code
+- [ ] New user can create a working agent in < 10 lines of Go code
+- [ ] New user can create a working pipeline in < 30 lines of Go code
 - [ ] Adding a new provider requires implementing one interface
 - [ ] Adding a new tool requires implementing one interface
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/user/orchestra/internal/config"
 )
 
 // Registry manages the creation and lookup of Provider instances.
@@ -17,7 +19,7 @@ type Registry struct {
 	mu        sync.RWMutex
 	factories map[string]ProviderFactory
 	providers map[string]Provider
-	configs   map[string]ProviderConfig
+	configs   map[string]config.ProviderConfig
 	aliases   map[string]string
 }
 
@@ -26,7 +28,7 @@ func NewRegistry() *Registry {
 	return &Registry{
 		factories: make(map[string]ProviderFactory),
 		providers: make(map[string]Provider),
-		configs:   make(map[string]ProviderConfig),
+		configs:   make(map[string]config.ProviderConfig),
 		aliases:   make(map[string]string),
 	}
 }
@@ -38,7 +40,7 @@ func NewRegistry() *Registry {
 // If a factory is already registered under the given name, Register returns
 // an error. Use MustRegister in tests or initialization code where a panic
 // is acceptable on duplicate registration.
-func (r *Registry) Register(name string, factory ProviderFactory, config ProviderConfig) error {
+func (r *Registry) Register(name string, factory ProviderFactory, cfg config.ProviderConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -49,7 +51,7 @@ func (r *Registry) Register(name string, factory ProviderFactory, config Provide
 	}
 
 	r.factories[name] = factory
-	r.configs[name] = config
+	r.configs[name] = cfg
 
 	return nil
 }
@@ -57,8 +59,8 @@ func (r *Registry) Register(name string, factory ProviderFactory, config Provide
 // MustRegister is like Register but panics if a provider with the given
 // name is already registered. This is intended for use in init() functions
 // and test setups where a duplicate registration indicates a programming error.
-func (r *Registry) MustRegister(name string, factory ProviderFactory, config ProviderConfig) {
-	if err := r.Register(name, factory, config); err != nil {
+func (r *Registry) MustRegister(name string, factory ProviderFactory, cfg config.ProviderConfig) {
+	if err := r.Register(name, factory, cfg); err != nil {
 		panic(err)
 	}
 }
@@ -107,11 +109,10 @@ func (r *Registry) Get(name string) (Provider, error) {
 	// Fast path: check if already instantiated (read lock)
 	r.mu.RLock()
 	p, exists := r.providers[name]
+	r.mu.RUnlock()
 	if exists {
-		r.mu.RUnlock()
 		return p, nil
 	}
-	r.mu.RUnlock()
 
 	// Slow path: instantiate via factory (write lock)
 	r.mu.Lock()
@@ -127,12 +128,12 @@ func (r *Registry) Get(name string) (Provider, error) {
 		return nil, fmt.Errorf("provider %q not registered", name)
 	}
 
-	config, exists := r.configs[name]
+	cfg, exists := r.configs[name]
 	if !exists {
-		config = ProviderConfig{}
+		cfg = config.ProviderConfig{}
 	}
 
-	p, err := factory(config)
+	p, err := factory(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider %q: %w", name, err)
 	}
@@ -191,32 +192,24 @@ func (r *Registry) SetAlias(shortName, modelRef string) {
 //
 // Returns the resolved Provider, the model ID, or an error if resolution fails.
 func (r *Registry) Resolve(modelRef string) (Provider, string, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	modelRef = strings.TrimSpace(modelRef)
 	if modelRef == "" {
 		return nil, "", fmt.Errorf("empty model reference")
 	}
 
 	// Step 1: Check if it's a registered alias
+	r.mu.RLock()
 	if resolved, ok := r.aliases[normalizeName(modelRef)]; ok {
 		modelRef = resolved
 	}
+	r.mu.RUnlock()
 
 	// Step 2: Check for "provider::model" format
 	if providerName, modelID, ok := parseProviderModel(modelRef); ok {
-		// Look up factory without triggering lazy init inside the lock
-		if _, exists := r.factories[providerName]; !exists {
-			if _, exists := r.providers[providerName]; !exists {
-				return nil, "", fmt.Errorf("provider %q not registered (resolving %q)", providerName, modelRef)
-			}
+		if !r.IsRegistered(providerName) {
+			return nil, "", fmt.Errorf("provider %q not registered (resolving %q)", providerName, modelRef)
 		}
-
-		// Release read lock before calling Get (which may need a write lock)
-		r.mu.RUnlock()
 		p, err := r.Get(providerName)
-		r.mu.RLock() // re-acquire for deferred unlock
 		if err != nil {
 			return nil, "", err
 		}
@@ -224,21 +217,36 @@ func (r *Registry) Resolve(modelRef string) (Provider, string, error) {
 	}
 
 	// Step 3: Bare model name — try to find a provider whose default model matches
-	for name, config := range r.configs {
-		if config.DefaultModel == modelRef {
-			r.mu.RUnlock()
-			p, err := r.Get(name)
-			r.mu.RLock()
-			if err != nil {
-				return nil, "", err
-			}
-			return p, modelRef, nil
+	r.mu.RLock()
+	type match struct {
+		name string
+		cfg  config.ProviderConfig
+	}
+	var matches []match
+	for name, cfg := range r.configs {
+		if cfg.DefaultModel == modelRef {
+			matches = append(matches, match{name: name, cfg: cfg})
 		}
 	}
+	r.mu.RUnlock()
 
-	// Step 4: Check already-instantiated providers
+	if len(matches) > 0 {
+		p, err := r.Get(matches[0].name)
+		if err != nil {
+			return nil, "", err
+		}
+		return p, modelRef, nil
+	}
+
+	// Step 4: Check already-instantiated providers by listing their models
+	r.mu.RLock()
+	providerSnap := make(map[string]Provider)
 	for name, p := range r.providers {
-		// Try to match against the provider's known models
+		providerSnap[name] = p
+	}
+	r.mu.RUnlock()
+
+	for _, p := range providerSnap {
 		models, err := p.Models(context.Background())
 		if err != nil {
 			continue
@@ -248,7 +256,6 @@ func (r *Registry) Resolve(modelRef string) (Provider, string, error) {
 				return p, modelRef, nil
 			}
 		}
-		_ = name
 	}
 
 	return nil, "", fmt.Errorf("cannot resolve model reference %q: no matching provider or alias found", modelRef)
@@ -312,7 +319,7 @@ func (r *Registry) Clear() {
 
 	r.factories = make(map[string]ProviderFactory)
 	r.providers = make(map[string]Provider)
-	r.configs = make(map[string]ProviderConfig)
+	r.configs = make(map[string]config.ProviderConfig)
 	r.aliases = make(map[string]string)
 }
 
@@ -341,14 +348,14 @@ var GlobalRegistry = NewRegistry()
 
 // Register registers a provider factory in the global registry.
 // See Registry.Register for details.
-func Register(name string, factory ProviderFactory, config ProviderConfig) error {
-	return GlobalRegistry.Register(name, factory, config)
+func Register(name string, factory ProviderFactory, cfg config.ProviderConfig) error {
+	return GlobalRegistry.Register(name, factory, cfg)
 }
 
 // MustRegister registers a provider factory in the global registry,
 // panicking on error.
-func MustRegister(name string, factory ProviderFactory, config ProviderConfig) {
-	GlobalRegistry.MustRegister(name, factory, config)
+func MustRegister(name string, factory ProviderFactory, cfg config.ProviderConfig) {
+	GlobalRegistry.MustRegister(name, factory, cfg)
 }
 
 // Get retrieves a provider from the global registry.
