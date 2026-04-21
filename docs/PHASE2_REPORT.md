@@ -346,23 +346,16 @@ Known models are stored as static slices per provider for fast lookup and offlin
 
 ---
 
-## Next Steps: Phase 3 — Agent Runtime & Lifecycle
+## Next Steps: Phase 4 — Orchestration Engine
 
-Phase 3 is now **🔧 In Progress**. See [`docs/PHASE3_REPORT.md`](PHASE3_REPORT.md) for the full completion report.
+Phase 3 is now **✅ Complete**. See [`docs/PHASE3_REPORT.md`](PHASE3_REPORT.md) for the full completion report.
 
-| Task | Description | Status |
-|------|-------------|--------|
-| 3.1 Agent Definition | `Agent` struct with functional options, provider binding, system prompt | ✅ Complete |
-| 3.2 Agent Execution Loop | Run loop with tool call handling, max turns, streaming | ✅ Complete |
-| 3.3 Agent Result & Events | `AgentResult`, `AgentEvent`, `ToolExecution` types | ✅ Complete |
-| 3.4 Prompt Template System | Go template-based prompt construction | ✅ Complete |
-| Public API re-exports | Re-export agent types in `pkg/orchestra/orchestra.go` | 🔲 Remaining |
-| Test verification | Validate test suite with `go test` | 🔲 Remaining |
+**Phase 3 Summary:** All 4 sub-tasks implemented. 5 source files (~2,600 LOC), 86 tests passing. Agent execution loop with multi-turn tool calling, streaming events, prompt template system with 25+ built-in functions, and public API re-exports in `pkg/orchestra/orchestra.go`.
 
-### Prerequisites for Phase 3
+### Prerequisites for Phase 4
 - ✅ Phase 1 foundation complete
 - ✅ Phase 2 provider integrations complete
-- ✅ Agent runtime design (deferred from Phase 1 planning)
+- ✅ Phase 3 agent runtime complete (86/86 tests passing)
 
 ---
 

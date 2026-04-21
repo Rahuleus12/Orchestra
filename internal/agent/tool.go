@@ -204,6 +204,12 @@ func (r *ToolRegistry) ExecuteTool(ctx context.Context, toolName, arguments stri
 // executeToolCall executes a tool call from the model and returns a ToolResult message.
 // If the tool is not found or execution fails, an error result is returned.
 func executeToolCall(ctx context.Context, registry *ToolRegistry, call message.ToolCall) message.Message {
+	if registry == nil {
+		// No tool registry — return an error result
+		errMsg := fmt.Sprintf("tool %q not found (no tools registered)", call.Function.Name)
+		return message.ToolResultMessage(call.ID, errMsg, true)
+	}
+
 	t, err := registry.Get(call.Function.Name)
 	if err != nil {
 		// Tool not found — return an error result

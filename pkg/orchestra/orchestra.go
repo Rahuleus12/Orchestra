@@ -46,9 +46,12 @@
 package orchestra
 
 import (
+	"context"
+	"io/fs"
 	"log/slog"
 	"time"
 
+	"github.com/user/orchestra/internal/agent"
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 	"github.com/user/orchestra/internal/middleware"
@@ -599,6 +602,199 @@ func Chain(middlewares ...ProviderMiddleware) ProviderMiddleware {
 func NewMemoryCacheStore() *MemoryCacheStore {
 	return middleware.NewMemoryCacheStore()
 }
+
+// ---------------------------------------------------------------------------
+// Agent Runtime (Phase 3)
+// ---------------------------------------------------------------------------
+
+// Agent is the primary abstraction for interacting with LLM providers.
+// An agent owns a provider, system prompt, tools, memory, and middleware.
+// See the agent package for full documentation.
+type Agent = agent.Agent
+
+// AgentOption is a functional option for configuring an Agent.
+type AgentOption = agent.Option
+
+// NewAgent creates a new Agent with the given name and configuration options.
+// At minimum, a provider must be specified via WithProvider or WithModel.
+func NewAgent(name string, opts ...AgentOption) (*Agent, error) {
+	return agent.New(name, opts...)
+}
+
+// Agent options — functional options for configuring an Agent.
+
+// WithAgentProvider sets the agent's LLM provider and model.
+func WithAgentProvider(p provider.Provider, model string) AgentOption {
+	return agent.WithProvider(p, model)
+}
+
+// WithAgentModel resolves a model reference string (e.g., "openai::gpt-4-turbo")
+// using the global provider registry.
+func WithAgentModel(modelRef string) AgentOption {
+	return agent.WithModel(modelRef)
+}
+
+// WithAgentSystemPrompt sets the agent's system prompt from a template string.
+func WithAgentSystemPrompt(tmpl string) AgentOption {
+	return agent.WithSystemPrompt(tmpl)
+}
+
+// WithAgentSystemPromptFile loads the agent's system prompt template from a file.
+func WithAgentSystemPromptFile(path string) AgentOption {
+	return agent.WithSystemPromptFile(path)
+}
+
+// WithAgentSystemData sets data passed to the system prompt template.
+func WithAgentSystemData(data any) AgentOption {
+	return agent.WithSystemData(data)
+}
+
+// WithAgentTools adds tools to the agent's tool registry.
+func WithAgentTools(tools ...agent.Tool) AgentOption {
+	return agent.WithTools(tools...)
+}
+
+// WithAgentToolRegistry sets a pre-built tool registry on the agent.
+func WithAgentToolRegistry(registry *agent.ToolRegistry) AgentOption {
+	return agent.WithToolRegistry(registry)
+}
+
+// WithAgentMemory sets the agent's memory implementation.
+func WithAgentMemory(m agent.Memory) AgentOption {
+	return agent.WithMemory(m)
+}
+
+// WithAgentMaxTurns sets the maximum number of provider calls per execution.
+func WithAgentMaxTurns(n int) AgentOption {
+	return agent.WithMaxTurns(n)
+}
+
+// WithAgentMiddleware adds provider middleware to the agent.
+func WithAgentMiddleware(m ...middleware.ProviderMiddleware) AgentOption {
+	return agent.WithMiddleware(m...)
+}
+
+// WithAgentGenerateOptions sets default generation options for the agent.
+func WithAgentGenerateOptions(opts ...provider.GenerateOption) AgentOption {
+	return agent.WithGenerateOptions(opts...)
+}
+
+// WithAgentLogger sets the agent's structured logger.
+func WithAgentLogger(logger *slog.Logger) AgentOption {
+	return agent.WithLogger(logger)
+}
+
+// Direct re-exports of agent option functions for advanced usage.
+var (
+	// WithProvider sets the agent's LLM provider and model (re-export).
+	WithProvider         = agent.WithProvider
+	WithModel            = agent.WithModel
+	WithSystemPrompt     = agent.WithSystemPrompt
+	WithSystemPromptFile = agent.WithSystemPromptFile
+	WithSystemData       = agent.WithSystemData
+	WithTools            = agent.WithTools
+	WithToolRegistry     = agent.WithToolRegistry
+	WithMemory           = agent.WithMemory
+	WithMaxTurns         = agent.WithMaxTurns
+	WithMiddleware       = agent.WithMiddleware
+	WithGenerateOptions  = agent.WithGenerateOptions
+	WithLogger           = agent.WithLogger
+)
+
+// Agent result and event types.
+
+// AgentResult holds the complete result of an agent execution.
+type AgentResult = agent.AgentResult
+
+// AgentEvent represents a single event emitted during agent execution.
+type AgentEvent = agent.AgentEvent
+
+// ToolExecution records the details of a single tool invocation.
+type ToolExecution = agent.ToolExecution
+
+// MaxTurnsError is returned when an agent execution exceeds the configured
+// maximum number of turns.
+type MaxTurnsError = agent.MaxTurnsError
+
+// Agent event type constants.
+const (
+	EventThinking      = agent.EventThinking
+	EventGenerateStart = agent.EventGenerateStart
+	EventGenerateChunk = agent.EventGenerateChunk
+	EventGenerateDone  = agent.EventGenerateDone
+	EventToolCallStart = agent.EventToolCallStart
+	EventToolCallEnd   = agent.EventToolCallEnd
+	EventDone          = agent.EventDone
+	EventError         = agent.EventError
+)
+
+// Tool types.
+
+// Tool is the interface that agents use to execute tools.
+type Tool = agent.Tool
+
+// ToolFunc is an adapter that allows using a plain function as a Tool.
+type ToolFunc = agent.ToolFunc
+
+// ToolRegistry manages a collection of tools that an agent can invoke.
+type ToolRegistry = agent.ToolRegistry
+
+// NewToolFunc creates a new tool from a function.
+func NewToolFunc(name, description string, fn func(ctx context.Context, arguments string) (string, error)) *ToolFunc {
+	return agent.NewToolFunc(name, description, fn)
+}
+
+// NewToolFuncWithSchema creates a new tool from a function with explicit parameter schema.
+func NewToolFuncWithSchema(name, description string, parameters map[string]any, fn func(ctx context.Context, arguments string) (string, error)) *ToolFunc {
+	return agent.NewToolFuncWithSchema(name, description, parameters, fn)
+}
+
+// NewToolRegistry creates a new empty tool registry.
+func NewToolRegistry() *ToolRegistry {
+	return agent.NewToolRegistry()
+}
+
+// ParseArguments unmarshals JSON tool call arguments into a Go value.
+func ParseArguments[T any](arguments string) (T, error) {
+	return agent.ParseArguments[T](arguments)
+}
+
+// Prompt template types.
+
+// Template represents a compiled prompt template.
+type Template = agent.Template
+
+// TemplateRegistry manages a collection of named templates.
+type TemplateRegistry = agent.TemplateRegistry
+
+// NewTemplate creates a new prompt template from the given name and text.
+func NewTemplate(name, text string) (*Template, error) {
+	return agent.NewTemplate(name, text)
+}
+
+// MustTemplate creates a new prompt template, panicking on error.
+func MustTemplate(name, text string) *Template {
+	return agent.MustTemplate(name, text)
+}
+
+// LoadTemplateFile loads a prompt template from a file on disk.
+func LoadTemplateFile(path string) (*Template, error) {
+	return agent.LoadTemplateFile(path)
+}
+
+// LoadTemplateFS loads a prompt template from a filesystem abstraction.
+func LoadTemplateFS(fsys fs.FS, name string) (*Template, error) {
+	return agent.LoadTemplateFS(fsys, name)
+}
+
+// NewTemplateRegistry creates a new empty template registry.
+func NewTemplateRegistry() *TemplateRegistry {
+	return agent.NewTemplateRegistry()
+}
+
+// Memory is the interface for agent memory. Implementations provide
+// persistent storage and retrieval of messages across agent runs.
+type Memory = agent.Memory
 
 // ---------------------------------------------------------------------------
 // Configuration

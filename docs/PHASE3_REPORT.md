@@ -2,7 +2,7 @@
 ## Completion Report
 
 **Date:** 2026-04-22
-**Status:** 🔧 In Progress (Core Complete — 85%)
+**Status:** ✅ COMPLETE
 **Duration:** Single development cycle
 **Depends On:** Phase 1 (Foundation & Core Abstractions), Phase 2 (Provider Integrations)
 
@@ -25,10 +25,8 @@ All four planned sub-tasks (3.1–3.4) have been implemented in the `internal/ag
 - ✅ Full context cancellation support
 - ✅ `MaxTurnsError` with partial result recovery
 - ✅ Memory interface defined for Phase 7
-
-**Remaining:**
-- 🔲 Public API re-exports in `pkg/orchestra/orchestra.go`
-- 🔲 Test suite verification (written but not validated due to environment constraints)
+- ✅ Public API re-exports in `pkg/orchestra/orchestra.go`
+- ✅ All 86 tests passing, full project suite green
 
 ---
 
@@ -296,7 +294,7 @@ Implementations (conversation buffer, summary, vector store) deferred to Phase 7
 | Result Types | 3 | `TestAgentResult_HasToolCalls`, `TestAgentResult_ToolCallsByTurn`, `TestMaxTurnsError` (uses `PartialResult()` accessor) |
 | Helpers | 3 | `TestTemplateNameFromPath`, `TestIsTemplateFile`, `TestTemplate_String` |
 
-> **Note:** Tests are written and compile successfully (`go build ./internal/agent/...` passes). Full test execution (`go test`) could not be completed due to environment/tooling timeout issues during development. Tests should be verified in a subsequent pass.
+> **Verified:** All 86 tests pass (`go test ./internal/agent/... -count=1 -timeout 120s`). Full project suite green across all packages.
 
 ---
 
@@ -376,12 +374,13 @@ The `Stream()` method returns `<-chan AgentEvent` rather than using a callback p
 
 ## Remaining Work
 
-### Must Complete Before Phase 4
+### Completed Post-Report
 
-| Task | Effort | Description |
+| Task | Status | Description |
 |------|--------|-------------|
-| Public API re-exports | Small | Add type aliases and function wrappers in `pkg/orchestra/orchestra.go` for agent types (`Agent`, `AgentResult`, `AgentEvent`, `Tool`, `Template`, options, etc.) |
-| Test verification | Small | Run `go test ./internal/agent/... -v -race` and fix any issues |
+| Public API re-exports | ✅ Done | Added type aliases and function wrappers in `pkg/orchestra/orchestra.go` for all agent types, options, events, tools, and templates |
+| Test verification | ✅ Done | All 86 tests passing. Fixed nil pointer in `executeToolCall`, template function argument ordering (`contains`, `join`), stream event sequence, and context cancellation test |
+| `MaxTurnsError.Unwrap()` rename | ✅ Done | Renamed to `PartialResult()` after LSP warning — Go reserves `Unwrap()` for error-chain navigation |
 
 ### Future Improvements (Not Blocking)
 
@@ -438,6 +437,4 @@ go build ./...
 ---
 
 **Report Generated:** 2026-04-22
-**Phase 3 Status:** 🔧 IN PROGRESS — Core Complete (85%)
-
-> **Note (post-edit):** The `MaxTurnsError.Unwrap()` method was renamed to `PartialResult()` after an LSP warning — Go reserves `Unwrap()` for error-chain navigation. All tests and docs have been updated accordingly.
+**Phase 3 Status:** ✅ COMPLETE

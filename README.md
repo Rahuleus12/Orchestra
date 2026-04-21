@@ -445,7 +445,7 @@ The GitHub Actions pipeline runs on every push and pull request:
 |-------|-------------|--------|
 | 1 | Foundation & Core Abstractions | ✅ Complete |
 | 2 | Provider Integrations (OpenAI, Anthropic, Gemini, Ollama, Mistral, Cohere) | ✅ Complete |
-| 3 | Agent Runtime & Lifecycle | 🔧 In Progress |
+| 3 | Agent Runtime & Lifecycle | ✅ Complete |
 | 4 | Orchestration Engine (DAG-based workflows) | 🔲 Planned |
 | 5 | Inter-Agent Communication (Message Bus) | 🔲 Planned |
 | 6 | Tool System & Function Calling | 🔲 Planned |
@@ -453,23 +453,6 @@ The GitHub Actions pipeline runs on every push and pull request:
 | 8 | Observability & Operations | 🔲 Planned |
 | 9 | Advanced Patterns (RAG, Self-Reflection, HITL) | 🔲 Planned |
 | 10 | Production Readiness | 🔲 Planned |
-
-### Phase 3 Progress
-
-**Completed:**
-- ✅ 3.1 Agent Definition — `Agent` struct, functional options (`WithProvider`, `WithModel`, `WithSystemPrompt`, `WithSystemPromptFile`, `WithTools`, `WithMemory`, `WithMaxTurns`, `WithMiddleware`, `WithGenerateOptions`, `WithLogger`), lifecycle (`New`, `Run`, `RunConversation`, `Stream`, `Clone`)
-- ✅ 3.2 Agent Execution Loop — generate → tool call → feed result → generate loop with `maxTurns` guard, `MaxTurnsError` with `PartialResult()` accessor for partial recovery, context cancellation support
-- ✅ 3.3 Agent Result & Events — `AgentResult` (output, conversation trace, tool calls, aggregate usage, duration, turns), `AgentEvent` types (Thinking, GenerateStart, GenerateChunk, ToolCallStart, ToolCallEnd, Done, Error), `ToolExecution` tracking
-- ✅ 3.4 Prompt Template System — Go `text/template`-based with 25+ built-in functions (json, yaml, indent, default, coalesce, truncate, wrap, etc.), conditional blocks, loops, `TemplateRegistry` with lazy loading, filesystem loading (`LoadTemplateFile`, `LoadTemplateFS`, `LoadFromFS`)
-- ✅ Tool interface & `ToolRegistry` — minimal `Tool` interface, `ToolFunc` adapter, `ToolRegistry` with thread-safe lookup, `ParseArguments` generic helper
-- ✅ Streaming support — `Stream()` method emitting real-time `AgentEvent` values via channel with tool-call loop support
-- ✅ Agent cloning — `Clone()` for parallel execution with shared immutable state
-- ✅ Memory interface — `Memory` interface defined for Phase 7 implementations
-- ✅ Middleware integration — agent applies provider middleware chain via `middleware.Chain`
-
-**Remaining:**
-- 🔲 Public API re-exports in `pkg/orchestra/orchestra.go` for agent types
-- 🔲 Test verification (tests written but not yet validated due to environment issues)
 
 See [docs/PLAN.md](docs/PLAN.md) for the detailed project plan.
 
