@@ -10,6 +10,7 @@ Orchestra is a Go-based framework for orchestrating multiple AI agents that use 
 
 - **Provider-agnostic** — Uniform Go interface across all LLM providers and models
 - **Composable agents** — Agents that can be combined into arbitrarily complex workflows
+- **DAG-based orchestration** — Build workflows with sequential, parallel, conditional, router, debate, and hierarchical patterns
 - **First-class Go idioms** — Interfaces, context propagation, error wrapping, goroutine-based concurrency
 - **Extensible** — Easy to add new providers, tools, memory backends, and orchestration patterns
 - **Observable** — Built-in tracing, metrics, and structured logging from day one
@@ -150,6 +151,10 @@ Orchestra/
 ├── docs/
 │   ├── PLAN.md                   # Full project plan and phase breakdown
 │   ├── ARCHITECTURE.md           # Detailed architecture docs
+│   ├── PHASE1_REPORT.md          # Phase 1 completion report
+│   ├── PHASE2_REPORT.md          # Phase 2 completion report
+│   ├── PHASE3_REPORT.md          # Phase 3 completion report
+│   ├── PHASE4_REPORT.md          # Phase 4 completion report
 │   └── ADR/                      # Architecture Decision Records
 ├── internal/
 │   ├── message/                  # Message types and conversation history
@@ -166,9 +171,24 @@ Orchestra/
 │   │   ├── openai/               # (Phase 2) OpenAI provider
 │   │   ├── anthropic/            # (Phase 2) Anthropic provider
 │   │   ├── gemini/               # (Phase 2) Google Gemini provider
-│   │   └── ollama/               # (Phase 2) Ollama provider
+│   │   ├── ollama/               # (Phase 2) Ollama provider
+│   │   ├── mistral/              # (Phase 2) Mistral provider
+│   │   └── cohere/               # (Phase 2) Cohere provider
 │   ├── agent/                    # (Phase 3) Agent runtime and lifecycle
+│   │   ├── agent.go              # Agent type, builder, execution loop
+│   │   ├── agent_test.go         # Agent tests
+│   │   ├── events.go             # Agent events and results
+│   │   ├── prompt.go             # Prompt template system
+│   │   └── tool.go               # Tool interface and registry
 │   ├── orchestration/            # (Phase 4) Workflow engine and patterns
+│   │   ├── dag.go                # Core DAG types, validation, topological sort
+│   │   ├── dag_test.go           # DAG tests
+│   │   ├── builder.go             # Fluent API for workflow construction
+│   │   ├── builder_test.go        # Builder API tests
+│   │   ├── engine.go              # Execution engine with parallel execution
+│   │   ├── engine_test.go         # Engine execution tests
+│   │   ├── patterns.go            # Orchestration patterns (router, debate, hierarchical)
+│   │   └── examples_test.go       # Usage examples
 │   ├── tool/                     # (Phase 6) Tool/function calling system
 │   ├── memory/                   # (Phase 7) Context and memory management
 │   ├── bus/                      # (Phase 5) Inter-agent message bus
@@ -364,6 +384,86 @@ calls := mp.GenerateCalls()
 lastReq, _ := mp.LastGenerateCall()
 ```
 
+### Agents
+
+Agents are the primary execution units that wrap providers with system prompts, tools, memory, and lifecycle management:
+
+```go
+// Create an agent with the builder pattern
+agent, err := agent.New("researcher",
+    agent.WithProvider(openaiProvider, "gpt-4-turbo"),
+    agent.WithSystemPrompt("You are a research assistant."),
+    agent.WithTools([]tool.Tool{searchTool, calculatorTool}),
+    agent.WithMemory(memory.New(100)),
+    agent.WithMaxTurns(10),
+)
+
+// Run the agent synchronously
+result, err := agent.Run(ctx, "Research the latest AI developments")
+
+// Run with streaming events
+eventChan := agent.Stream(ctx, "Analyze this data")
+for event := range eventChan {
+    switch event.Type {
+    case agent.EventThinking:
+        log.Println("Agent is thinking...")
+    case agent.EventGenerateChunk:
+        fmt.Print(event.Chunk)
+    case agent.EventToolCallStart:
+        log.Printf("Calling tool: %s", event.ToolCall.Function.Name)
+    case agent.EventDone:
+        log.Printf("Done! Usage: %+v", event.Usage)
+    }
+}
+```
+
+### Orchestration
+
+Orchestration enables composing multiple agents into complex workflows using DAG-based execution:
+
+```go
+// Build a workflow with the fluent API
+workflow, err := orchestration.NewWorkflowBuilder("research-pipeline").
+    AddStep("research", researcherAgent,
+        orchestration.WithInput(func(ctx *orchestration.WorkflowContext) (string, error) {
+            return fmt.Sprintf("Research: %s", ctx.Get("topic")), nil
+        }),
+    ).
+    AddStep("analyze", analyzerAgent,
+        orchestration.WithInput(func(ctx *orchestration.WorkflowContext) (string, error) {
+            researchOutput, _ := ctx.GetStepOutput("research")
+            return fmt.Sprintf("Analyze: %s", researchOutput.FinalText()), nil
+        }),
+        orchestration.DependsOn("research"),
+    ).
+    AddStep("write", writerAgent,
+        orchestration.WithInput(func(ctx *orchestration.WorkflowContext) (string, error) {
+            analyzeOutput, _ := ctx.GetStepOutput("analyze")
+            return fmt.Sprintf("Write: %s", analyzeOutput.FinalText()), nil
+        }),
+        orchestration.DependsOn("analyze"),
+    ).
+    Build()
+
+// Execute the workflow
+engine := orchestration.NewEngine()
+result, err := engine.Execute(ctx, workflow, map[string]any{
+    "topic": "Multi-agent AI orchestration",
+})
+
+// Use orchestration patterns
+parallelWorkflow, _ := orchestration.Parallel("multi-perspective",
+    []*agent.Agent{optimisticAgent, pessimisticAgent, neutralAgent},
+    orchestration.ConcatAggregator,
+)
+
+routerWorkflow, _ := orchestration.NewRouter("task-router").
+    AddRoute("code", orchestration.ContainsCode, codeAgent).
+    AddRoute("creative", orchestration.IsCreative, creativeAgent).
+    SetDefault(generalAgent).
+    Build()
+```
+
 ## Development
 
 ### Prerequisites
@@ -446,7 +546,7 @@ The GitHub Actions pipeline runs on every push and pull request:
 | 1 | Foundation & Core Abstractions | ✅ Complete |
 | 2 | Provider Integrations (OpenAI, Anthropic, Gemini, Ollama, Mistral, Cohere) | ✅ Complete |
 | 3 | Agent Runtime & Lifecycle | ✅ Complete |
-| 4 | Orchestration Engine (DAG-based workflows) | 🔲 Planned |
+| 4 | Orchestration Engine (DAG-based workflows) | ✅ Complete |
 | 5 | Inter-Agent Communication (Message Bus) | 🔲 Planned |
 | 6 | Tool System & Function Calling | 🔲 Planned |
 | 7 | Memory & Context Management | 🔲 Planned |
