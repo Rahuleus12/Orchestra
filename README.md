@@ -4,13 +4,14 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/user/orchestra)](https://goreportcard.com/report/github.com/user/orchestra)
 
-Orchestra is a Go-based framework for orchestrating multiple AI agents that use different LLM providers (OpenAI, Anthropic, Google Gemini, Ollama, Mistral, Cohere, etc.) and models. It provides a unified abstraction layer over heterogeneous LLM backends and enables complex multi-agent workflows including sequential pipelines, parallel fan-out/fan-in, dynamic routing, debate loops, and hierarchical delegation.
+Orchestra is a Go-based framework for orchestrating multiple AI agents that use different LLM providers (OpenAI, Anthropic, Google Gemini, Ollama, Mistral, Cohere, etc.) and models. It provides a unified abstraction layer over heterogeneous LLM backends and enables complex multi-agent workflows including sequential pipelines, parallel fan-out/fan-in, dynamic routing, debate loops, hierarchical delegation, and real-time inter-agent communication via a pub/sub message bus.
 
 ## Features
 
 - **Provider-agnostic** — Uniform Go interface across all LLM providers and models
 - **Composable agents** — Agents that can be combined into arbitrarily complex workflows
 - **DAG-based orchestration** — Build workflows with sequential, parallel, conditional, router, debate, and hierarchical patterns
+- **Inter-agent communication** — Pub/sub message bus with topic-based routing, agent mailboxes, and patterns for request-response, broadcast, consensus, and auction
 - **First-class Go idioms** — Interfaces, context propagation, error wrapping, goroutine-based concurrency
 - **Extensible** — Easy to add new providers, tools, memory backends, and orchestration patterns
 - **Observable** — Built-in tracing, metrics, and structured logging from day one
