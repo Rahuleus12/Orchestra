@@ -1,0 +1,509 @@
+# Orchestra — Multi-Agent AI Orchestration Engine
+# Release Workflow
+#
+# Triggers:
+#   - Push of version tags (v1.0.0, v1.2.3-beta.1, etc.)
+#
+# Jobs:
+#   1. validate     - Validate tag format and release readiness
+#   2. test         - Run full test suite
+#   3. build        - Build binaries for all platforms
+#   4. docker       - Build and push Docker images
+#   5. release      - Create GitHub release with artifacts
+#   6. notify       - Post-release notifications
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # v1.0.0, v2.1.3
+      - "v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+" # v1.0.0-alpha.1
+      - "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+" # v1.0.0-beta.1
+      - "v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+" # v1.0.0-rc.1
+
+# Cancel in-progress runs for the same tag
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+  security-events: write
+
+env:
+  GO_VERSION: "1.25"
+  GOLANGCI_LINT_VERSION: "v1.64"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Validate
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+      version_major: ${{ steps.meta.outputs.version_major }}
+      version_minor: ${{ steps.meta.outputs.version_minor }}
+      version_patch: ${{ steps.meta.outputs.version_patch }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version metadata
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Check if prerelease
+          if [[ "$VERSION" == *"-alpha"* ]] || [[ "$VERSION" == *"-beta"* ]] || [[ "$VERSION" == *"-rc"* ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          # Extract version components
+          VERSION_CLEAN="${VERSION%%-*}"
+          VERSION_MAJOR=$(echo "$VERSION_CLEAN" | cut -d. -f1)
+          VERSION_MINOR=$(echo "$VERSION_CLEAN" | cut -d. -f2)
+          VERSION_PATCH=$(echo "$VERSION_CLEAN" | cut -d. -f3)
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "version_major=${VERSION_MAJOR}" >> "$GITHUB_OUTPUT"
+          echo "version_minor=${VERSION_MINOR}" >> "$GITHUB_OUTPUT"
+          echo "version_patch=${VERSION_PATCH}" >> "$GITHUB_OUTPUT"
+
+          echo "Release info:"
+          echo "  Tag: ${TAG}"
+          echo "  Version: ${VERSION}"
+          echo "  Prerelease: ${IS_PRERELEASE}"
+          echo "  Major: ${VERSION_MAJOR}"
+          echo "  Minor: ${VERSION_MINOR}"
+          echo "  Patch: ${VERSION_PATCH}"
+
+      - name: Verify tag matches HEAD
+        run: |
+          TAG_COMMIT=$(git rev-list -n 1 "${GITHUB_REF_NAME}")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not point to HEAD"
+            exit 1
+          fi
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Working directory has uncommitted changes"
+            exit 1
+          fi
+
+      - name: Verify go mod is tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git diff go.mod go.sum)" ]; then
+            echo "::error::go.mod or go.sum is not tidy. Run 'go mod tidy' and commit."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Test
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+
+      - name: Run tests
+        run: |
+          gotestsum \
+            --format standard-verbose \
+            --junitfile test-results.xml \
+            --junitfile-testsuite-name="orchestra-release" \
+            -- \
+            ./... \
+            -count=1 \
+            -race \
+            -timeout=15m
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-results
+          path: test-results.xml
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Build Binaries
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    needs: [test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux
+          - goos: linux
+            goarch: amd64
+            artifact_suffix: ""
+          - goos: linux
+            goarch: arm64
+            artifact_suffix: ""
+          # Windows
+          - goos: windows
+            goarch: amd64
+            artifact_suffix: ".exe"
+          - goos: windows
+            goarch: arm64
+            artifact_suffix: ".exe"
+          # macOS
+          - goos: darwin
+            goarch: amd64
+            artifact_suffix: ""
+          - goos: darwin
+            goarch: arm64
+            artifact_suffix: ""
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build binary
+        id: build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${needs.validate.outputs.version}"
+          COMMIT="${GITHUB_SHA}"
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          BINARY_NAME="orchestra-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.artifact_suffix }}"
+
+          # Create output directory
+          mkdir -p dist
+
+          # Build with version information
+          go build \
+            -ldflags="-s -w \
+              -X main.Version=${VERSION} \
+              -X main.GitCommit=${COMMIT} \
+              -X main.BuildDate=${BUILD_DATE}" \
+            -o "dist/${BINARY_NAME}" \
+            ./cmd/orchestra
+
+          # Generate checksums
+          cd dist
+          sha256sum "${BINARY_NAME}" > "${BINARY_NAME}.sha256"
+          cd ..
+
+          echo "binary_name=${BINARY_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Built: dist/${BINARY_NAME}"
+
+      - name: Verify binary
+        run: |
+          BINARY="dist/${{ steps.build.outputs.binary_name }}"
+          if [ ! -f "$BINARY" ]; then
+            echo "::error::Binary not found: $BINARY"
+            exit 1
+          fi
+
+          # Check file size (should be reasonable)
+          SIZE=$(stat -f%z "$BINARY" 2>/dev/null || stat -c%s "$BINARY" 2>/dev/null || echo "0")
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::Binary is too small (${SIZE} bytes), build may have failed"
+            exit 1
+          fi
+          echo "Binary size: ${SIZE} bytes"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/orchestra-*
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Docker Build and Push
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    needs: [test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+          - platform: linux/arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Type semver
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # For prereleases, use the full version with prerelease tag
+            type=raw,value={{version}},enable=${{ needs.validate.outputs.is_prerelease == 'true' }}
+            # Latest tag only for stable releases
+            type=raw,value=latest,enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.platform }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Create Multi-arch Docker Manifest
+  # ---------------------------------------------------------------------------
+  docker-manifest:
+    name: Docker Manifest
+    runs-on: ubuntu-latest
+    needs: [docker, validate]
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value={{version}},enable=${{ needs.validate.outputs.is_prerelease == 'true' }}
+            type=raw,value=latest,enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Create GitHub Release
+  # ---------------------------------------------------------------------------
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build, docker-manifest]
+    permissions:
+      contents: write
+      attestations: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, generating full changelog"
+            CHANGES=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            echo "Generating changelog from ${PREV_TAG} to ${GITHUB_REF_NAME}"
+            CHANGES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")
+          fi
+
+          # Save to file for multiline output
+          echo "$CHANGES" > changelog.txt
+
+          # Create release body
+          cat > release-body.md << EOF
+          ## Orchestra v${{ needs.validate.outputs.version }}
+
+          ### Changes
+          $(cat changelog.txt)
+
+          ### Installation
+
+          #### Binary
+          Download the appropriate binary for your platform from the assets below.
+
+          #### Docker
+          \`\`\`bash
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.version }}
+          \`\`\`
+
+          #### Homebrew (if applicable)
+          \`\`\`bash
+          brew install orchestra
+          \`\`\`
+
+          ### Checksums
+          SHA256 checksums are provided for each binary in the \`.sha256\` files.
+
+          ---
+          EOF
+
+          # Truncate if too long for GitHub
+          if [ $(wc -c < release-body.md) -gt 120000 ]; then
+            head -n 500 release-body.md > release-body-truncated.md
+            echo "" >> release-body-truncated.md
+            echo "... and more commits. See full git log for details." >> release-body-truncated.md
+            mv release-body-truncated.md release-body.md
+          fi
+
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          cat release-body.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        id: create-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Orchestra v${{ needs.validate.outputs.version }}"
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_prerelease }}
+          files: |
+            dist/orchestra-*
+          generate_release_notes: false
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/orchestra-*
+
+  # ---------------------------------------------------------------------------
+  # Job 7: Post-Release Notifications
+  # ---------------------------------------------------------------------------
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [release, validate]
+    if: always() && needs.release.result == 'success'
+    steps:
+      - name: Create release summary
+        run: |
+          echo "## 🚀 Release Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** \`${{ needs.validate.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Prerelease:** ${{ needs.validate.outputs.is_prerelease }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Assets" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Binaries for Linux (amd64, arm64)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Binaries for Windows (amd64, arm64)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Binaries for macOS (amd64, arm64)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docker multi-arch image" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Docker Pull" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`bash" >> "$GITHUB_STEP_SUMMARY"
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Release URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
