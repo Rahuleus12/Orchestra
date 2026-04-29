@@ -108,7 +108,7 @@ type ModelCapabilities struct {
 
 // ModelInfo describes a model available from a provider.
 type ModelInfo struct {
-	// ID is the model identifier used in API calls (e.g., "gpt-4-turbo").
+	// ID is the model identifier used in API calls (e.g., "gpt-4o").
 	ID string `json:"id" yaml:"id"`
 
 	// Name is a human-readable display name (e.g., "GPT-4 Turbo").
@@ -333,7 +333,7 @@ func WithExtra(key string, value any) GenerateOption {
 
 // GenerateRequest represents a request to generate a completion from a model.
 type GenerateRequest struct {
-	// Model is the model identifier to use (e.g., "gpt-4-turbo").
+	// Model is the model identifier to use (e.g., "gpt-4o").
 	Model string `json:"model" yaml:"model"`
 
 	// Messages is the ordered conversation to send to the model.

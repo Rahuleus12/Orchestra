@@ -36,7 +36,7 @@ permissions:
 
 env:
   GO_VERSION: "1.25"
-  GOLANGCI_LINT_VERSION: "v1.64"
+  GOLANGCI_LINT_VERSION: "v2.1"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -55,7 +55,7 @@ jobs:
       version_patch: ${{ steps.meta.outputs.version_patch }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
@@ -126,10 +126,10 @@ jobs:
     needs: [validate]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -150,14 +150,14 @@ jobs:
             -timeout=15m
 
       - name: Run linter
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: release-test-results
           path: test-results.xml
@@ -197,10 +197,10 @@ jobs:
             artifact_suffix: ""
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -212,7 +212,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          VERSION="${needs.validate.outputs.version}"
+          VERSION="${{ needs.validate.outputs.version }}"
           COMMIT="${GITHUB_SHA}"
           BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
@@ -255,7 +255,7 @@ jobs:
           echo "Binary size: ${SIZE} bytes"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
@@ -268,7 +268,7 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [validate, test]
     strategy:
       fail-fast: false
       matrix:
@@ -277,10 +277,10 @@ jobs:
           - platform: linux/arm64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3.10.0
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -291,7 +291,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v5.7.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -306,7 +306,7 @@ jobs:
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v6.15.0
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -325,7 +325,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: digest-${{ matrix.platform }}
           path: /tmp/digests/*
@@ -341,14 +341,14 @@ jobs:
     needs: [docker, validate]
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.2.1
         with:
           path: /tmp/digests
           pattern: digest-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3.10.0
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -359,7 +359,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v5.7.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -391,12 +391,12 @@ jobs:
       attestations: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
       - name: Download all binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.2.1
         with:
           path: dist
           pattern: binary-*
@@ -461,7 +461,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.2.1
         with:
           tag_name: ${{ github.ref_name }}
           name: "Orchestra v${{ needs.validate.outputs.version }}"

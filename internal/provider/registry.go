@@ -148,7 +148,7 @@ func (r *Registry) Get(name string) (Provider, error) {
 //
 // Example:
 //
-//	reg.Alias("gpt4", "openai::gpt-4-turbo")
+//	reg.Alias("gpt4", "openai::gpt-4o")
 //	reg.Alias("claude", "anthropic::claude-sonnet-4-20250514")
 //
 // If the alias already exists, Alias returns an error.

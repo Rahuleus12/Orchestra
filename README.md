@@ -92,17 +92,17 @@ registry := provider.NewRegistry()
 
 // Register provider factories (lazy initialization)
 registry.MustRegister("openai", openaiFactory, config.ProviderConfig{
-    DefaultModel: "gpt-4-turbo",
+    DefaultModel: "gpt-4o",
 })
 
 // Register aliases
-registry.MustAlias("gpt4", "openai::gpt-4-turbo")
+registry.MustAlias("gpt4", "openai::gpt-4o")
 registry.MustAlias("claude", "anthropic::claude-sonnet-4-20250514")
 
 // Resolve by provider::model, alias, or bare model name
-p, model, err := registry.Resolve("gpt4")     // alias → openai::gpt-4-turbo
+p, model, err := registry.Resolve("gpt4")     // alias → openai::gpt-4o
 p, model, err := registry.Resolve("openai::gpt-4o")  // explicit
-p, model, err := registry.Resolve("gpt-4-turbo")     // default model match
+p, model, err := registry.Resolve("gpt-4o")          // default model match
 ```
 
 ## Architecture
@@ -301,11 +301,11 @@ registry.MustRegister("openai", func(cfg ProviderConfig) (Provider, error) {
     return openai.NewProvider(cfg)
 }, ProviderConfig{
     APIKey:       "sk-...",
-    DefaultModel: "gpt-4-turbo",
+    DefaultModel: "gpt-4o",
 })
 
 // Resolve model references
-p, modelID, err := registry.Resolve("openai::gpt-4-turbo")
+p, modelID, err := registry.Resolve("openai::gpt-4o")
 ```
 
 ### Configuration
@@ -318,7 +318,7 @@ providers:
   openai:
     api_key: ${OPENAI_API_KEY}
     base_url: https://api.openai.com/v1
-    default_model: gpt-4-turbo
+    default_model: gpt-4o
     rate_limit:
       requests_per_minute: 60
       tokens_per_minute: 150000
@@ -392,7 +392,7 @@ Agents are the primary execution units that wrap providers with system prompts, 
 ```go
 // Create an agent with the builder pattern
 agent, err := agent.New("researcher",
-    agent.WithProvider(openaiProvider, "gpt-4-turbo"),
+    agent.WithProvider(openaiProvider, "gpt-4o"),
     agent.WithSystemPrompt("You are a research assistant."),
     agent.WithTools([]tool.Tool{searchTool, calculatorTool}),
     agent.WithMemory(memory.New(100)),
@@ -550,7 +550,7 @@ The GitHub Actions pipeline runs on every push and pull request:
 | 4 | Orchestration Engine (DAG-based workflows) | ✅ Complete |
 | 5 | Inter-Agent Communication (Message Bus) | 🔲 Planned |
 | 6 | Tool System & Function Calling | 🔲 Planned |
-| 7 | Memory & Context Management | 🔲 Planned |
+| 7 | Memory & Context Management | ✅ Complete |
 | 8 | Observability & Operations | 🔲 Planned |
 | 9 | Advanced Patterns (RAG, Self-Reflection, HITL) | 🔲 Planned |
 | 10 | Production Readiness | 🔲 Planned |

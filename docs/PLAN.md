@@ -431,7 +431,7 @@ providers:
   openai:
     api_key: ${OPENAI_API_KEY}
     base_url: https://api.openai.com/v1
-    default_model: gpt-4-turbo
+    default_model: gpt-4o
     rate_limit:
       requests_per_minute: 60
       tokens_per_minute: 150000
@@ -621,7 +621,7 @@ func (a *Agent) Clone(name string) *Agent
 type Option func(*Agent) error
 
 func WithProvider(p provider.Provider, model string) Option
-func WithModel(modelRef string) Option // "openai::gpt-4-turbo"
+func WithModel(modelRef string) Option // "openai::gpt-4o"
 func WithSystemPrompt(tmpl string) Option
 func WithSystemPromptFile(path string) Option
 func WithTools(tools ...tool.Tool) Option
@@ -1095,7 +1095,7 @@ type SearchInput struct {
 
 ## 11. Phase 7 — Memory & Context Management
 
-**Status:** Not Started
+**Status:** ✅ Complete
 **Depends On:** Phase 3
 
 ### Objectives
@@ -1105,9 +1105,9 @@ Build a flexible memory system that manages conversation context and long-term k
 ### Tasks
 
 #### 7.1 Memory Interface
-- [ ] Define `Memory` interface for different memory strategies
-- [ ] Support adding messages and retrieving relevant context
-- [ ] Support memory expiration and compaction
+- [x] Define `Memory` interface for different memory strategies
+- [x] Support adding messages and retrieving relevant context
+- [x] Support memory expiration and compaction
 
 ```go
 // internal/memory/memory.go
@@ -1136,30 +1136,30 @@ type GetOptions struct {
 ```
 
 #### 7.2 Memory Strategies
-- [ ] **BufferMemory** — Simple in-memory buffer with optional size limit
-- [ ] **SlidingWindowMemory** — Keeps the last N messages or tokens
-- [ ] **SummaryMemory** — Older messages are summarized by an LLM to compress context
-- [ ] **SemanticMemory** — Vector-based retrieval using embeddings for relevant context
-- [ ] **CompositeMemory** — Combines multiple strategies (e.g., recent messages + semantic search)
+- [x] **BufferMemory** — Simple in-memory buffer with optional size limit
+- [x] **SlidingWindowMemory** — Keeps the last N messages or tokens
+- [x] **SummaryMemory** — Older messages are summarized by an LLM to compress context
+- [x] **SemanticMemory** — Vector-based retrieval using embeddings for relevant context
+- [x] **CompositeMemory** — Combines multiple strategies (e.g., recent messages + semantic search)
 
 #### 7.3 Token Counting
-- [ ] Implement tokenizer interface for token counting
-- [ ] Integrate `tiktoken` for OpenAI models (via CGo or WASM)
-- [ ] Provide approximation fallback for models without exact tokenizers
-- [ ] Track token usage per message for accurate context window management
+- [x] Implement tokenizer interface for token counting
+- [x] Integrate `tiktoken` for OpenAI models (via CGo or WASM)
+- [x] Provide approximation fallback for models without exact tokenizers
+- [x] Track token usage per message for accurate context window management
 
 #### 7.4 Context Window Management
-- [ ] Auto-truncate conversation to fit within model context window
-- [ ] Prioritize system prompt + recent messages
-- [ ] Support custom truncation strategies
-- [ ] Warn when approaching context limits
+- [x] Auto-truncate conversation to fit within model context window
+- [x] Prioritize system prompt + recent messages
+- [x] Support custom truncation strategies
+- [x] Warn when approaching context limits
 
 ### Deliverables
 
-- [ ] Memory interface with five implementations
-- [ ] Token counting for major model families
-- [ ] Context window auto-management
-- [ ] Memory persistence hooks (for future DB backends)
+- [x] Memory interface with five implementations
+- [x] Token counting for major model families
+- [x] Context window auto-management
+- [x] Memory persistence hooks (for future DB backends)
 
 ### Milestone Criteria
 
@@ -1518,7 +1518,7 @@ func main() {
 
     // Create agents using different providers and models
     researcher := orchestra.NewAgent("researcher",
-        orchestra.WithModel("openai::gpt-4-turbo"),
+        orchestra.WithModel("openai::gpt-4o"),
         orchestra.WithSystemPrompt("You are a thorough research assistant."),
         orchestra.WithTools(orchestra.WebSearch()),
     )
@@ -1529,7 +1529,7 @@ func main() {
     )
 
     reviewer := orchestra.NewAgent("reviewer",
-        orchestra.WithModel("openai::gpt-4-turbo"),
+        orchestra.WithModel("openai::gpt-4o"),
         orchestra.WithSystemPrompt("You are a critical editor."),
     )
 

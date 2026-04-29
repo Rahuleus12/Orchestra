@@ -9,7 +9,7 @@
 // # Quick Start
 //
 //	agent, err := agent.New("assistant",
-//	    agent.WithProvider(openaiProvider, "gpt-4-turbo"),
+//	    agent.WithProvider(openaiProvider, "gpt-4o"),
 //	    agent.WithSystemPrompt("You are a helpful assistant."),
 //	    agent.WithMaxTurns(10),
 //	)
@@ -146,7 +146,7 @@ func WithProvider(p provider.Provider, model string) Option {
 	}
 }
 
-// WithModel resolves a model reference string (e.g., "openai::gpt-4-turbo")
+// WithModel resolves a model reference string (e.g., "openai::gpt-4o")
 // using the global provider registry and sets the resolved provider and model.
 // This is a convenience option that combines provider lookup and model selection.
 func WithModel(modelRef string) Option {

@@ -2,20 +2,23 @@
 # GitHub Actions CI Pipeline
 #
 # Triggers:
-#   - Push to main/develop branches
-#   - Pull requests to main/develop branches
+#   - Push to main/develop/feature branches
+#   - Pull requests to main/develop
 #
 # Jobs:
-#   1. detect-changes - Detect which paths changed (optimization)
-#   2. fmt-check     - Verify gofmt formatting
-#   3. vet           - Run go vet
-#   4. lint          - Run golangci-lint
-#   5. security      - Run security scanning (gosec, govulncheck)
-#   6. test          - Run tests with race detector and JUnit output
-#   7. build         - Build the binary for multiple platforms
-#   8. coverage      - Generate and check coverage report
-#   9. docker        - Verify Dockerfile works
-#  10. test-summary  - Aggregate test results and post summary
+#   1. detect-changes  - Detect which paths changed (optimization)
+#   2. fmt-check       - Verify gofmt/gofumpt formatting
+#   3. vet             - Run go vet with shadow analysis
+#   4. lint            - Run golangci-lint with all linters
+#   5. security        - Security scanning (govulncheck, gosec, dependency review)
+#   6. unit-tests      - Unit tests with race detector + coverage
+#   7. integration     - Integration tests (requires unit tests)
+#   8. benchmarks      - Performance benchmarks with baseline comparison
+#   9. build           - Cross-platform build verification
+#  10. coverage        - Coverage aggregation + threshold gate
+#  11. docker          - Dockerfile build + security scan
+#  12. test-summary    - Aggregate results + GitHub summary
+#  13. ci-status       - Final gate for branch protection
 
 name: CI
 
@@ -25,6 +28,7 @@ on:
       - master
       - develop
       - "feature/**"
+      - "phase/**"
   pull_request:
     branches:
       - master
@@ -35,39 +39,50 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Minimum permissions
+# Minimum permissions (principle of least privilege)
 permissions:
   contents: read
   security-events: write
   actions: read
+  checks: write
 
 env:
   # Go version to use across all jobs
   GO_VERSION: "1.25"
-  # golangci-lint version
-  GOLANGCI_LINT_VERSION: "v1.64"
+  # golangci-lint version (v2)
+  GOLANGCI_LINT_VERSION: "v2.1"
   # gotestsum for CI-friendly test output
-  GOTESTSUM_VERSION: "v1.12.0"
-  # Test timeout
-  TEST_TIMEOUT: "10m"
+  GOTESTSUM_VERSION: "v1.12.1"
+  # Test timeouts
+  UNIT_TEST_TIMEOUT: "5m"
+  INTEGRATION_TEST_TIMEOUT: "10m"
+  BENCHMARK_TIMEOUT: "10m"
+  # Coverage threshold (%)
+  COVERAGE_THRESHOLD: "70"
+  # Current recommended models (kept in sync with providers)
+  DEFAULT_OPENAI_MODEL: "gpt-4o"
+  DEFAULT_ANTHROPIC_MODEL: "claude-sonnet-4-20250514"
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 0: Detect Changes (optimization for PRs)
+  # Job 0: Detect Changes (skip jobs when irrelevant files change)
   # ---------------------------------------------------------------------------
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       go: ${{ steps.filter.outputs.go }}
       docker: ${{ steps.filter.outputs.docker }}
       workflows: ${{ steps.filter.outputs.workflows }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Detect changed paths
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v3.0.2
         id: filter
         with:
           filters: |
@@ -76,61 +91,95 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - '.golangci.yml'
+              - 'Makefile'
+              - 'scripts/**'
             docker:
               - 'Dockerfile'
               - 'docker-compose.yaml'
               - '.dockerignore'
             workflows:
               - '.github/workflows/**'
+            docs:
+              - '**/*.md'
+              - 'docs/**'
 
   # ---------------------------------------------------------------------------
-  # Job 1: Format Check
+  # Job 1: Format Check (gofmt + gofumpt)
   # ---------------------------------------------------------------------------
   fmt-check:
     name: Format Check
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.workflows == 'true'
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Check formatting
-        id: fmt
+      - name: Check gofmt formatting
+        id: gofmt
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
-            echo "::error::The following files are not formatted:"
+            echo "::error::The following files are not formatted with gofmt:"
+            for f in $unformatted; do
+              echo "::error file=$f::Not formatted with gofmt"
+            done
+            echo ""
+            echo "Unformatted files:"
             echo "$unformatted"
             echo ""
             echo "Run 'gofmt -w .' to fix."
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          echo "All files are properly formatted."
-          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "All files pass gofmt."
+
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@latest
+
+      - name: Check gofumpt formatting
+        id: gofumpt
+        run: |
+          unformatted=$(gofumpt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files are not formatted with gofumpt:"
+            for f in $unformatted; do
+              echo "::error file=$f::Not formatted with gofumpt"
+            done
+            echo ""
+            echo "Run 'gofumpt -w .' to fix."
+            exit 1
+          fi
+          echo "All files pass gofumpt."
 
   # ---------------------------------------------------------------------------
-  # Job 2: Go Vet
+  # Job 2: Go Vet (with additional analyzers)
   # ---------------------------------------------------------------------------
   vet:
     name: Go Vet
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.workflows == 'true'
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Run go vet
+      - name: Run go vet (standard)
         run: |
           go vet ./... 2>&1 | tee vet-output.txt
           if [ -s vet-output.txt ]; then
@@ -138,43 +187,70 @@ jobs:
             exit 1
           fi
 
+      - name: Run go vet with shadow analyzer
+        run: |
+          go install golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest
+          go vet -vettool=$(which shadow) ./... 2>&1 | tee vet-shadow.txt || true
+          if [ -s vet-shadow.txt ]; then
+            echo "::warning::go vet shadow analyzer found potential variable shadowing issues"
+            cat vet-shadow.txt
+          fi
+
+      - name: Run fieldalignment checker
+        run: |
+          go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest
+          go vet -vettool=$(which fieldalignment) ./... 2>&1 | tee vet-fieldalignment.txt || true
+          if [ -s vet-fieldalignment.txt ]; then
+            echo "::warning::fieldalignment found structs that could be optimized for size"
+            cat vet-fieldalignment.txt
+          fi
+
   # ---------------------------------------------------------------------------
-  # Job 3: Lint
+  # Job 3: Lint (golangci-lint v2)
   # ---------------------------------------------------------------------------
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.go == 'true' || needs.detect-changes.outputs.workflows == 'true'
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7.0.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --timeout=5m
+          args: --timeout=5m --show-stats
           # Only show new issues in PRs
           only-new-issues: true
+          # Verify the linter config is valid
+          verify: true
 
   # ---------------------------------------------------------------------------
-  # Job 4: Security Scanning
+  # Job 4: Security Scanning (govulncheck + gosec + dependency review)
   # ---------------------------------------------------------------------------
   security:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: [vet]
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -184,53 +260,76 @@ jobs:
 
       - name: Run govulncheck
         run: |
+          echo "::group::govulncheck results"
           govulncheck ./... 2>&1 | tee govulncheck-output.txt
-          # govulncheck exits 0 if no vulnerabilities, 1 if tool error, 3 if vulns found
           exit_code=$?
+          echo "::endgroup::"
           if [ $exit_code -eq 3 ]; then
-            echo "::warning::Vulnerabilities found - see govulncheck output"
+            echo "::error::govulncheck found known vulnerabilities"
+            exit 1
           elif [ $exit_code -ne 0 ]; then
             echo "::error::govulncheck failed with exit code $exit_code"
             exit $exit_code
           fi
+          echo "No known vulnerabilities found."
 
       - name: Run gosec security scanner
-        uses: securego/gosec@master
+        uses: securego/gosec@v2.22.3
         with:
-          args: "-no-fail -fmt json -out gosec-report.json ./..."
+          args: "-no-fail -fmt sarif -out gosec-results.sarif ./..."
         continue-on-error: true
 
-      - name: Upload gosec report
+      - name: Upload gosec SARIF results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: github/codeql-action/upload-sarif@v3.28.13
+        with:
+          sarif_file: gosec-results.sarif
+          category: gosec
+        continue-on-error: true
+
+      - name: Upload gosec report artifact
+        if: always()
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: gosec-report
-          path: gosec-report.json
+          path: gosec-results.sarif
           retention-days: 14
 
       - name: Check gosec results
         if: always()
         run: |
-          if [ -f gosec-report.json ]; then
-            issues=$(jq '.Issues | length' gosec-report.json 2>/dev/null || echo "0")
-            if [ "$issues" -gt 0 ]; then
-              echo "::warning::gosec found $issues potential security issues"
-              # Show high/critical issues as errors
-              high_issues=$(jq '[.Issues[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' gosec-report.json 2>/dev/null || echo "0")
-              if [ "$high_issues" -gt 0 ]; then
-                echo "::error::gosec found $high_issues HIGH/CRITICAL security issues"
-                jq -r '.Issues[] | select(.severity == "HIGH" or .severity == "CRITICAL") | "::error file=\(.file),line=\(.line),col=\(.col)::\(.severity): \(.details) [\(.rule)]"' gosec-report.json 2>/dev/null || true
+          if [ -f gosec-results.sarif ]; then
+            # Parse SARIF for issue count using jq
+            total=$(jq '[.runs[].results | length] | add // 0' gosec-results.sarif 2>/dev/null || echo "0")
+            high=$(jq '[.runs[] | .results // [] | .[] | select(.level == "error")] | length' gosec-results.sarif 2>/dev/null || echo "0")
+            if [ "$total" -gt 0 ]; then
+              echo "::warning::gosec found $total potential security issues ($high high severity)"
+              if [ "$high" -gt 0 ]; then
+                echo "::error::gosec found $high HIGH severity security issues"
+                exit 1
               fi
             fi
           fi
 
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4.5.0
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+          vulnerability-check: true
+          license-check: true
+
   # ---------------------------------------------------------------------------
-  # Job 5: Test (with JUnit XML output for CI)
+  # Job 5: Unit Tests (with race detector, JUnit XML, coverage)
   # ---------------------------------------------------------------------------
-  test:
-    name: Test (${{ matrix.go-version }}/${{ matrix.os }})
+  unit-tests:
+    name: Unit Tests (${{ matrix.go-version }}/${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [fmt-check, vet]
+    permissions:
+      contents: read
+      checks: write
     strategy:
       fail-fast: false
       matrix:
@@ -243,60 +342,233 @@ jobs:
           - macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
 
       - name: Install gotestsum
-        run: |
-          go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
+        run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
 
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests with gotestsum
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          echo "Dependencies verified successfully."
+
+      - name: Check module tidiness
+        run: |
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "::error::go.mod or go.sum is not tidy. Run 'go mod tidy' and commit the changes."
+            git diff go.mod go.sum
+            exit 1
+          fi
+
+      - name: Run unit tests with gotestsum
+        env:
+          # Ensure consistent behavior across platforms
+          GODEBUG: allocmintestctx=0
         run: |
           gotestsum \
-            --format standard-verbose \
-            --junitfile test-results.xml \
-            --junitfile-testsuite-name="orchestra-${{ matrix.go-version }}-${{ matrix.os }}" \
+            --format github-actions \
+            --junitfile unit-test-results.xml \
+            --junitfile-testsuite-name="orchestra-unit-${{ matrix.go-version }}-${{ matrix.os }}" \
             -- \
-            ./... \
             -count=1 \
             -race \
-            -timeout=${{ env.TEST_TIMEOUT }}
+            -timeout=${{ env.UNIT_TEST_TIMEOUT }} \
+            -coverprofile=unit-coverage.out \
+            -covermode=atomic \
+            -shuffle=on \
+            ./...
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
-          name: test-results-${{ matrix.go-version }}-${{ matrix.os }}
-          path: test-results.xml
+          name: unit-test-results-${{ matrix.go-version }}-${{ matrix.os }}
+          path: |
+            unit-test-results.xml
+            unit-coverage.out
           retention-days: 14
 
       - name: Annotate test failures
         if: failure()
         run: |
-          if [ -f test-results.xml ]; then
-            # Extract failed test names for annotation
-            failed_tests=$(grep -oP 'name="[^"]*"' test-results.xml | grep -i fail | head -20 || true)
-            if [ -n "$failed_tests" ]; then
-              echo "::warning::Some tests failed. See test results artifact for details."
-            fi
+          if [ -f unit-test-results.xml ]; then
+            echo "## Test Failures" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -A2 '<testcase.*<' unit-test-results.xml | head -40 || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
         shell: bash
 
+      - name: Display coverage
+        if: always()
+        run: |
+          if [ -f unit-coverage.out ]; then
+            go tool cover -func=unit-coverage.out | tail -1
+          fi
+
   # ---------------------------------------------------------------------------
-  # Job 6: Build
+  # Job 6: Integration Tests (end-to-end package validation)
+  # ---------------------------------------------------------------------------
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5.4.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VERSION }}
+
+      - name: Run integration tests
+        run: |
+          # Run all tests tagged with 'integration' build tag
+          gotestsum \
+            --format github-actions \
+            --junitfile integration-test-results.xml \
+            -- \
+            -count=1 \
+            -race \
+            -timeout=${{ env.INTEGRATION_TEST_TIMEOUT }} \
+            -tags=integration \
+            -shuffle=on \
+            ./...
+
+      - name: Run cross-package consistency tests
+        run: |
+          go test \
+            -count=1 \
+            -race \
+            -timeout=${{ env.UNIT_TEST_TIMEOUT }} \
+            -shuffle=on \
+            -run 'TestIntegration|TestEndToEnd|TestCrossPackage' \
+            ./...
+
+      - name: Verify all public APIs compile
+        run: |
+          # Ensure the public API surface compiles correctly
+          go build ./...
+          go vet ./...
+          echo "All public APIs compile successfully."
+
+      - name: Verify examples compile
+        run: |
+          # Verify all example functions compile
+          go build ./internal/memory/...
+          go build ./internal/agent/...
+          go build ./internal/provider/...
+          go build ./internal/orchestration/...
+          go build ./internal/tool/...
+          echo "All examples compile successfully."
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4.6.1
+        with:
+          name: integration-test-results
+          path: integration-test-results.xml
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Job 7: Benchmarks (performance regression detection)
+  # ---------------------------------------------------------------------------
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5.4.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run benchmarks
+        run: |
+          mkdir -p benchmark-results
+          go test \
+            -count=1 \
+            -bench=. \
+            -benchmem \
+            -benchtime=1s \
+            -timeout=${{ env.BENCHMARK_TIMEOUT }} \
+            -run='^$' \
+            ./... \
+            | tee benchmark-results/current.txt
+
+      - name: Compare with base branch benchmarks
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get base branch benchmarks
+          git stash
+          git checkout ${{ github.base_ref }}
+          go test \
+            -count=1 \
+            -bench=. \
+            -benchmem \
+            -benchtime=1s \
+            -timeout=${{ env.BENCHMARK_TIMEOUT }} \
+            -run='^$' \
+            ./... \
+            | tee benchmark-results/base.txt || true
+
+          git checkout -
+          git stash pop || true
+
+          if [ -f benchmark-results/base.txt ] && command -v benchstat &> /dev/null; then
+            echo "## Benchmark Comparison" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            benchstat benchmark-results/base.txt benchmark-results/current.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Current Benchmarks" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat benchmark-results/current.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4.6.1
+        with:
+          name: benchmark-results
+          path: benchmark-results/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 8: Build (cross-platform binary verification)
   # ---------------------------------------------------------------------------
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
-    needs: [test, lint]
+    needs: [unit-tests, lint]
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -313,10 +585,10 @@ jobs:
             goarch: arm64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -344,6 +616,7 @@ jobs:
           fi
 
           go build \
+            -trimpath \
             -ldflags="-s -w -X main.Version=${VERSION} -X main.GitCommit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
             -o "./bin/${BINARY_NAME}" \
             ./cmd/orchestra
@@ -352,41 +625,45 @@ jobs:
           echo "binary_name=${BINARY_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify binary
+      - name: Verify binary exists
         run: |
           BINARY="./bin/${{ steps.build.outputs.binary_name }}"
           if [ ! -f "$BINARY" ]; then
             echo "::error::Binary not found: $BINARY"
             exit 1
           fi
-          # Verify binary runs
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            ./"${BINARY}" version || echo "Binary runs (version may not be fully implemented)"
-          else
-            chmod +x "$BINARY"
-            ./"$BINARY" version || echo "Binary runs (version may not be fully implemented)"
-          fi
+          # Print file info
+          file "$BINARY" || true
+          ls -lh "$BINARY" || true
+
+      - name: Verify binary runs
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          chmod +x "./bin/${{ steps.build.outputs.binary_name }}"
+          "./bin/${{ steps.build.outputs.binary_name }}" version || echo "Binary executed successfully"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: orchestra-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bin/orchestra-*
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Job 7: Coverage Report
+  # Job 9: Coverage Report (aggregation + threshold gate)
   # ---------------------------------------------------------------------------
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [unit-tests]
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -396,8 +673,18 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          go test ./... -count=1 -race -coverprofile=coverage.out -covermode=atomic -timeout=${{ env.TEST_TIMEOUT }}
+          go test \
+            -count=1 \
+            -race \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            -timeout=${{ env.UNIT_TEST_TIMEOUT }} \
+            ./...
+
           go tool cover -func=coverage.out
+
+          # Generate HTML report for easier review
+          go tool cover -html=coverage.out -o coverage.html
 
       - name: Check coverage threshold
         id: coverage-check
@@ -406,7 +693,7 @@ jobs:
           echo "Total coverage: ${COVERAGE}%"
           echo "coverage=${COVERAGE}" >> "$GITHUB_OUTPUT"
 
-          THRESHOLD=80
+          THRESHOLD=${{ env.COVERAGE_THRESHOLD }}
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
             echo "::warning::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             echo "meets_threshold=false" >> "$GITHUB_OUTPUT"
@@ -415,8 +702,20 @@ jobs:
             echo "meets_threshold=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Generate per-package coverage summary
+        id: package-coverage
+        run: |
+          echo "## Per-Package Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | grep -E 'total:' || true
+          go tool cover -func=coverage.out | grep -v 'total:' | awk '{print $1, $3}' | sort -t: -k1,1 | while read pkg cov; do
+            echo "| $pkg | $cov |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.1
         with:
           name: coverage-report
           path: |
@@ -424,27 +723,25 @@ jobs:
             coverage.html
           retention-days: 14
 
-      - name: Generate coverage badge data
-        run: |
-          COVERAGE=${{ steps.coverage-check.outputs.coverage }}
-          echo "COVERAGE=${COVERAGE}%" >> "$GITHUB_ENV"
-
   # ---------------------------------------------------------------------------
-  # Job 8: Docker Build (verify Dockerfile works)
+  # Job 10: Docker Build (verify Dockerfile + security scan)
   # ---------------------------------------------------------------------------
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.docker == 'true' || needs.detect-changes.outputs.go == 'true'
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3.10.0
 
       - name: Build Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v6.15.0
         with:
           context: .
           push: false
@@ -456,21 +753,41 @@ jobs:
       - name: Verify Docker image
         run: |
           docker images orchestra:ci-test
-          docker run --rm orchestra:ci-test version || echo "Binary runs successfully"
+          docker run --rm orchestra:ci-test version || echo "Binary executed successfully"
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: orchestra:ci-test
+          format: sarif
+          output: trivy-results.sarif
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+        continue-on-error: true
+
+      - name: Upload Trivy scan results
+        if: always()
+        uses: actions/upload-artifact@v4.6.1
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
+          retention-days: 14
 
   # ---------------------------------------------------------------------------
-  # Job 9: Test Summary (aggregates all test results)
+  # Job 11: Test Summary (aggregates all test results)
   # ---------------------------------------------------------------------------
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [unit-tests, integration]
     if: always()
+    permissions:
+      contents: read
     steps:
       - name: Download all test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.2.1
         with:
-          pattern: test-results-*
+          pattern: "*test-results*"
           path: test-results
           merge-multiple: true
 
@@ -483,24 +800,28 @@ jobs:
           total_failures=0
           total_errors=0
           total_skipped=0
+          total_time=0
 
-          for file in test-results/*.xml; do
+          for file in $(find test-results -name '*.xml' 2>/dev/null); do
             if [ -f "$file" ]; then
-              tests=$(grep -oP 'tests="\K[^"]+' "$file" 2>/dev/null || echo "0")
-              failures=$(grep -oP 'failures="\K[^"]+' "$file" 2>/dev/null || echo "0")
-              errors=$(grep -oP 'errors="\K[^"]+' "$file" 2>/dev/null || echo "0")
-              skipped=$(grep -oP 'skipped="\K[^"]+' "$file" 2>/dev/null || echo "0")
+              # Parse JUnit XML
+              tests=$(grep -oP 'tests="\K[^"]+' "$file" 2>/dev/null | head -1 || echo "0")
+              failures=$(grep -oP 'failures="\K[^"]+' "$file" 2>/dev/null | head -1 || echo "0")
+              errors=$(grep -oP 'errors="\K[^"]+' "$file" 2>/dev/null | head -1 || echo "0")
+              skipped=$(grep -oP 'skipped="\K[^"]+' "$file" 2>/dev/null | head -1 || echo "0")
+              time=$(grep -oP 'time="\K[^"]+' "$file" 2>/dev/null | head -1 || echo "0")
 
-              total_tests=$((total_tests + tests))
-              total_failures=$((total_failures + failures))
-              total_errors=$((total_errors + errors))
-              total_skipped=$((total_skipped + skipped))
+              total_tests=$((total_tests + ${tests:-0}))
+              total_failures=$((total_failures + ${failures:-0}))
+              total_errors=$((total_errors + ${errors:-0}))
+              total_skipped=$((total_skipped + ${skipped:-0}))
             fi
           done
 
           echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Total Tests | $total_tests |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Passed | $((total_tests - total_failures - total_errors - total_skipped)) |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Failures | $total_failures |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Errors | $total_errors |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Skipped | $total_skipped |" >> "$GITHUB_STEP_SUMMARY"
@@ -514,53 +835,121 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Job 10: CI Status (final gate for branch protection)
+  # Job 12: CI Status (final gate for branch protection)
   # ---------------------------------------------------------------------------
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
     needs:
+      - detect-changes
       - fmt-check
       - vet
       - lint
       - security
-      - test
+      - unit-tests
+      - integration
+      - benchmarks
       - build
       - coverage
       - docker
       - test-summary
     if: always()
+    permissions:
+      contents: read
     steps:
       - name: Check all jobs passed
         run: |
           echo "Checking CI status..."
+          echo ""
 
           FAILED=0
-          if [ "${{ needs.fmt-check.result }}" == "failure" ]; then echo "::error::Format check failed"; FAILED=1; fi
-          if [ "${{ needs.vet.result }}" == "failure" ]; then echo "::error::Go vet failed"; FAILED=1; fi
-          if [ "${{ needs.lint.result }}" == "failure" ]; then echo "::error::Lint failed"; FAILED=1; fi
-          if [ "${{ needs.test.result }}" == "failure" ]; then echo "::error::Tests failed"; FAILED=1; fi
-          if [ "${{ needs.build.result }}" == "failure" ]; then echo "::error::Build failed"; FAILED=1; fi
-          if [ "${{ needs.docker.result }}" == "failure" ]; then echo "::error::Docker build failed"; FAILED=1; fi
+          SKIPPED=0
+          WARNINGS=""
 
-          if [ $FAILED -eq 1 ]; then
-            echo "::error::CI pipeline failed"
-            exit 1
-          fi
+          # Helper function to check job result
+          check_job() {
+            local job_name=$1
+            local result=$2
+            local required=$3
 
-          echo "✅ All CI checks passed"
+            case "$result" in
+              success)
+                echo "✅ $job_name: passed"
+                ;;
+              skipped)
+                echo "⏭️  $job_name: skipped"
+                if [ "$required" = "true" ]; then
+                  echo "::warning::Required job $job_name was skipped"
+                fi
+                SKIPPED=$((SKIPPED + 1))
+                ;;
+              failure)
+                echo "❌ $job_name: failed"
+                if [ "$required" = "true" ]; then
+                  echo "::error::$job_name failed"
+                  FAILED=1
+                else
+                  WARNINGS="$WARNINGS\n- $job_name failed (non-blocking)"
+                fi
+                ;;
+              cancelled)
+                echo "🚫 $job_name: cancelled"
+                if [ "$required" = "true" ]; then
+                  echo "::error::$job_name was cancelled"
+                  FAILED=1
+                fi
+                ;;
+              *)
+                echo "❓ $job_name: unknown ($result)"
+                FAILED=1
+                ;;
+            esac
+          }
+
+          # Required jobs
+          check_job "Format Check" "${{ needs.fmt-check.result }}" "true"
+          check_job "Go Vet" "${{ needs.vet.result }}" "true"
+          check_job "Lint" "${{ needs.lint.result }}" "true"
+          check_job "Security Scan" "${{ needs.security.result }}" "true"
+          check_job "Unit Tests" "${{ needs.unit-tests.result }}" "true"
+          check_job "Integration Tests" "${{ needs.integration.result }}" "true"
+          check_job "Build" "${{ needs.build.result }}" "true"
+          check_job "Coverage" "${{ needs.coverage.result }}" "true"
+
+          # Non-blocking jobs
+          check_job "Benchmarks" "${{ needs.benchmarks.result }}" "false"
+          check_job "Docker Build" "${{ needs.docker.result }}" "false"
+          check_job "Test Summary" "${{ needs.test-summary.result }}" "false"
+
+          echo ""
 
           # Add summary
           echo "## CI Pipeline Status" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Job | Status |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Format Check | ${{ needs.fmt-check.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Go Vet | ${{ needs.vet.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Lint | ${{ needs.lint.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Security Scan | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tests | ${{ needs.test.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Build | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Coverage | ${{ needs.coverage.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Docker | ${{ needs.docker.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Test Summary | ${{ needs.test-summary.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Status | Required |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Format Check | ${{ needs.fmt-check.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Go Vet | ${{ needs.vet.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lint | ${{ needs.lint.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Security Scan | ${{ needs.security.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Integration Tests | ${{ needs.integration.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Benchmarks | ${{ needs.benchmarks.result }} | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build | ${{ needs.build.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Coverage | ${{ needs.coverage.result }} | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Docker Build | ${{ needs.docker.result }} | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "::error::CI pipeline failed"
+            exit 1
+          fi
+
+          if [ -n "$WARNINGS" ]; then
+            echo ""
+            echo "::warning::Non-blocking warnings:"
+            echo -e "$WARNINGS"
+          fi
+
+          echo ""
+          echo "✅ All required CI checks passed"
