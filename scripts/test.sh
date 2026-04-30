@@ -302,7 +302,7 @@ run_tests() {
             if [[ -n "${SPECIFIC_PKG}" ]]; then
                 suite_name="orchestra-${SPECIFIC_PKG}"
             fi
-            gotestsum_args+=("--junitfile-testsuite-name=${suite_name}")
+            gotestsum_args+=("--junitfile-project-name=${suite_name}")
         fi
 
         gha_group "Running Tests (gotestsum)"
@@ -314,7 +314,7 @@ run_tests() {
         gotestsum \
             --format="$(detect_gotestsum_format)" \
             --junitfile="${JUNIT_OUTPUT}" \
-            --junitfile-testsuite-name="orchestra" \
+            --junitfile-project-name="orchestra" \
             -- \
             "${test_args[@]}" \
             "${target}" || exit_code=$?

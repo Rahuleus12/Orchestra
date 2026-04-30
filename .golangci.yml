@@ -33,7 +33,6 @@ linters:
   enable:
     # --- Default linters ---
     - errcheck # Check for unchecked errors
-    - gosimple # Simplify code
     - govet # Vet examines Go source code
     - ineffassign # Detect ineffectual assignments
     - staticcheck # Go vet on steroids
@@ -114,7 +113,6 @@ linters:
     - sloglint # Check for structured logging best practices
     - spancheck # Check for OpenTelemetry span errors
     - sqlclosecheck # Check for sql.Rows/Stmt close
-    - stylecheck # Stylecheck is a replacement for golint
     - tagalign # Check for struct tag alignment
     - tagliatelle # Check for struct tag conventions
     - testableexamples # Check for testable examples

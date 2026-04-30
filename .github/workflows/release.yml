@@ -142,7 +142,7 @@ jobs:
           gotestsum \
             --format standard-verbose \
             --junitfile test-results.xml \
-            --junitfile-testsuite-name="orchestra-release" \
+            --junitfile-project-name="orchestra-release" \
             -- \
             ./... \
             -count=1 \

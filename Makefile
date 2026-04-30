@@ -48,7 +48,7 @@ test-verbose:
 test-ci:
 	@echo "Running tests (CI mode)..."
 	@which $(GOTESTSUM) > /dev/null 2>&1 || (echo "Installing gotestsum..." && go install gotest.tools/gotestsum@latest)
-	$(GOTESTSUM) --format standard-verbose --junitfile=$(JUNIT_FILE) --junitfile-testsuite-name=orchestra -- \
+	$(GOTESTSUM) --format standard-verbose --junitfile=$(JUNIT_FILE) --junitfile-project-name=orchestra -- \
 		./... $(TEST_COUNT) $(TEST_RACE) -timeout=$(TEST_TIMEOUT)
 
 ## test-junit: Generate JUnit XML output (alias for test-ci)

@@ -378,7 +378,7 @@ jobs:
           gotestsum \
             --format github-actions \
             --junitfile unit-test-results.xml \
-            --junitfile-testsuite-name="orchestra-unit-${{ matrix.go-version }}-${{ matrix.os }}" \
+            --junitfile-project-name="orchestra-unit-${{ matrix.go-version }}-${{ matrix.os }}" \
             -- \
             -count=1 \
             -race \
