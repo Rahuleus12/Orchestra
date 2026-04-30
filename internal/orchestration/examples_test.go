@@ -46,7 +46,6 @@ func BasicWorkflow() {
 			return nil
 		}).
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}
@@ -84,7 +83,6 @@ func SequentialWorkflow() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{"input": "process this data"})
-
 	if err != nil {
 		log.Fatalf("Execution failed: %v", err)
 	}
@@ -125,7 +123,6 @@ func ParallelWorkflow() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{"topic": "future of AI"})
-
 	if err != nil {
 		log.Fatalf("Execution failed: %v", err)
 	}
@@ -211,7 +208,6 @@ func DebateWorkflow() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{})
-
 	if err != nil {
 		log.Fatalf("Debate execution failed: %v", err)
 	}
@@ -248,7 +244,6 @@ func HierarchicalWorkflow() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{"topic": "Build a simple REST API"})
-
 	if err != nil {
 		log.Fatalf("Hierarchical execution failed: %v", err)
 	}
@@ -315,7 +310,6 @@ func RetryPolicyDemo() {
 			WithTimeout(10*time.Second),
 		).
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}
@@ -353,7 +347,6 @@ func ConditionalExecution() {
 		DependsOn("process-a").
 		DependsOn("process-b").
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}
@@ -392,7 +385,6 @@ func CustomMappings() {
 			}),
 		).
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}
@@ -403,7 +395,6 @@ func CustomMappings() {
 			"raw_data": "sample input data",
 			"prefix":   "TRANSFORMED",
 		})
-
 	if err != nil {
 		log.Fatalf("Execution failed: %v", err)
 	}
@@ -430,7 +421,6 @@ func DiamondPattern() {
 		DependsOn("left").
 		DependsOn("right").
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build diamond workflow: %v", err)
 	}
@@ -449,7 +439,6 @@ func DiamondPattern() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{"input": "diamond pattern test"})
-
 	if err != nil {
 		log.Fatalf("Execution failed: %v", err)
 	}
@@ -510,7 +499,6 @@ func ComplexWorkflow() {
 			return nil
 		}).
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build complex workflow: %v", err)
 	}
@@ -526,7 +514,6 @@ func ComplexWorkflow() {
 	engine := NewEngine()
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{"topic": "complex multi-agent task"})
-
 	if err != nil {
 		log.Fatalf("Execution failed: %v", err)
 	}
@@ -550,7 +537,6 @@ func Metadata() {
 			WithStepMetadata("requires-resource", "CPU"),
 		).
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}
@@ -603,7 +589,6 @@ func ErrorHandling() {
 		AddStep("step-3", mockAgent("stable-agent")).
 		DependsOn("step-2").
 		Build()
-
 	if err != nil {
 		log.Fatalf("Failed to build workflow: %v", err)
 	}

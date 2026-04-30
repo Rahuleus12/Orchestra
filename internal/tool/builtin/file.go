@@ -600,7 +600,7 @@ func (t FileWriteTool) Execute(ctx context.Context, input json.RawMessage) (json
 	// Create parent directories if requested
 	if req.CreateDirs {
 		dir := filepath.Dir(resolvedPath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return marshalFileWriteError(fmt.Errorf("create directories: %w", err))
 		}
 	} else {

@@ -129,6 +129,7 @@ func (r *retryProvider) Name() string { return r.inner.Name() }
 func (r *retryProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return r.inner.Models(ctx)
 }
+
 func (r *retryProvider) Capabilities(model string) provider.ModelCapabilities {
 	return r.inner.Capabilities(model)
 }
@@ -263,6 +264,7 @@ func (r *rateLimitProvider) Name() string { return r.inner.Name() }
 func (r *rateLimitProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return r.inner.Models(ctx)
 }
+
 func (r *rateLimitProvider) Capabilities(model string) provider.ModelCapabilities {
 	return r.inner.Capabilities(model)
 }
@@ -427,6 +429,7 @@ func (l *loggingProvider) Name() string { return l.inner.Name() }
 func (l *loggingProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return l.inner.Models(ctx)
 }
+
 func (l *loggingProvider) Capabilities(model string) provider.ModelCapabilities {
 	return l.inner.Capabilities(model)
 }
@@ -634,6 +637,7 @@ func (c *cachingProvider) Name() string { return c.inner.Name() }
 func (c *cachingProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return c.inner.Models(ctx)
 }
+
 func (c *cachingProvider) Capabilities(model string) provider.ModelCapabilities {
 	return c.inner.Capabilities(model)
 }
@@ -775,6 +779,7 @@ func (cb *circuitBreakerProvider) Name() string { return cb.inner.Name() }
 func (cb *circuitBreakerProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return cb.inner.Models(ctx)
 }
+
 func (cb *circuitBreakerProvider) Capabilities(model string) provider.ModelCapabilities {
 	return cb.inner.Capabilities(model)
 }

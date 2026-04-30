@@ -199,7 +199,7 @@ func Debate(config DebateConfig) (*Workflow, error) {
 
 		// All debaters in this round depend on previous round's judge (if not first round)
 		if round > 0 && len(previousStepIDs) > 0 {
-			for _, _ = range roundStepIDs {
+			for range roundStepIDs {
 				builder.DependsOn(previousStepIDs[len(previousStepIDs)-1])
 			}
 		}

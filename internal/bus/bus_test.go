@@ -138,7 +138,6 @@ func TestInMemoryBus_Subscribe(t *testing.T) {
 		received <- msg
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
@@ -240,7 +239,6 @@ func TestInMemoryBus_Publish(t *testing.T) {
 
 	msg := NewBusMessage("original.topic", "sender", "", "hello")
 	err := bus.Publish(context.Background(), "test.topic", msg)
-
 	if err != nil {
 		t.Fatalf("failed to publish: %v", err)
 	}

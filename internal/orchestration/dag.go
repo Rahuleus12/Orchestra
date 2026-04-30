@@ -3,10 +3,9 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
-
-	"math"
 
 	"github.com/user/orchestra/internal/agent"
 	"github.com/user/orchestra/internal/provider"

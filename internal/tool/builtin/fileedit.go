@@ -365,13 +365,13 @@ func (t FileEditTool) Execute(ctx context.Context, input json.RawMessage) (json.
 	// Create backup if requested
 	if req.CreateBackup {
 		backupPath := resolvedPath + ".bak"
-		if err := os.WriteFile(backupPath, []byte(originalContent), 0644); err != nil {
+		if err := os.WriteFile(backupPath, []byte(originalContent), 0o644); err != nil {
 			return marshalFileEditError(fmt.Errorf("create backup: %w", err))
 		}
 	}
 
 	// Write the modified content
-	if err := os.WriteFile(resolvedPath, []byte(currentContent), 0644); err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(currentContent), 0o644); err != nil {
 		return marshalFileEditError(fmt.Errorf("write file: %w", err))
 	}
 

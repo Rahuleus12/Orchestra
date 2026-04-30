@@ -28,6 +28,7 @@ func (m *mockProvider) Generate(_ context.Context, _ GenerateRequest) (*Generate
 		Model:   "test-model",
 	}, nil
 }
+
 func (m *mockProvider) Stream(_ context.Context, _ GenerateRequest) (<-chan StreamEvent, error) {
 	ch := make(chan StreamEvent)
 	close(ch)

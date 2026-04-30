@@ -59,7 +59,6 @@ func TestMailbox_SendAndTryReceive(t *testing.T) {
 
 	msg := NewBusMessage("test", "sender", "agent-1", "hello")
 	err := mailbox.Send(msg)
-
 	if err != nil {
 		t.Fatalf("Send failed: %v", err)
 	}

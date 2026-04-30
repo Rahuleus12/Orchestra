@@ -517,7 +517,6 @@ func TestWorkflowBuilderChaining(t *testing.T) {
 		DependsOn("step-2").
 		DependsOn("step-1").
 		Build()
-
 	if err != nil {
 		t.Errorf("Build failed: %v", err)
 	}
@@ -573,7 +572,6 @@ func TestWorkflowBuilderMultipleDependencies(t *testing.T) {
 		DependsOn("step-1").
 		DependsOn("step-2").
 		Build()
-
 	if err != nil {
 		t.Errorf("Build failed: %v", err)
 	}
@@ -614,7 +612,6 @@ func TestWorkflowBuilderComplexDAG(t *testing.T) {
 		DependsOn("left"). // This depends on the current step "end", but we want "left" -> "end"
 		// DependsOn creates an edge FROM the specified step TO the current step
 		Build()
-
 	if err != nil {
 		t.Errorf("Build failed: %v", err)
 	}
@@ -630,7 +627,6 @@ func TestWorkflowBuilderDiamondPattern(t *testing.T) {
 		AddStep("right", agent1).DependsOn("start").
 		AddStep("end", agent1).DependsOn("left").DependsOn("right").
 		Build()
-
 	if err != nil {
 		t.Errorf("Build failed: %v", err)
 	}

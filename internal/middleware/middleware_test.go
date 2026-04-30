@@ -60,13 +60,16 @@ func (e *errProvider) Name() string { return e.name }
 func (e *errProvider) Models(_ context.Context) ([]provider.ModelInfo, error) {
 	return nil, e.err
 }
+
 func (e *errProvider) Capabilities(_ string) provider.ModelCapabilities {
 	return provider.ModelCapabilities{}
 }
+
 func (e *errProvider) Generate(_ context.Context, _ provider.GenerateRequest) (*provider.GenerateResult, error) {
 	e.calls.Add(1)
 	return nil, e.err
 }
+
 func (e *errProvider) Stream(_ context.Context, _ provider.GenerateRequest) (<-chan provider.StreamEvent, error) {
 	e.calls.Add(1)
 	return nil, e.err
@@ -84,9 +87,11 @@ func (f *flakyProvider) Name() string { return f.name }
 func (f *flakyProvider) Models(_ context.Context) ([]provider.ModelInfo, error) {
 	return []provider.ModelInfo{{ID: "test-model", Name: "Test Model"}}, nil
 }
+
 func (f *flakyProvider) Capabilities(_ string) provider.ModelCapabilities {
 	return provider.ModelCapabilities{Streaming: true, ToolCalling: true}
 }
+
 func (f *flakyProvider) Generate(_ context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 	n := f.failCount.Add(1)
 	if n <= f.succeedAfter {
@@ -95,6 +100,7 @@ func (f *flakyProvider) Generate(_ context.Context, req provider.GenerateRequest
 	}
 	return f.result, nil
 }
+
 func (f *flakyProvider) Stream(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamEvent, error) {
 	n := f.failCount.Add(1)
 	if n <= f.succeedAfter {

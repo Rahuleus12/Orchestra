@@ -627,7 +627,6 @@ func (m *Mailbox) ConnectToBus(bus Bus) error {
 			return msg.ToAgent == m.agentID
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to bus: %w", err)
 	}
@@ -663,7 +662,6 @@ func (m *Mailbox) ConnectToBusTopic(bus Bus, topic string) error {
 			return m.Send(msg)
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to topic %s: %w", topic, err)
 	}

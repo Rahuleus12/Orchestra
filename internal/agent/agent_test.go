@@ -68,6 +68,7 @@ func (errorTool) Parameters() map[string]any {
 		},
 	}
 }
+
 func (errorTool) Execute(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("tool execution failed")
 }

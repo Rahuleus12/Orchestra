@@ -312,7 +312,7 @@ func TempFile(t *testing.T, content string) (string, func()) {
 	t.Helper()
 	dir, dirCleanup := TempDir(t)
 	path := filepath.Join(dir, "testfile")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		dirCleanup()
 		t.Fatalf("failed to write temp file: %v", err)
 	}
@@ -326,7 +326,7 @@ func TempFileWithExt(t *testing.T, ext, content string) (string, func()) {
 	t.Helper()
 	dir, dirCleanup := TempDir(t)
 	path := filepath.Join(dir, "testfile"+ext)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		dirCleanup()
 		t.Fatalf("failed to write temp file: %v", err)
 	}
