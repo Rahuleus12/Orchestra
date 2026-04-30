@@ -63,7 +63,6 @@ linters:
     - forbidigo # Forbid specific identifiers
     - forcetypeassert # Force type assertion checks
     - funlen # Check function length
-    - gci # Control golang package import order
     - ginkgolinter # Enforce standards for ginkgo/gomega tests
     - gocheckcompilerdirectives # Check compiler directives
     - gochecknoglobals # Check for global variables
@@ -74,10 +73,7 @@ linters:
     - gocritic # Provide diagnostics for Go source code
     - gocyclo # Check cyclomatic complexity
     - godot # Check comments end with a period
-    - gofmt # Check whether code is gofmt-ed
-    - gofumpt # Stricter gofmt
     - goheader # Check license headers
-    - goimports # Check import statements are formatted
     - gomoddirectives # Check go.mod directives
     - gomodguard # Check for allowed/blocked module dependencies
     - goprintffuncname # Check printf-like function names
