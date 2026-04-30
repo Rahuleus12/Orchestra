@@ -196,7 +196,7 @@ func DebateWorkflow() {
 
 	// Configure debate
 	config := DebateConfig{
-		Name:    "ai-safety-debate",
+		Name:     "ai-safety-debate",
 		Debaters: []*agent.Agent{proponent, opponent},
 		Judge:    judge,
 		Rounds:   3,
@@ -216,8 +216,8 @@ func DebateWorkflow() {
 		log.Fatalf("Debate execution failed: %v", err)
 	}
 
-	    fmt.Printf("Debate completed in %v\n", result.Duration)
-	    fmt.Printf("Judge's verdict: %s\n", result.Output["verdict"])
+	fmt.Printf("Debate completed in %v\n", result.Duration)
+	fmt.Printf("Judge's verdict: %s\n", result.Output["verdict"])
 }
 
 // HierarchicalWorkflow demonstrates manager-worker delegation.
@@ -229,7 +229,7 @@ func HierarchicalWorkflow() {
 	tester := mockAgent("testing-worker")
 
 	config := HierarchicalConfig{
-		Name:   "software-development",
+		Name:    "software-development",
 		Manager: manager,
 		Workers: map[string]*agent.Agent{
 			"research": researcher,
@@ -401,7 +401,7 @@ func CustomMappings() {
 	result, err := engine.Execute(context.Background(), workflow,
 		map[string]any{
 			"raw_data": "sample input data",
-			"prefix":  "TRANSFORMED",
+			"prefix":   "TRANSFORMED",
 		})
 
 	if err != nil {

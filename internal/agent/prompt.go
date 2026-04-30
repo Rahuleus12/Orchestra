@@ -392,9 +392,9 @@ func templateNameFromPath(path string) string {
 // loaded from a filesystem or embedded resource. It supports lazy loading
 // and template inheritance via block composition.
 type TemplateRegistry struct {
-	mu         sync.RWMutex
-	templates  map[string]*Template
-	factories  map[string]func() (*Template, error)
+	mu        sync.RWMutex
+	templates map[string]*Template
+	factories map[string]func() (*Template, error)
 }
 
 // NewTemplateRegistry creates a new empty template registry.

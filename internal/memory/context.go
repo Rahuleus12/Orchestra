@@ -78,12 +78,12 @@ const (
 
 // ContextManager handles context window management for conversations.
 type ContextManager struct {
-	mu             sync.RWMutex
-	contextWindow  *ContextWindow
-	tokenizer      Tokenizer
-	strategy       TruncationStrategy
+	mu               sync.RWMutex
+	contextWindow    *ContextWindow
+	tokenizer        Tokenizer
+	strategy         TruncationStrategy
 	warningThreshold float64 // Percentage (0.0-1.0) to emit warnings
-	onWarning      func(warning *ContextWarning)
+	onWarning        func(warning *ContextWarning)
 }
 
 // ContextWarning represents a warning about context window usage.
@@ -111,7 +111,7 @@ func NewContextManager(contextWindow *ContextWindow, tokenizer Tokenizer) *Conte
 	}
 
 	return &ContextManager{
-		contextWindow:     contextWindow,
+		contextWindow:    contextWindow,
 		tokenizer:        tokenizer,
 		strategy:         TruncateOldestPreservingSystem,
 		warningThreshold: 0.9, // Warn at 90% usage

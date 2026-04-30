@@ -509,15 +509,15 @@ func DefaultConfig() *Config {
 				Propagator:   "w3c",
 			},
 			Metrics: MetricsConfig{
-				Enabled:       false,
-				Endpoint:      "http://localhost:9090/metrics",
-				ServiceName:   "orchestra",
-				Namespace:     "orchestra",
+				Enabled:        false,
+				Endpoint:       "http://localhost:9090/metrics",
+				ServiceName:    "orchestra",
+				Namespace:      "orchestra",
 				ExportInterval: 15 * time.Second,
 				ExportTimeout:  5 * time.Second,
 			},
 		},
-		MaxConcurrency:  0, // unlimited
-		RequestTimeout:  5 * time.Minute,
+		MaxConcurrency: 0, // unlimited
+		RequestTimeout: 5 * time.Minute,
 	}
 }

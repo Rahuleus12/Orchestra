@@ -16,13 +16,13 @@ import (
 
 // General-purpose tool names.
 const (
-	HTTPRequestToolName  = "http_request"
-	CalculatorToolName   = "calculator"
-	FileReadToolName     = "file_read"
-	FileWriteToolName    = "file_write"
-	WebSearchToolName    = "web_search"
+	HTTPRequestToolName   = "http_request"
+	CalculatorToolName    = "calculator"
+	FileReadToolName      = "file_read"
+	FileWriteToolName     = "file_write"
+	WebSearchToolName     = "web_search"
 	JSONTransformToolName = "json_transform"
-	SQLQueryToolName     = "sql_query"
+	SQLQueryToolName      = "sql_query"
 )
 
 // Coding-specific tool names.

@@ -9,9 +9,9 @@ import (
 
 // WorkflowBuilder provides a fluent API for constructing workflows.
 type WorkflowBuilder struct {
-	workflow   *Workflow
+	workflow    *Workflow
 	currentStep *Step
-	errors     []error
+	errors      []error
 }
 
 // NewWorkflowBuilder creates a new workflow builder with the given name.

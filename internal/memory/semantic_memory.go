@@ -39,13 +39,13 @@ type SimilarityScore struct {
 // using vector embeddings. This enables retrieval of messages that are
 // conceptually related to a query, not just recency-based.
 type SemanticMemory struct {
-	mu               sync.RWMutex
-	messages         []semanticMessage
+	mu                sync.RWMutex
+	messages          []semanticMessage
 	embeddingProvider EmbeddingProvider
-	maxSize          int // Maximum number of messages to store (0 = unlimited)
-	topK             int // Number of top results to return (default: 5)
-	minScore         float32 // Minimum similarity score threshold (0.0 - 1.0)
-	includeContent   bool // Whether to include content in embedding generation
+	maxSize           int     // Maximum number of messages to store (0 = unlimited)
+	topK              int     // Number of top results to return (default: 5)
+	minScore          float32 // Minimum similarity score threshold (0.0 - 1.0)
+	includeContent    bool    // Whether to include content in embedding generation
 }
 
 // NewSemanticMemory creates a new SemanticMemory with the specified embedding provider.
@@ -69,10 +69,10 @@ func NewSemanticMemory(provider EmbeddingProvider, maxSize, topK int, minScore f
 	return &SemanticMemory{
 		messages:          make([]semanticMessage, 0),
 		embeddingProvider: provider,
-		maxSize:          maxSize,
-		topK:             topK,
-		minScore:         minScore,
-		includeContent:   true,
+		maxSize:           maxSize,
+		topK:              topK,
+		minScore:          minScore,
+		includeContent:    true,
 	}
 }
 

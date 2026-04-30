@@ -149,9 +149,9 @@ type parser struct {
 
 // parseError represents an error during expression parsing.
 type parseError struct {
-	pos    int
-	msg    string
-	input  string
+	pos   int
+	msg   string
+	input string
 }
 
 func (e *parseError) Error() string {

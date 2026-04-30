@@ -26,9 +26,9 @@ const (
 
 // Engine executes workflows with parallel execution and failure handling.
 type Engine struct {
-	logger   *slog.Logger
-	tracer   interface{} // trace.Tracer (placeholder for OpenTelemetry)
-	meter    interface{} // metric.Meter (placeholder for OpenTelemetry)
+	logger *slog.Logger
+	tracer interface{} // trace.Tracer (placeholder for OpenTelemetry)
+	meter  interface{} // metric.Meter (placeholder for OpenTelemetry)
 }
 
 // EngineOption configures an Engine instance.

@@ -48,7 +48,7 @@ func (m *MockEmbeddingProvider) GenerateEmbedding(ctx context.Context, text stri
 	// Generate embedding values using the hash and text characteristics
 	for i := 0; i < m.dimension; i++ {
 		// Combine hash with position to create varied values
-		combined := uint64(hash) * uint64(i+1) + uint64(m.seed)
+		combined := uint64(hash)*uint64(i+1) + uint64(m.seed)
 
 		// Create a pseudo-random float in range [-1, 1]
 		// Use sine to create smooth variations
@@ -58,7 +58,7 @@ func (m *MockEmbeddingProvider) GenerateEmbedding(ctx context.Context, text stri
 		if i < len(text) {
 			r := rune(text[i])
 			// Normalize rune to roughly [-0.5, 0.5]
-			charInfluence := float64(r%256) / 512.0 - 0.5
+			charInfluence := float64(r%256)/512.0 - 0.5
 			value = (value + charInfluence) / 2
 		}
 
@@ -124,9 +124,9 @@ func (m *MockEmbeddingProvider) DeterministicTextEmbedding(ctx context.Context, 
 		value := math.Sin(float64(baseHash+uint32(i)) * 0.01)
 
 		// Add text characteristics influence
-		value += float64(wordCount%10) * 0.01 * math.Cos(positionFactor * math.Pi)
-		value += float64(avgWordLength) * 0.05 * math.Sin(positionFactor * 2 * math.Pi)
-		value += float64(letterCount%20) * 0.02 * math.Cos(positionFactor * 3 * math.Pi)
+		value += float64(wordCount%10) * 0.01 * math.Cos(positionFactor*math.Pi)
+		value += float64(avgWordLength) * 0.05 * math.Sin(positionFactor*2*math.Pi)
+		value += float64(letterCount%20) * 0.02 * math.Cos(positionFactor*3*math.Pi)
 
 		// Add character n-gram influence
 		if i < len(text)-1 {
@@ -221,9 +221,9 @@ func min(a, b int) int {
 
 // PredefinedMockProviders provides common mock embedding providers for testing.
 var PredefinedMockProviders = struct {
-	Small   *MockEmbeddingProvider // 384 dimensions
-	Medium  *MockEmbeddingProvider // 768 dimensions
-	Large   *MockEmbeddingProvider // 1536 dimensions
+	Small  *MockEmbeddingProvider // 384 dimensions
+	Medium *MockEmbeddingProvider // 768 dimensions
+	Large  *MockEmbeddingProvider // 1536 dimensions
 }{
 	Small:  NewMockEmbeddingProvider(384),
 	Medium: NewMockEmbeddingProvider(768),

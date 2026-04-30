@@ -34,9 +34,9 @@ type ExecutionConfig struct {
 // 30-second timeout, unlimited parallelism, default logger, no stats.
 func DefaultExecutionConfig() ExecutionConfig {
 	return ExecutionConfig{
-		Timeout:    30 * time.Second,
+		Timeout:     30 * time.Second,
 		MaxParallel: 0,
-		Logger:     slog.Default(),
+		Logger:      slog.Default(),
 	}
 }
 
@@ -68,11 +68,11 @@ type SandboxConfig struct {
 // executing untrusted tool code.
 func DefaultSandboxConfig() SandboxConfig {
 	return SandboxConfig{
-		MaxMemoryBytes:  256 * 1024 * 1024, // 256 MB
-		MaxGoroutines:   10,
-		AllowedEnvVars:  nil,               // No env vars by default
-		WorkingDirectory: "",                // No restriction (tools should set their own)
-		NetworkAccess:   false,
+		MaxMemoryBytes:   256 * 1024 * 1024, // 256 MB
+		MaxGoroutines:    10,
+		AllowedEnvVars:   nil, // No env vars by default
+		WorkingDirectory: "",  // No restriction (tools should set their own)
+		NetworkAccess:    false,
 	}
 }
 

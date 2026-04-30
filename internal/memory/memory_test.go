@@ -144,7 +144,7 @@ func TestBufferMemory(t *testing.T) {
 
 		// Add 5 messages
 		for i := 0; i < 5; i++ {
-			_ = mem.Add(ctx, message.UserMessage(string(rune('a' + i))))
+			_ = mem.Add(ctx, message.UserMessage(string(rune('a'+i))))
 		}
 
 		// Reduce limit to 2
@@ -166,7 +166,7 @@ func TestSlidingWindowMemory(t *testing.T) {
 
 		// Add 5 messages
 		for i := 0; i < 5; i++ {
-			_ = mem.Add(ctx, message.UserMessage(string(rune('a' + i))))
+			_ = mem.Add(ctx, message.UserMessage(string(rune('a'+i))))
 		}
 
 		size := mem.Size(ctx)
@@ -315,7 +315,7 @@ func TestSemanticMemory(t *testing.T) {
 
 		// Add 5 messages
 		for i := 0; i < 5; i++ {
-			_ = mem.Add(ctx, message.UserMessage(string(rune('a' + i))))
+			_ = mem.Add(ctx, message.UserMessage(string(rune('a'+i))))
 		}
 
 		if mem.Size(ctx) != 3 {

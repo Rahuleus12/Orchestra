@@ -611,7 +611,7 @@ func TestWorkflowBuilderComplexDAG(t *testing.T) {
 		AddStep("left", agent1).
 		AddStep("right", agent1).
 		AddStep("end", agent1).
-		DependsOn("left").  // This depends on the current step "end", but we want "left" -> "end"
+		DependsOn("left"). // This depends on the current step "end", but we want "left" -> "end"
 		// DependsOn creates an edge FROM the specified step TO the current step
 		Build()
 
@@ -642,10 +642,10 @@ func TestWorkflowBuilderDiamondPattern(t *testing.T) {
 
 	// Verify diamond structure
 	expectedEdges := map[string]bool{
-		"start->left":   false,
-		"start->right":  false,
-		"left->end":     false,
-		"right->end":    false,
+		"start->left":  false,
+		"start->right": false,
+		"left->end":    false,
+		"right->end":   false,
 	}
 
 	for _, edge := range edges {

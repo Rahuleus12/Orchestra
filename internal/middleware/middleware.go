@@ -125,7 +125,7 @@ type retryProvider struct {
 	backoff     BackoffStrategy
 }
 
-func (r *retryProvider) Name() string                                        { return r.inner.Name() }
+func (r *retryProvider) Name() string { return r.inner.Name() }
 func (r *retryProvider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 	return r.inner.Models(ctx)
 }
@@ -287,25 +287,25 @@ func (r *rateLimitProvider) Stream(ctx context.Context, req provider.GenerateReq
 
 // rateLimiter implements a simple token bucket rate limiter.
 type rateLimiter struct {
-	mu           sync.Mutex
-	rpm          int
-	tpm          int
-	tokens       float64
-	maxTokens    float64
-	refillRate   float64 // tokens per nanosecond
-	lastRefill   time.Time
-	tpmTokens    float64
-	tpmMaxTokens float64
-	tpmRefill    float64 // tokens per nanosecond
+	mu            sync.Mutex
+	rpm           int
+	tpm           int
+	tokens        float64
+	maxTokens     float64
+	refillRate    float64 // tokens per nanosecond
+	lastRefill    time.Time
+	tpmTokens     float64
+	tpmMaxTokens  float64
+	tpmRefill     float64 // tokens per nanosecond
 	tpmLastRefill time.Time
 }
 
 func newRateLimiter(rpm, tpm int) *rateLimiter {
 	now := time.Now()
 	rl := &rateLimiter{
-		rpm:          rpm,
-		tpm:          tpm,
-		lastRefill:   now,
+		rpm:           rpm,
+		tpm:           tpm,
+		lastRefill:    now,
 		tpmLastRefill: now,
 	}
 
@@ -688,12 +688,12 @@ func cacheKeyForRequest(providerName string, req provider.GenerateRequest) strin
 
 	// Hash options (deterministic serialization)
 	opts, _ := json.Marshal(map[string]interface{}{
-		"temperature":   req.Options.Temperature,
-		"top_p":         req.Options.TopP,
-		"max_tokens":    req.Options.MaxTokens,
-		"stop":          req.Options.StopSequences,
-		"seed":          req.Options.Seed,
-		"response_fmt":  req.Options.ResponseFormat,
+		"temperature":  req.Options.Temperature,
+		"top_p":        req.Options.TopP,
+		"max_tokens":   req.Options.MaxTokens,
+		"stop":         req.Options.StopSequences,
+		"seed":         req.Options.Seed,
+		"response_fmt": req.Options.ResponseFormat,
 	})
 	h.Write(opts)
 
@@ -763,12 +763,12 @@ type circuitBreakerProvider struct {
 	threshold    int
 	resetTimeout time.Duration
 
-	mu           sync.Mutex
-	state        CircuitState
-	stateChanged time.Time
-	consecFails  int
+	mu            sync.Mutex
+	state         CircuitState
+	stateChanged  time.Time
+	consecFails   int
 	totalRejected int64
-	lastFailure  time.Time
+	lastFailure   time.Time
 }
 
 func (cb *circuitBreakerProvider) Name() string { return cb.inner.Name() }

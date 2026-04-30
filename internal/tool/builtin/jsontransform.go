@@ -1356,9 +1356,9 @@ func (j *jq) fnMatch(args []string, data any) ([]any, error) {
 	}
 
 	result := map[string]any{
-		"offset": captures.offset,
-		"length": captures.length,
-		"string": captures.match,
+		"offset":   captures.offset,
+		"length":   captures.length,
+		"string":   captures.match,
 		"captures": captures.captures,
 	}
 	return []any{result}, nil

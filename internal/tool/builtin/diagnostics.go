@@ -224,11 +224,11 @@ type DiagnosticsTool struct {
 // NewDiagnosticsTool creates a diagnostics tool with default settings.
 func NewDiagnosticsTool() DiagnosticsTool {
 	return DiagnosticsTool{
-		DefaultTimeout:  30 * time.Second,
-		TestTimeout:     120 * time.Second,
-		MaxTimeout:      10 * time.Minute,
-		MaxOutputBytes:  2 * 1024 * 1024,
-		CustomLinters:   make(map[string]string),
+		DefaultTimeout:     30 * time.Second,
+		TestTimeout:        120 * time.Second,
+		MaxTimeout:         10 * time.Minute,
+		MaxOutputBytes:     2 * 1024 * 1024,
+		CustomLinters:      make(map[string]string),
 		CustomTypeCheckers: make(map[string]string),
 	}
 }
@@ -768,16 +768,16 @@ func (t DiagnosticsTool) getBuildCommand(language, path, extraArgs string) []str
 func (t DiagnosticsTool) detectLanguage(path string) string {
 	// Check for explicit marker files first
 	markerFiles := map[string]string{
-		"go.mod":        "go",
-		"pyproject.toml": "python",
-		"setup.py":      "python",
+		"go.mod":           "go",
+		"pyproject.toml":   "python",
+		"setup.py":         "python",
 		"requirements.txt": "python",
-		"Pipfile":       "python",
-		"package.json":  "javascript",
-		"tsconfig.json": "typescript",
-		"Cargo.toml":    "rust",
-		"pom.xml":       "java",
-		"build.gradle":  "java",
+		"Pipfile":          "python",
+		"package.json":     "javascript",
+		"tsconfig.json":    "typescript",
+		"Cargo.toml":       "rust",
+		"pom.xml":          "java",
+		"build.gradle":     "java",
 	}
 
 	// Check for marker files
@@ -814,14 +814,14 @@ func (t DiagnosticsTool) detectLanguage(path string) string {
 
 		// Map extensions to languages
 		extLangs := map[string]string{
-			".go":    "go",
-			".py":    "python",
-			".js":    "javascript",
-			".jsx":   "javascript",
-			".ts":    "typescript",
-			".tsx":   "typescript",
-			".rs":    "rust",
-			".java":  "java",
+			".go":   "go",
+			".py":   "python",
+			".js":   "javascript",
+			".jsx":  "javascript",
+			".ts":   "typescript",
+			".tsx":  "typescript",
+			".rs":   "rust",
+			".java": "java",
 		}
 
 		// Find the most common extension
@@ -969,11 +969,11 @@ func (t DiagnosticsTool) resolvePath(userPath string) (string, error) {
 
 // goTestEvent represents a JSON-encoded Go test event.
 type goTestEvent struct {
-	Time    string `json:"Time"`
-	Action  string `json:"Action"`
-	Package string `json:"Package"`
-	Test    string `json:"Test"`
-	Output  string `json:"Output"`
+	Time    string  `json:"Time"`
+	Action  string  `json:"Action"`
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Output  string  `json:"Output"`
 	Elapsed float64 `json:"Elapsed"`
 }
 

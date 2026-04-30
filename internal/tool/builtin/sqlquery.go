@@ -206,12 +206,12 @@ type SQLQueryTool struct {
 // Use AddConnection or AddConnectionFromConfig to add database connections.
 func NewSQLQueryTool() SQLQueryTool {
 	return SQLQueryTool{
-		connections:      make(map[string]*sql.DB),
-		configs:          make(map[string]SQLConnectionConfig),
-		globalReadOnly:   true,
-		globalMaxRows:    1000,
-		globalTimeout:    30 * time.Second,
-		maxTimeout:       5 * time.Minute,
+		connections:    make(map[string]*sql.DB),
+		configs:        make(map[string]SQLConnectionConfig),
+		globalReadOnly: true,
+		globalMaxRows:  1000,
+		globalTimeout:  30 * time.Second,
+		maxTimeout:     5 * time.Minute,
 	}
 }
 
@@ -703,7 +703,7 @@ func extractTableNames(query string) []string {
 	patterns := []string{
 		"FROM ", "FROM(",
 		"JOIN ", "JOIN(",
-		"INTO ", // For INSERT (though we block it)
+		"INTO ",   // For INSERT (though we block it)
 		"UPDATE ", // For UPDATE (though we block it)
 	}
 

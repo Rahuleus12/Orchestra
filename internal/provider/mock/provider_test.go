@@ -99,9 +99,9 @@ func TestMockProvider_AddModel(t *testing.T) {
 		ID:   "new-model",
 		Name: "New Model",
 		Capabilities: provider.ModelCapabilities{
-			Streaming:  true,
-			Vision:     true,
-			MaxTokens:  16384,
+			Streaming: true,
+			Vision:    true,
+			MaxTokens: 16384,
 		},
 	})
 

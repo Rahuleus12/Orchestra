@@ -306,11 +306,11 @@ func (rb *RequestBroadcast) buildResult(
 	}
 
 	return &BroadcastResult{
-		RequestID:      correlationID,
-		Responses:      responses,
-		Respondents:    respondents,
-		ExpectedCount:  expectedCount,
-		Elapsed:        time.Since(startTime),
+		RequestID:     correlationID,
+		Responses:     responses,
+		Respondents:   respondents,
+		ExpectedCount: expectedCount,
+		Elapsed:       time.Since(startTime),
 	}
 }
 
@@ -618,14 +618,14 @@ func (c *Consensus) buildConsensusResult(
 	}
 
 	return &ConsensusResult{
-		RequestID:      correlationID,
-		Votes:          votes,
-		Winner:         winner,
-		WinnerWeight:   winnerWeight,
-		TotalWeight:    totalWeight,
-		QuorumReached:  winnerWeight > 0,
-		Tally:          tally,
-		Elapsed:        time.Since(startTime),
+		RequestID:     correlationID,
+		Votes:         votes,
+		Winner:        winner,
+		WinnerWeight:  winnerWeight,
+		TotalWeight:   totalWeight,
+		QuorumReached: winnerWeight > 0,
+		Tally:         tally,
+		Elapsed:       time.Since(startTime),
 	}
 }
 
@@ -1101,10 +1101,10 @@ func (m *Multicast) Send(
 	)
 
 	return &MulticastResult{
-		MessageID:     messageID,
-		SentCount:     sentCount,
-		FailedCount:   failedCount,
-		Errors:        errors,
-		TargetAgents:  targetAgents,
+		MessageID:    messageID,
+		SentCount:    sentCount,
+		FailedCount:  failedCount,
+		Errors:       errors,
+		TargetAgents: targetAgents,
 	}, nil
 }

@@ -1093,8 +1093,6 @@ func TestMailbox_GrowToMaxCapacity(t *testing.T) {
 	}
 }
 
-
-
 func TestMailbox_MultipleReceivers_WithFilter(t *testing.T) {
 	mailbox := NewMailbox("agent-1")
 	defer mailbox.Close()

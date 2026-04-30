@@ -46,22 +46,22 @@ const (
 
 // cohRequest is the request body for the Cohere v2 Chat API.
 type cohRequest struct {
-	Model          string          `json:"model"`
-	Messages       []cohMessage    `json:"messages"`
-	Streaming      bool            `json:"stream,omitempty"`
-	Temperature    *float64        `json:"temperature,omitempty"`
-	TopP           *float64        `json:"top_p,omitempty"`
-	TopK           *int            `json:"top_k,omitempty"`
-	MaxTokens      *int            `json:"max_tokens,omitempty"`
-	StopSequences  []string        `json:"stop_sequences,omitempty"`
-	Seed           *int64          `json:"seed,omitempty"`
-	FrequencyPenalty *float64      `json:"frequency_penalty,omitempty"`
-	PresencePenalty  *float64      `json:"presence_penalty,omitempty"`
-	Tools          []cohTool       `json:"tools,omitempty"`
-	ToolResults    []cohToolResult `json:"tool_results,omitempty"`
-	ResponseFormat *cohRespFormat  `json:"response_format,omitempty"`
-	SafetyMode     string          `json:"safety_mode,omitempty"`
-	Connectors     []interface{}   `json:"connectors,omitempty"`
+	Model            string          `json:"model"`
+	Messages         []cohMessage    `json:"messages"`
+	Streaming        bool            `json:"stream,omitempty"`
+	Temperature      *float64        `json:"temperature,omitempty"`
+	TopP             *float64        `json:"top_p,omitempty"`
+	TopK             *int            `json:"top_k,omitempty"`
+	MaxTokens        *int            `json:"max_tokens,omitempty"`
+	StopSequences    []string        `json:"stop_sequences,omitempty"`
+	Seed             *int64          `json:"seed,omitempty"`
+	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
+	Tools            []cohTool       `json:"tools,omitempty"`
+	ToolResults      []cohToolResult `json:"tool_results,omitempty"`
+	ResponseFormat   *cohRespFormat  `json:"response_format,omitempty"`
+	SafetyMode       string          `json:"safety_mode,omitempty"`
+	Connectors       []interface{}   `json:"connectors,omitempty"`
 }
 
 // cohRespFormat specifies the response format.
@@ -73,17 +73,17 @@ type cohRespFormat struct {
 // Content uses json.RawMessage so it can be either a string or an
 // array of content parts.
 type cohMessage struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content,omitempty"`
-	ToolCalls  []cohToolCall   `json:"tool_calls,omitempty"`
-	ToolPlan   *string         `json:"tool_plan,omitempty"`
+	Role      string          `json:"role"`
+	Content   json.RawMessage `json:"content,omitempty"`
+	ToolCalls []cohToolCall   `json:"tool_calls,omitempty"`
+	ToolPlan  *string         `json:"tool_plan,omitempty"`
 }
 
 // cohContentPart represents a single content part in a multi-part message.
 type cohContentPart struct {
-	Type     string       `json:"type"`
-	Text     string       `json:"text,omitempty"`
-	ImageURL *cohImgURL   `json:"image_url,omitempty"`
+	Type     string     `json:"type"`
+	Text     string     `json:"text,omitempty"`
+	ImageURL *cohImgURL `json:"image_url,omitempty"`
 }
 
 // cohImgURL represents an image URL.
@@ -93,8 +93,8 @@ type cohImgURL struct {
 
 // cohTool represents a tool definition in the request.
 type cohTool struct {
-	Type     string      `json:"type"`
-	Function cohFuncDef  `json:"function"`
+	Type     string     `json:"type"`
+	Function cohFuncDef `json:"function"`
 }
 
 // cohFuncDef describes a function the model can call.
@@ -106,9 +106,9 @@ type cohFuncDef struct {
 
 // cohToolCall represents a tool call in an assistant message.
 type cohToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function cohFunction  `json:"function"`
+	ID       string      `json:"id"`
+	Type     string      `json:"type"`
+	Function cohFunction `json:"function"`
 }
 
 // cohFunction holds the function name and arguments.
@@ -119,8 +119,8 @@ type cohFunction struct {
 
 // cohToolResult represents a tool result to send back to the model.
 type cohToolResult struct {
-	Call     cohToolCall `json:"call"`
-	Outputs  []map[string]interface{} `json:"outputs"`
+	Call    cohToolCall              `json:"call"`
+	Outputs []map[string]interface{} `json:"outputs"`
 }
 
 // ---------------------------------------------------------------------------
@@ -129,13 +129,13 @@ type cohToolResult struct {
 
 // cohResponse is the response from the Chat API.
 type cohResponse struct {
-	ID           string         `json:"id"`
-	Model        string         `json:"model"`
-	Message      cohMessage     `json:"message"`
-	FinishReason *string        `json:"finish_reason,omitempty"`
-	Usage        cohUsage       `json:"usage,omitempty"`
-	Meta         *cohMeta       `json:"meta,omitempty"`
-	Citations    []cohCitation  `json:"citations,omitempty"`
+	ID           string        `json:"id"`
+	Model        string        `json:"model"`
+	Message      cohMessage    `json:"message"`
+	FinishReason *string       `json:"finish_reason,omitempty"`
+	Usage        cohUsage      `json:"usage,omitempty"`
+	Meta         *cohMeta      `json:"meta,omitempty"`
+	Citations    []cohCitation `json:"citations,omitempty"`
 }
 
 // cohUsage reports token consumption.
@@ -189,7 +189,7 @@ type cohStreamEvent struct {
 
 // cohStreamContentDelta is a text delta event.
 type cohStreamContentDelta struct {
-	Type string `json:"type"`
+	Type  string `json:"type"`
 	Delta struct {
 		MessageType string `json:"message_type"`
 		Content     string `json:"content"`
@@ -198,19 +198,19 @@ type cohStreamContentDelta struct {
 
 // cohStreamToolCallDelta is a tool call event during streaming.
 type cohStreamToolCallDelta struct {
-	Type string `json:"type"`
+	Type  string `json:"type"`
 	Delta struct {
-		MessageType string `json:"message_type"`
-		ToolPlan    string `json:"tool_plan,omitempty"`
+		MessageType string        `json:"message_type"`
+		ToolPlan    string        `json:"tool_plan,omitempty"`
 		ToolCalls   []cohToolCall `json:"tool_calls,omitempty"`
 	} `json:"delta"`
 }
 
 // cohStreamMessageEnd is the final event with usage.
 type cohStreamMessageEnd struct {
-	Type    string         `json:"type"`
-	Delta   cohEndDelta    `json:"delta"`
-	Usage   *cohUsage      `json:"usage,omitempty"`
+	Type  string      `json:"type"`
+	Delta cohEndDelta `json:"delta"`
+	Usage *cohUsage   `json:"usage,omitempty"`
 }
 
 // cohEndDelta holds the finish reason at stream end.

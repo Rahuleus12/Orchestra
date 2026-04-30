@@ -68,24 +68,24 @@ type ollRequest struct {
 
 // ollOptions contains generation parameters for Ollama.
 type ollOptions struct {
-	Temperature *float64  `json:"temperature,omitempty"`
-	TopP        *float64  `json:"top_p,omitempty"`
-	TopK        *int      `json:"top_k,omitempty"`
-	NumPredict  *int      `json:"num_predict,omitempty"`
-	Stop        []string  `json:"stop,omitempty"`
-	Seed        *int64    `json:"seed,omitempty"`
-	NumCtx      *int      `json:"num_ctx,omitempty"`
-	RepeatLastN *int      `json:"repeat_last_n,omitempty"`
-	RepeatPenalty *float64 `json:"repeat_penalty,omitempty"`
+	Temperature      *float64 `json:"temperature,omitempty"`
+	TopP             *float64 `json:"top_p,omitempty"`
+	TopK             *int     `json:"top_k,omitempty"`
+	NumPredict       *int     `json:"num_predict,omitempty"`
+	Stop             []string `json:"stop,omitempty"`
+	Seed             *int64   `json:"seed,omitempty"`
+	NumCtx           *int     `json:"num_ctx,omitempty"`
+	RepeatLastN      *int     `json:"repeat_last_n,omitempty"`
+	RepeatPenalty    *float64 `json:"repeat_penalty,omitempty"`
 	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
-	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
 }
 
 // ollMessage represents a message in the Ollama chat format.
 type ollMessage struct {
-	Role    string          `json:"role"`
-	Content string          `json:"content,omitempty"`
-	Images  []string        `json:"images,omitempty"`
+	Role      string        `json:"role"`
+	Content   string        `json:"content,omitempty"`
+	Images    []string      `json:"images,omitempty"`
 	ToolCalls []ollToolCall `json:"tool_calls,omitempty"`
 }
 
@@ -96,14 +96,14 @@ type ollToolCall struct {
 
 // ollToolFunction holds the function details for a tool call.
 type ollToolFunction struct {
-	Name      string `json:"name"`
+	Name      string      `json:"name"`
 	Arguments interface{} `json:"arguments"`
 }
 
 // ollTool represents a tool definition in the request.
 type ollTool struct {
-	Type     string       `json:"type"`
-	Function ollFuncDef   `json:"function"`
+	Type     string     `json:"type"`
+	Function ollFuncDef `json:"function"`
 }
 
 // ollFuncDef describes a function that can be called by the model.
@@ -119,19 +119,19 @@ type ollFuncDef struct {
 
 // ollChatResponse is the response from the Ollama Chat API.
 type ollChatResponse struct {
-	Model     string        `json:"model"`
-	CreatedAt string        `json:"created_at"`
-	Message   ollMessage    `json:"message"`
-	Done      bool          `json:"done"`
-	DoneReason string       `json:"done_reason,omitempty"`
+	Model      string     `json:"model"`
+	CreatedAt  string     `json:"created_at"`
+	Message    ollMessage `json:"message"`
+	Done       bool       `json:"done"`
+	DoneReason string     `json:"done_reason,omitempty"`
 
 	// Performance metrics
-	TotalDuration      int64  `json:"total_duration,omitempty"`
-	LoadDuration       int64  `json:"load_duration,omitempty"`
-	PromptEvalCount    int    `json:"prompt_eval_count,omitempty"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration,omitempty"`
-	EvalCount          int    `json:"eval_count,omitempty"`
-	EvalDuration       int64  `json:"eval_duration,omitempty"`
+	TotalDuration      int64 `json:"total_duration,omitempty"`
+	LoadDuration       int64 `json:"load_duration,omitempty"`
+	PromptEvalCount    int   `json:"prompt_eval_count,omitempty"`
+	PromptEvalDuration int64 `json:"prompt_eval_duration,omitempty"`
+	EvalCount          int   `json:"eval_count,omitempty"`
+	EvalDuration       int64 `json:"eval_duration,omitempty"`
 }
 
 // ollTagsResponse is the response from the Ollama tags (list models) API.
@@ -382,19 +382,19 @@ func (p *Provider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 		}
 
 		info := provider.ModelInfo{
-			ID:          modelName,
-			Name:        m.Details.Family,
-			Description: description,
+			ID:           modelName,
+			Name:         m.Details.Family,
+			Description:  description,
 			Capabilities: caps,
 			Metadata: map[string]any{
-				"size_bytes":  m.Size,
-				"digest":      m.Digest,
-				"format":      m.Details.Format,
-				"family":      m.Details.Family,
-				"families":    m.Details.Families,
-				"param_size":  m.Details.ParameterSize,
+				"size_bytes":   m.Size,
+				"digest":       m.Digest,
+				"format":       m.Details.Format,
+				"family":       m.Details.Family,
+				"families":     m.Details.Families,
+				"param_size":   m.Details.ParameterSize,
 				"quantization": m.Details.Quantization,
-				"modified_at": m.ModifiedAt,
+				"modified_at":  m.ModifiedAt,
 			},
 		}
 		if info.Name == "" {

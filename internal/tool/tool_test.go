@@ -23,9 +23,9 @@ type mockTool struct {
 	executeFn   func(ctx context.Context, input json.RawMessage) (json.RawMessage, error)
 }
 
-func (t *mockTool) Name() string                         { return t.name }
-func (t *mockTool) Description() string                  { return t.description }
-func (t *mockTool) Parameters() json.RawMessage          { return t.params }
+func (t *mockTool) Name() string                { return t.name }
+func (t *mockTool) Description() string         { return t.description }
+func (t *mockTool) Parameters() json.RawMessage { return t.params }
 func (t *mockTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	if t.executeFn != nil {
 		return t.executeFn(ctx, input)
@@ -735,14 +735,14 @@ func TestBuilder_WithToolMiddleware(t *testing.T) {
 
 	innerMW := func(next Tool) Tool {
 		return &wrapperTool{
-			inner: next,
+			inner:  next,
 			before: func() { callOrder = append(callOrder, "middleware1") },
 		}
 	}
 
 	outerMW := func(next Tool) Tool {
 		return &wrapperTool{
-			inner: next,
+			inner:  next,
 			before: func() { callOrder = append(callOrder, "middleware2") },
 		}
 	}
@@ -780,9 +780,9 @@ type wrapperTool struct {
 	before func()
 }
 
-func (w *wrapperTool) Name() string                                         { return w.inner.Name() }
-func (w *wrapperTool) Description() string                                  { return w.inner.Description() }
-func (w *wrapperTool) Parameters() json.RawMessage                          { return w.inner.Parameters() }
+func (w *wrapperTool) Name() string                { return w.inner.Name() }
+func (w *wrapperTool) Description() string         { return w.inner.Description() }
+func (w *wrapperTool) Parameters() json.RawMessage { return w.inner.Parameters() }
 func (w *wrapperTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	if w.before != nil {
 		w.before()

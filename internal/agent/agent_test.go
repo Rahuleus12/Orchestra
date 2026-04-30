@@ -50,9 +50,9 @@ func newTestAgentWithMock(t *testing.T, opts ...Option) (*Agent, *mock.Provider)
 // echoTool is a simple tool that echoes back its arguments.
 type echoTool struct{}
 
-func (echoTool) Name() string                                          { return "echo" }
-func (echoTool) Description() string                                   { return "Echoes back the input arguments" }
-func (echoTool) Parameters() map[string]any                            { return nil }
+func (echoTool) Name() string                                           { return "echo" }
+func (echoTool) Description() string                                    { return "Echoes back the input arguments" }
+func (echoTool) Parameters() map[string]any                             { return nil }
 func (echoTool) Execute(_ context.Context, args string) (string, error) { return args, nil }
 
 // errorTool always returns an error when executed.
@@ -77,8 +77,8 @@ type slowTool struct {
 	duration time.Duration
 }
 
-func (s *slowTool) Name() string           { return "slow" }
-func (s *slowTool) Description() string    { return "Takes a long time" }
+func (s *slowTool) Name() string               { return "slow" }
+func (s *slowTool) Description() string        { return "Takes a long time" }
 func (s *slowTool) Parameters() map[string]any { return nil }
 func (s *slowTool) Execute(ctx context.Context, _ string) (string, error) {
 	select {
@@ -94,8 +94,8 @@ type countingTool struct {
 	count atomic.Int64
 }
 
-func (c *countingTool) Name() string           { return "counter" }
-func (c *countingTool) Description() string    { return "Counts calls" }
+func (c *countingTool) Name() string               { return "counter" }
+func (c *countingTool) Description() string        { return "Counts calls" }
 func (c *countingTool) Parameters() map[string]any { return nil }
 func (c *countingTool) Execute(_ context.Context, _ string) (string, error) {
 	n := c.count.Add(1)

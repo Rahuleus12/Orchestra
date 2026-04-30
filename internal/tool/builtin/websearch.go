@@ -323,9 +323,9 @@ func (t WebSearchTool) Execute(ctx context.Context, input json.RawMessage) (json
 	duration := time.Since(startTime)
 
 	output := WebSearchOutput{
-		Query:     req.Query,
-		Results:   results,
-		Backend:   backend,
+		Query:      req.Query,
+		Results:    results,
+		Backend:    backend,
 		DurationMs: duration.Milliseconds(),
 	}
 
@@ -366,7 +366,7 @@ func (t WebSearchTool) search(ctx context.Context, backend SearchBackend, req We
 
 // serpAPIResponse represents the SerpAPI JSON response.
 type serpAPIResponse struct {
-	OrganicResults []serpAPIResult `json:"organic_results"`
+	OrganicResults    []serpAPIResult `json:"organic_results"`
 	SearchInformation struct {
 		TotalResults string `json:"total_results"`
 	} `json:"search_information"`
@@ -469,12 +469,12 @@ type braveResponse struct {
 }
 
 type braveResult struct {
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	Desc    string `json:"description"`
-	Age     string `json:"age,omitempty"`
-	Extra   string `json:"extra_snippets,omitempty"`
-	Score   float64 `json:"score,omitempty"`
+	Title string  `json:"title"`
+	URL   string  `json:"url"`
+	Desc  string  `json:"description"`
+	Age   string  `json:"age,omitempty"`
+	Extra string  `json:"extra_snippets,omitempty"`
+	Score float64 `json:"score,omitempty"`
 }
 
 func (t WebSearchTool) searchBrave(ctx context.Context, req WebSearchInput) ([]SearchResult, int, error) {
@@ -567,11 +567,11 @@ type tavilyResponse struct {
 }
 
 type tavilyResult struct {
-	Title    string  `json:"title"`
-	URL      string  `json:"url"`
-	Content  string  `json:"content"`
-	Score    float64 `json:"score"`
-	RawContent string `json:"raw_content,omitempty"`
+	Title      string  `json:"title"`
+	URL        string  `json:"url"`
+	Content    string  `json:"content"`
+	Score      float64 `json:"score"`
+	RawContent string  `json:"raw_content,omitempty"`
 }
 
 func (t WebSearchTool) searchTavily(ctx context.Context, req WebSearchInput) ([]SearchResult, int, error) {

@@ -126,7 +126,6 @@ linters:
     - testpackage # Check for test package naming
     - thelper # Check for test helper functions
     - tparallel # Check for parallel test patterns
-    - typecheck # Type-check the code
     - unconvert # Check for unnecessary type conversions
     - unparam # Check for unused function parameters
     - usestdlibvars # Check for stdlib variable usage

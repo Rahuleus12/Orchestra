@@ -271,12 +271,12 @@ func (t HTTPRequestTool) Execute(ctx context.Context, input json.RawMessage) (js
 
 	// Build output
 	output := HTTPResponseOutput{
-		StatusCode:     resp.StatusCode,
-		StatusText:     resp.Status,
-		RequestURL:     resp.Request.URL.String(),
-		Headers:        extractHeaders(resp.Header),
-		Body:           string(bodyBytes),
-		BodyTruncated:  len(bodyBytes) > req.MaxResponseBytes,
+		StatusCode:    resp.StatusCode,
+		StatusText:    resp.Status,
+		RequestURL:    resp.Request.URL.String(),
+		Headers:       extractHeaders(resp.Header),
+		Body:          string(bodyBytes),
+		BodyTruncated: len(bodyBytes) > req.MaxResponseBytes,
 	}
 
 	if output.BodyTruncated {

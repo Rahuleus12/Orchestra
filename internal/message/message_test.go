@@ -632,46 +632,46 @@ func TestConversation_Truncate(t *testing.T) {
 	)
 
 	tests := []struct {
-		name    string
-		max     int
-		wantLen int
+		name      string
+		max       int
+		wantLen   int
 		wantFirst string
 		wantLast  string
 	}{
 		{
-			name:       "truncate to 3",
-			max:        3,
-			wantLen:    3,
-			wantFirst:  "a1",
-			wantLast:   "a2",
+			name:      "truncate to 3",
+			max:       3,
+			wantLen:   3,
+			wantFirst: "a1",
+			wantLast:  "a2",
 		},
 		{
-			name:       "truncate to 1",
-			max:        1,
-			wantLen:    1,
-			wantFirst:  "a2",
-			wantLast:   "a2",
+			name:      "truncate to 1",
+			max:       1,
+			wantLen:   1,
+			wantFirst: "a2",
+			wantLast:  "a2",
 		},
 		{
-			name:       "no truncation needed",
-			max:        10,
-			wantLen:    5,
-			wantFirst:  "s1",
-			wantLast:   "a2",
+			name:      "no truncation needed",
+			max:       10,
+			wantLen:   5,
+			wantFirst: "s1",
+			wantLast:  "a2",
 		},
 		{
-			name:       "truncate to exact size",
-			max:        5,
-			wantLen:    5,
-			wantFirst:  "s1",
-			wantLast:   "a2",
+			name:      "truncate to exact size",
+			max:       5,
+			wantLen:   5,
+			wantFirst: "s1",
+			wantLast:  "a2",
 		},
 		{
-			name:       "truncate to 0",
-			max:        0,
-			wantLen:    0,
-			wantFirst:  "",
-			wantLast:   "",
+			name:      "truncate to 0",
+			max:       0,
+			wantLen:   0,
+			wantFirst: "",
+			wantLast:  "",
 		},
 	}
 
@@ -708,11 +708,11 @@ func TestConversation_TruncatePreservingSystem(t *testing.T) {
 	)
 
 	tests := []struct {
-		name           string
-		max            int
-		wantLen        int
-		wantFirstText  string
-		wantLastText   string
+		name          string
+		max           int
+		wantLen       int
+		wantFirstText string
+		wantLastText  string
 	}{
 		{
 			name:          "truncate to 3 preserves system",

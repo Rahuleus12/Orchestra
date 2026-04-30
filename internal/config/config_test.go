@@ -131,9 +131,9 @@ func TestLoggingConfig_Validate(t *testing.T) {
 
 func TestRetryConfig_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name    string
-		cfg     RetryConfig
-		want    bool
+		name string
+		cfg  RetryConfig
+		want bool
 	}{
 		{"zero max attempts", RetryConfig{MaxAttempts: 0}, false},
 		{"positive max attempts", RetryConfig{MaxAttempts: 3}, true},
@@ -166,8 +166,8 @@ func TestRetryConfig_Defaults(t *testing.T) {
 
 func TestRetryConfig_CustomValues(t *testing.T) {
 	cfg := RetryConfig{
-		InitialBackoff:   500 * time.Millisecond,
-		MaxBackoff:       10 * time.Second,
+		InitialBackoff:    500 * time.Millisecond,
+		MaxBackoff:        10 * time.Second,
 		BackoffMultiplier: 1.5,
 	}
 
@@ -287,9 +287,9 @@ func TestTracingConfig_Defaults(t *testing.T) {
 
 func TestTracingConfig_SamplingRateClamping(t *testing.T) {
 	tests := []struct {
-		name  string
-		rate  float64
-		want  float64
+		name string
+		rate float64
+		want float64
 	}{
 		{"negative clamped to 1.0", -0.5, 1.0},
 		{"zero clamped to 1.0", 0.0, 1.0},
@@ -928,7 +928,7 @@ func TestMerge_Observability(t *testing.T) {
 	override := &Config{
 		Observability: ObservabilityConfig{
 			Tracing: TracingConfig{
-				Endpoint:    "http://jaeger:4318",
+				Endpoint:     "http://jaeger:4318",
 				SamplingRate: 1.0,
 			},
 		},

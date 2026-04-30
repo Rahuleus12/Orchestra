@@ -148,9 +148,9 @@ func NewCodeSearchTool() CodeSearchTool {
 // NewCodeSearchToolWithRoot creates a code_search tool restricted to a root directory.
 func NewCodeSearchToolWithRoot(root string) CodeSearchTool {
 	return CodeSearchTool{
-		Root:         root,
-		IgnoreFiles:  []string{".gitignore", ".orchestaignore"},
-		Concurrency:  4,
+		Root:        root,
+		IgnoreFiles: []string{".gitignore", ".orchestaignore"},
+		Concurrency: 4,
 	}
 }
 
@@ -335,7 +335,7 @@ func (t CodeSearchTool) Execute(ctx context.Context, input json.RawMessage) (jso
 
 	if len(files) == 0 {
 		output := CodeSearchOutput{
-			Query:        req.Query,
+			Query:         req.Query,
 			FilesSearched: 0,
 		}
 		return json.Marshal(output)

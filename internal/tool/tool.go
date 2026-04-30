@@ -136,9 +136,9 @@ const NamespaceSeparator = ":"
 // A ToolRegistry is safe for concurrent use.
 type ToolRegistry struct {
 	mu       sync.RWMutex
-	tools    map[string]Tool          // fully qualified name -> tool
-	names    map[string]string        // fully qualified name -> namespace (empty for default)
-	original map[string]string        // fully qualified name -> original name before namespacing
+	tools    map[string]Tool   // fully qualified name -> tool
+	names    map[string]string // fully qualified name -> namespace (empty for default)
+	original map[string]string // fully qualified name -> original name before namespacing
 	logger   *slog.Logger
 }
 

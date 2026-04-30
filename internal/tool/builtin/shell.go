@@ -92,7 +92,7 @@ type ShellExecOutput struct {
 //   - Use Root to restrict filesystem access
 //   - Set reasonable timeouts to prevent hanging
 //   - Consider using more specific tools (file_edit, code_search, git_operations)
-//   when possible instead of shell commands
+//     when possible instead of shell commands
 type ShellExecTool struct {
 	// Root is the root directory. Commands are restricted to this directory
 	// tree when AllowEscapeRoot is false.
@@ -543,10 +543,10 @@ func isWindows() bool {
 // limitedWriter is an io.Writer that stops writing after a limit is reached.
 // This prevents memory exhaustion from commands that produce excessive output.
 type limitedWriter struct {
-	buf    *bytes.Buffer
-	limit  int64
-	wrote  int64
-	trunc  bool
+	buf   *bytes.Buffer
+	limit int64
+	wrote int64
+	trunc bool
 }
 
 // Write writes data to the buffer, stopping when the limit is reached.

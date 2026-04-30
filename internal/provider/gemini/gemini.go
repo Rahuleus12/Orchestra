@@ -50,11 +50,11 @@ const (
 
 // gemRequest is the request body for the Gemini generateContent API.
 type gemRequest struct {
-	Contents         []gemContent      `json:"contents"`
-	Tools            []gemTool         `json:"tools,omitempty"`
-	SystemInstruction *gemContent      `json:"systemInstruction,omitempty"`
-	GenerationConfig *gemGenConfig     `json:"generationConfig,omitempty"`
-	SafetySettings   []gemSafetySetting `json:"safetySettings,omitempty"`
+	Contents          []gemContent       `json:"contents"`
+	Tools             []gemTool          `json:"tools,omitempty"`
+	SystemInstruction *gemContent        `json:"systemInstruction,omitempty"`
+	GenerationConfig  *gemGenConfig      `json:"generationConfig,omitempty"`
+	SafetySettings    []gemSafetySetting `json:"safetySettings,omitempty"`
 }
 
 // gemContent represents a single content message in Gemini format.
@@ -108,17 +108,17 @@ type gemFunctionResponse struct {
 
 // gemGenConfig configures generation parameters.
 type gemGenConfig struct {
-	Temperature     *float64          `json:"temperature,omitempty"`
-	TopP            *float64          `json:"topP,omitempty"`
-	TopK            *int              `json:"topK,omitempty"`
-	MaxOutputTokens *int              `json:"maxOutputTokens,omitempty"`
-	StopSequences   []string          `json:"stopSequences,omitempty"`
-	Seed            *int64            `json:"seed,omitempty"`
-	ResponseMimeType string           `json:"responseMimeType,omitempty"`
-	ResponseSchema  map[string]any    `json:"responseSchema,omitempty"`
-	CandidateCount  *int              `json:"candidateCount,omitempty"`
-	PresencePenalty *float64          `json:"presencePenalty,omitempty"`
-	FrequencyPenalty *float64         `json:"frequencyPenalty,omitempty"`
+	Temperature      *float64       `json:"temperature,omitempty"`
+	TopP             *float64       `json:"topP,omitempty"`
+	TopK             *int           `json:"topK,omitempty"`
+	MaxOutputTokens  *int           `json:"maxOutputTokens,omitempty"`
+	StopSequences    []string       `json:"stopSequences,omitempty"`
+	Seed             *int64         `json:"seed,omitempty"`
+	ResponseMimeType string         `json:"responseMimeType,omitempty"`
+	ResponseSchema   map[string]any `json:"responseSchema,omitempty"`
+	CandidateCount   *int           `json:"candidateCount,omitempty"`
+	PresencePenalty  *float64       `json:"presencePenalty,omitempty"`
+	FrequencyPenalty *float64       `json:"frequencyPenalty,omitempty"`
 }
 
 // gemTool describes a set of function declarations.
@@ -145,17 +145,17 @@ type gemSafetySetting struct {
 
 // gemResponse is the response from the generateContent API.
 type gemResponse struct {
-	Candidates     []gemCandidate    `json:"candidates"`
-	UsageMetadata  *gemUsageMetadata `json:"usageMetadata,omitempty"`
-	ModelVersion   string            `json:"modelVersion,omitempty"`
+	Candidates     []gemCandidate     `json:"candidates"`
+	UsageMetadata  *gemUsageMetadata  `json:"usageMetadata,omitempty"`
+	ModelVersion   string             `json:"modelVersion,omitempty"`
 	PromptFeedback *gemPromptFeedback `json:"promptFeedback,omitempty"`
 }
 
 // gemCandidate is a single completion candidate.
 type gemCandidate struct {
-	Content       gemContent      `json:"content"`
-	FinishReason  string          `json:"finishReason,omitempty"`
-	Index         int             `json:"index,omitempty"`
+	Content       gemContent        `json:"content"`
+	FinishReason  string            `json:"finishReason,omitempty"`
+	Index         int               `json:"index,omitempty"`
 	SafetyRatings []gemSafetyRating `json:"safetyRatings,omitempty"`
 }
 

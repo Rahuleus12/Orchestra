@@ -144,10 +144,10 @@ type GitOperationsTool struct {
 // Write operations are disabled by default for safety.
 func NewGitOperationsTool() GitOperationsTool {
 	return GitOperationsTool{
-		AllowWrite:    false,
-		BlockedArgs:   defaultGitBlockedArgs(),
+		AllowWrite:     false,
+		BlockedArgs:    defaultGitBlockedArgs(),
 		DefaultTimeout: 30 * time.Second,
-		MaxTimeout:    2 * time.Minute,
+		MaxTimeout:     2 * time.Minute,
 		MaxOutputBytes: 1 * 1024 * 1024,
 	}
 }

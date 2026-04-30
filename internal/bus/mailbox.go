@@ -591,13 +591,13 @@ func (m *Mailbox) Stats() MailboxStats {
 	defer m.mu.Unlock()
 
 	return MailboxStats{
-		AgentID:        m.agentID,
-		Size:           len(m.messages),
-		Capacity:       m.capacity,
-		TotalReceived:  m.received.Load(),
-		TotalConsumed:  m.consumed.Load(),
-		TotalDropped:   m.dropped.Load(),
-		TotalFiltered:  m.filtered.Load(),
+		AgentID:       m.agentID,
+		Size:          len(m.messages),
+		Capacity:      m.capacity,
+		TotalReceived: m.received.Load(),
+		TotalConsumed: m.consumed.Load(),
+		TotalDropped:  m.dropped.Load(),
+		TotalFiltered: m.filtered.Load(),
 	}
 }
 

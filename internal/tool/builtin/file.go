@@ -257,12 +257,12 @@ func (t FileReadTool) readBinary(path string, size int64, req FileReadInput) (js
 	}
 
 	output := FileReadOutput{
-		Content:    base64.StdEncoding.EncodeToString(data[:n]),
-		Size:       size,
-		Path:       path,
-		BytesRead:  int64(n),
-		Truncated:  int64(n) < readSize,
-		Encoding:   "binary",
+		Content:   base64.StdEncoding.EncodeToString(data[:n]),
+		Size:      size,
+		Path:      path,
+		BytesRead: int64(n),
+		Truncated: int64(n) < readSize,
+		Encoding:  "binary",
 	}
 	return json.Marshal(output)
 }

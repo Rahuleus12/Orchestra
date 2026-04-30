@@ -30,17 +30,17 @@ import (
 // ---------------------------------------------------------------------------
 
 const (
-	defaultBaseURL        = "https://api.openai.com/v1"
-	providerName          = "openai"
-	chatCompletionsPath   = "/chat/completions"
-	modelsPath            = "/models"
-	defaultModel          = "gpt-4o"
-	sseDataPrefix         = "data: "
-	sseDoneMarker         = "[DONE]"
-	httpTimeout           = 10 * time.Minute
-	maxIdleConns          = 100
-	maxIdleConnsPerHost   = 100
-	idleConnTimeout       = 90 * time.Second
+	defaultBaseURL      = "https://api.openai.com/v1"
+	providerName        = "openai"
+	chatCompletionsPath = "/chat/completions"
+	modelsPath          = "/models"
+	defaultModel        = "gpt-4o"
+	sseDataPrefix       = "data: "
+	sseDoneMarker       = "[DONE]"
+	httpTimeout         = 10 * time.Minute
+	maxIdleConns        = 100
+	maxIdleConnsPerHost = 100
+	idleConnTimeout     = 90 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -110,8 +110,8 @@ type oaiImageURL struct {
 
 // oaiTool represents a tool definition in the request.
 type oaiTool struct {
-	Type     string       `json:"type"`
-	Function oaiFuncDef   `json:"function"`
+	Type     string     `json:"type"`
+	Function oaiFuncDef `json:"function"`
 }
 
 // oaiFuncDef describes a function that can be called by the model.
@@ -192,9 +192,9 @@ type oaiStreamChoice struct {
 
 // oaiStreamDelta holds incremental content in a stream chunk.
 type oaiStreamDelta struct {
-	Role      string              `json:"role,omitempty"`
-	Content   string              `json:"content,omitempty"`
-	ToolCalls []oaiToolCallDelta  `json:"tool_calls,omitempty"`
+	Role      string             `json:"role,omitempty"`
+	Content   string             `json:"content,omitempty"`
+	ToolCalls []oaiToolCallDelta `json:"tool_calls,omitempty"`
 }
 
 // oaiToolCallDelta represents an incremental tool call update in a stream.
@@ -767,7 +767,7 @@ func (a *toolCallAccumulator) add(delta oaiToolCallDelta) {
 	tc, exists := a.calls[idx]
 	if !exists {
 		tc = &message.ToolCall{
-			Type: "function",
+			Type:     "function",
 			Function: message.ToolCallFunction{},
 		}
 		a.calls[idx] = tc

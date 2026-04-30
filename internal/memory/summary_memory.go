@@ -14,18 +14,18 @@ import (
 // when the memory exceeds configured limits. It uses an LLM to generate concise
 // summaries of message groups, preserving key information while reducing token usage.
 type SummaryMemory struct {
-	mu                sync.RWMutex
-	messages          []message.Message       // Current (unsummarized) messages
-	summaries         []message.Message       // Summary messages (typically system messages)
-	provider          provider.Provider       // LLM provider for generating summaries
-	summaryModel      string                  // Model to use for summarization
-	maxMessages       int                     // Max messages before summarizing
-	maxTokens         int                     // Max tokens before summarizing
-	tokenizer         Tokenizer               // For counting tokens
-	summaryThreshold  int                     // Messages to summarize at once
-	summaryPrompt     string                  // Custom prompt for summarization
-	humanMessagePrefix string                 // Prefix for human messages in summary
-	aiMessagePrefix   string                 // Prefix for AI messages in summary
+	mu                 sync.RWMutex
+	messages           []message.Message // Current (unsummarized) messages
+	summaries          []message.Message // Summary messages (typically system messages)
+	provider           provider.Provider // LLM provider for generating summaries
+	summaryModel       string            // Model to use for summarization
+	maxMessages        int               // Max messages before summarizing
+	maxTokens          int               // Max tokens before summarizing
+	tokenizer          Tokenizer         // For counting tokens
+	summaryThreshold   int               // Messages to summarize at once
+	summaryPrompt      string            // Custom prompt for summarization
+	humanMessagePrefix string            // Prefix for human messages in summary
+	aiMessagePrefix    string            // Prefix for AI messages in summary
 }
 
 // NewSummaryMemory creates a new SummaryMemory with the specified provider and limits.
@@ -39,17 +39,17 @@ type SummaryMemory struct {
 //   - tokenizer: Tokenizer for counting tokens (required if maxTokens > 0)
 func NewSummaryMemory(prov provider.Provider, summaryModel string, maxMessages, maxTokens int, tokenizer Tokenizer) *SummaryMemory {
 	return &SummaryMemory{
-		messages:          make([]message.Message, 0),
-		summaries:         make([]message.Message, 0),
-		provider:          prov,
-		summaryModel:      summaryModel,
-		maxMessages:       maxMessages,
-		maxTokens:         maxTokens,
-		tokenizer:         tokenizer,
-		summaryThreshold:  10, // Default: summarize messages in groups of 10
-		summaryPrompt:     "Summarize the following conversation concisely, capturing the main points, decisions, and context. Keep the summary brief and focused on information that would be useful for future conversation turns.",
+		messages:           make([]message.Message, 0),
+		summaries:          make([]message.Message, 0),
+		provider:           prov,
+		summaryModel:       summaryModel,
+		maxMessages:        maxMessages,
+		maxTokens:          maxTokens,
+		tokenizer:          tokenizer,
+		summaryThreshold:   10, // Default: summarize messages in groups of 10
+		summaryPrompt:      "Summarize the following conversation concisely, capturing the main points, decisions, and context. Keep the summary brief and focused on information that would be useful for future conversation turns.",
 		humanMessagePrefix: "Human: ",
-		aiMessagePrefix:   "Assistant: ",
+		aiMessagePrefix:    "Assistant: ",
 	}
 }
 

@@ -808,10 +808,10 @@ func TestRegistry_ConcurrentAliasAndResolve(t *testing.T) {
 
 func TestParseProviderModel(t *testing.T) {
 	tests := []struct {
-		input    string
+		input     string
 		pProvider string
-		pModel   string
-		ok       bool
+		pModel    string
+		ok        bool
 	}{
 		{"openai::gpt-4", "openai", "gpt-4", true},
 		{"anthropic::claude-sonnet-4-20250514", "anthropic", "claude-sonnet-4-20250514", true},

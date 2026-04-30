@@ -288,11 +288,11 @@ type DelegationTask struct {
 
 // DelegationResult represents the result of a delegated task.
 type DelegationResult struct {
-	TaskID    string
-	Worker    string
-	Output    string
-	Error     error
-	Duration  time.Duration
+	TaskID   string
+	Worker   string
+	Output   string
+	Error    error
+	Duration time.Duration
 }
 
 // HierarchicalConfig configures a hierarchical delegation workflow.
@@ -300,8 +300,8 @@ type HierarchicalConfig struct {
 	Name           string
 	Manager        *agent.Agent
 	Workers        map[string]*agent.Agent // Worker type -> Worker agent
-	MaxDelegations int                      // Maximum number of delegations
-	MaxDepth       int                      // Maximum depth of delegation hierarchy
+	MaxDelegations int                     // Maximum number of delegations
+	MaxDepth       int                     // Maximum depth of delegation hierarchy
 }
 
 // Hierarchical creates a workflow where a manager decomposes tasks and delegates to workers.
@@ -373,7 +373,7 @@ func Hierarchical(config HierarchicalConfig) (*Workflow, error) {
 				}
 
 				return fmt.Sprintf("You are a %s worker. Execute the following tasks:\n%s\nProject context: %s\n\nComplete all assigned tasks and provide a summary report.",
-						workerType, taskList, topic), nil
+					workerType, taskList, topic), nil
 			}),
 			WithOutput(func(result *agent.AgentResult, ctx *WorkflowContext) error {
 				workerType := fmt.Sprintf("worker-%s", workerType)

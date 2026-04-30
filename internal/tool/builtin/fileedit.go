@@ -119,8 +119,8 @@ type EditChange struct {
 
 // LineRangeInfo describes a line range that was affected by an edit.
 type LineRangeInfo struct {
-	StartLine int `json:"start_line"`
-	EndLine   int `json:"end_line"`
+	StartLine    int `json:"start_line"`
+	EndLine      int `json:"end_line"`
 	LinesRemoved int `json:"lines_removed"`
 	LinesAdded   int `json:"lines_added"`
 }

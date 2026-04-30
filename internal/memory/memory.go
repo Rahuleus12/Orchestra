@@ -60,9 +60,9 @@ type Tokenizer interface {
 // DefaultGetOptions returns a GetOptions with no limits.
 func DefaultGetOptions() GetOptions {
 	return GetOptions{
-		Limit:      0,
-		MaxTokens:  0,
-		Tokenizer:  nil,
+		Limit:     0,
+		MaxTokens: 0,
+		Tokenizer: nil,
 	}
 }
 

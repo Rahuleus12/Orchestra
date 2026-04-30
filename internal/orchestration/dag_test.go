@@ -467,11 +467,11 @@ func TestWorkflowContext(t *testing.T) {
 
 	// Test SetStepOutput and GetStepOutput
 	mockResult := &agent.AgentResult{
-		Output:    message.AssistantMessage("test output"),
-		Usage:     provider.TokenUsage{TotalTokens: 100},
-		Turns:     1,
-		Duration:  time.Second,
-		Metadata:  map[string]any{},
+		Output:   message.AssistantMessage("test output"),
+		Usage:    provider.TokenUsage{TotalTokens: 100},
+		Turns:    1,
+		Duration: time.Second,
+		Metadata: map[string]any{},
 	}
 	wfCtx.SetStepOutput("step-1", mockResult)
 

@@ -414,14 +414,14 @@ func (rp *RetryPolicy) ComputeDelay(attempt int) time.Duration {
 
 // WorkflowContext holds shared state across workflow execution.
 type WorkflowContext struct {
-	mu           sync.RWMutex
-	ctx          context.Context
-	input        map[string]any
-	output       map[string]any
-	stepOutputs  map[string]*agent.AgentResult
-	metadata     map[string]any
-	currentStep  string
-	cancel       context.CancelFunc
+	mu          sync.RWMutex
+	ctx         context.Context
+	input       map[string]any
+	output      map[string]any
+	stepOutputs map[string]*agent.AgentResult
+	metadata    map[string]any
+	currentStep string
+	cancel      context.CancelFunc
 }
 
 // NewWorkflowContext creates a new workflow context.

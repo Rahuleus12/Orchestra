@@ -48,22 +48,22 @@ const (
 
 // mistRequest is the request body for the Mistral Chat Completions API.
 type mistRequest struct {
-	Model          string           `json:"model"`
-	Messages       []mistMessage    `json:"messages"`
-	Temperature    *float64         `json:"temperature,omitempty"`
-	TopP           *float64         `json:"top_p,omitempty"`
-	MaxTokens      *int             `json:"max_tokens,omitempty"`
-	Stop           []string         `json:"stop,omitempty"`
-	Seed           *int64           `json:"seed,omitempty"`
-	ResponseFormat *mistRespFormat  `json:"response_format,omitempty"`
-	Tools          []mistTool       `json:"tools,omitempty"`
-	ToolChoice     interface{}      `json:"tool_choice,omitempty"`
-	Stream         bool             `json:"stream,omitempty"`
-	RandomSeed     *int64           `json:"random_seed,omitempty"`
-	SafePrompt     bool             `json:"safe_prompt,omitempty"`
-	N              int              `json:"n,omitempty"`
-	PresencePenalty  *float64       `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64       `json:"frequency_penalty,omitempty"`
+	Model            string          `json:"model"`
+	Messages         []mistMessage   `json:"messages"`
+	Temperature      *float64        `json:"temperature,omitempty"`
+	TopP             *float64        `json:"top_p,omitempty"`
+	MaxTokens        *int            `json:"max_tokens,omitempty"`
+	Stop             []string        `json:"stop,omitempty"`
+	Seed             *int64          `json:"seed,omitempty"`
+	ResponseFormat   *mistRespFormat `json:"response_format,omitempty"`
+	Tools            []mistTool      `json:"tools,omitempty"`
+	ToolChoice       interface{}     `json:"tool_choice,omitempty"`
+	Stream           bool            `json:"stream,omitempty"`
+	RandomSeed       *int64          `json:"random_seed,omitempty"`
+	SafePrompt       bool            `json:"safe_prompt,omitempty"`
+	N                int             `json:"n,omitempty"`
+	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
 }
 
 // mistRespFormat specifies the response format.
@@ -82,9 +82,9 @@ type mistMessage struct {
 
 // mistContentPart represents a single content part in a multi-part message.
 type mistContentPart struct {
-	Type     string       `json:"type"`
-	Text     string       `json:"text,omitempty"`
-	ImageURL *mistImgURL  `json:"image_url,omitempty"`
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	ImageURL *mistImgURL `json:"image_url,omitempty"`
 }
 
 // mistImgURL represents an image URL.
@@ -179,8 +179,8 @@ type mistStreamChoice struct {
 
 // mistStreamDelta holds incremental content in a stream chunk.
 type mistStreamDelta struct {
-	Role      string             `json:"role,omitempty"`
-	Content   string             `json:"content,omitempty"`
+	Role      string              `json:"role,omitempty"`
+	Content   string              `json:"content,omitempty"`
 	ToolCalls []mistToolCallDelta `json:"tool_calls,omitempty"`
 }
 
@@ -765,7 +765,7 @@ func (a *toolCallAccumulator) add(delta mistToolCallDelta) {
 	tc, exists := a.calls[idx]
 	if !exists {
 		tc = &message.ToolCall{
-			Type: "function",
+			Type:     "function",
 			Function: message.ToolCallFunction{},
 		}
 		a.calls[idx] = tc

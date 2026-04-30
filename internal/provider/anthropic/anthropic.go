@@ -31,17 +31,17 @@ import (
 // ---------------------------------------------------------------------------
 
 const (
-	defaultBaseURL    = "https://api.anthropic.com/v1"
-	providerName      = "anthropic"
-	messagesPath      = "/messages"
-	defaultModel      = "claude-sonnet-4-20250514"
-	apiVersionHeader  = "2023-06-01"
-	sseDataPrefix     = "data: "
-	sseEventPrefix    = "event: "
-	httpTimeout       = 10 * time.Minute
-	maxIdleConns      = 100
+	defaultBaseURL      = "https://api.anthropic.com/v1"
+	providerName        = "anthropic"
+	messagesPath        = "/messages"
+	defaultModel        = "claude-sonnet-4-20250514"
+	apiVersionHeader    = "2023-06-01"
+	sseDataPrefix       = "data: "
+	sseEventPrefix      = "event: "
+	httpTimeout         = 10 * time.Minute
+	maxIdleConns        = 100
 	maxIdleConnsPerHost = 100
-	idleConnTimeout   = 90 * time.Second
+	idleConnTimeout     = 90 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -58,9 +58,9 @@ type antRequest struct {
 	Stream    bool            `json:"stream,omitempty"`
 
 	// Optional generation parameters
-	Temperature *float64  `json:"temperature,omitempty"`
-	TopP        *float64  `json:"top_p,omitempty"`
-	TopK        *int      `json:"top_k,omitempty"`
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"top_p,omitempty"`
+	TopK          *int     `json:"top_k,omitempty"`
 	StopSequences []string `json:"stop_sequences,omitempty"`
 
 	// Metadata
@@ -86,7 +86,7 @@ type antTextContent struct {
 
 // antImageContent is an image content block.
 type antImageContent struct {
-	Type  string        `json:"type"`
+	Type   string       `json:"type"`
 	Source *antImageSrc `json:"source"`
 }
 
@@ -123,9 +123,9 @@ type antThinkingContent struct {
 
 // antTool represents a tool definition in the request.
 type antTool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description,omitempty"`
+	InputSchema  map[string]any   `json:"input_schema"`
 	CacheControl *antCacheControl `json:"cache_control,omitempty"`
 }
 
@@ -143,14 +143,14 @@ type antSystemBlock struct {
 
 // antResponse is the response from the Messages API.
 type antResponse struct {
-	ID           string           `json:"id"`
-	Type         string           `json:"type"`
-	Role         string           `json:"role"`
+	ID           string            `json:"id"`
+	Type         string            `json:"type"`
+	Role         string            `json:"role"`
 	Content      []antContentBlock `json:"content"`
-	Model        string           `json:"model"`
-	StopReason   *string          `json:"stop_reason,omitempty"`
-	StopSequence *string          `json:"stop_sequence,omitempty"`
-	Usage        antUsage         `json:"usage"`
+	Model        string            `json:"model"`
+	StopReason   *string           `json:"stop_reason,omitempty"`
+	StopSequence *string           `json:"stop_sequence,omitempty"`
+	Usage        antUsage          `json:"usage"`
 }
 
 // antContentBlock is a generic content block in the response.
@@ -178,7 +178,7 @@ type antUsage struct {
 
 // antErrorResponse wraps an API error response.
 type antErrorResponse struct {
-	Type  string        `json:"type"`
+	Type  string         `json:"type"`
 	Error antErrorDetail `json:"error"`
 }
 
@@ -192,12 +192,12 @@ type antErrorDetail struct {
 
 // antStreamEvent is a generic streaming event wrapper.
 type antStreamEvent struct {
-	Type         string          `json:"type"`
-	Message      *antResponse    `json:"message,omitempty"`
-	Index        int             `json:"index,omitempty"`
+	Type         string           `json:"type"`
+	Message      *antResponse     `json:"message,omitempty"`
+	Index        int              `json:"index,omitempty"`
 	ContentBlock *antContentBlock `json:"content_block,omitempty"`
-	Delta        json.RawMessage `json:"delta,omitempty"`
-	Usage        *antUsage       `json:"usage,omitempty"`
+	Delta        json.RawMessage  `json:"delta,omitempty"`
+	Usage        *antUsage        `json:"usage,omitempty"`
 }
 
 // antTextDelta is a text content delta.
@@ -208,8 +208,8 @@ type antTextDelta struct {
 
 // antToolUseDelta is a tool use input delta.
 type antToolUseDelta struct {
-	Type          string `json:"type"`
-	PartialJSON   string `json:"partial_json"`
+	Type        string `json:"type"`
+	PartialJSON string `json:"partial_json"`
 }
 
 // antThinkingDelta is a thinking content delta.
@@ -220,8 +220,8 @@ type antThinkingDelta struct {
 
 // antMessageDelta is the message delta event payload.
 type antMessageDeltaBody struct {
-	Delta       antMessageDeltaDelta `json:"delta"`
-	Usage       *antUsage            `json:"usage,omitempty"`
+	Delta antMessageDeltaDelta `json:"delta"`
+	Usage *antUsage            `json:"usage,omitempty"`
 }
 
 // antMessageDeltaDelta holds the delta fields.

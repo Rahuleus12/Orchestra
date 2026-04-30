@@ -63,9 +63,9 @@ func TestFinishReason_IsTerminal(t *testing.T) {
 
 func TestTokenUsage_Add(t *testing.T) {
 	tests := []struct {
-		name    string
-		a, b    TokenUsage
-		want    TokenUsage
+		name string
+		a, b TokenUsage
+		want TokenUsage
 	}{
 		{
 			name: "both_nonzero",
@@ -771,9 +771,9 @@ func TestModelInfo_Fields(t *testing.T) {
 		Name:        "GPT-4 Turbo",
 		Description: "Most capable model",
 		Capabilities: ModelCapabilities{
-			Streaming:  true,
-			Vision:     true,
-			MaxTokens:  4096,
+			Streaming: true,
+			Vision:    true,
+			MaxTokens: 4096,
 		},
 		Deprecated: false,
 		Metadata:   map[string]any{"tier": "premium"},

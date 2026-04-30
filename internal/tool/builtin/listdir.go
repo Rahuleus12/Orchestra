@@ -143,7 +143,7 @@ func NewListDirectoryTool() ListDirectoryTool {
 // NewListDirectoryToolWithRoot creates a list_directory tool restricted to a root directory.
 func NewListDirectoryToolWithRoot(root string) ListDirectoryTool {
 	return ListDirectoryTool{
-		Root:                root,
+		Root:               root,
 		DefaultIgnoreFiles: []string{".gitignore", ".orchestaignore"},
 	}
 }
@@ -474,11 +474,11 @@ func (t ListDirectoryTool) Execute(ctx context.Context, input json.RawMessage) (
 	entries = t.sortEntries(entries, req.SortBy, req.SortReverse)
 
 	output := ListDirectoryOutput{
-		Path:        dirPath,
-		Entries:     entries,
-		TotalFiles:  totalFiles,
-		TotalDirs:   totalDirs,
-		Truncated:   truncated,
+		Path:       dirPath,
+		Entries:    entries,
+		TotalFiles: totalFiles,
+		TotalDirs:  totalDirs,
+		Truncated:  truncated,
 	}
 
 	return json.Marshal(output)

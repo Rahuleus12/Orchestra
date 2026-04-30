@@ -118,7 +118,7 @@ func TestNewInMemoryBus(t *testing.T) {
 func TestNewInMemoryBus_WithOptions(t *testing.T) {
 	bus := NewInMemoryBus(
 		WithBufferSize(50),
-		WithHandlerTimeout(10 * time.Second),
+		WithHandlerTimeout(10*time.Second),
 	)
 	defer bus.Close()
 

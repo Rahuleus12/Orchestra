@@ -67,7 +67,7 @@ func IsParallel(t *testing.T) bool {
 
 // Annotation levels for GitHub Actions.
 const (
-	AnnotationNotice = "::notice::"
+	AnnotationNotice  = "::notice::"
 	AnnotationWarning = "::warning::"
 	AnnotationError   = "::error::"
 )

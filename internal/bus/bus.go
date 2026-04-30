@@ -18,13 +18,13 @@ type Handler func(ctx context.Context, msg BusMessage) error
 // Subscription represents an active subscription to one or more topics.
 // It can be used to unsubscribe or check the subscription status.
 type Subscription struct {
-	id        string
-	topics    []string
-	handler   Handler
-	cancel    context.CancelFunc
-	active    atomic.Bool
-	bus       *InMemoryBus
-	filter    MessageFilter
+	id      string
+	topics  []string
+	handler Handler
+	cancel  context.CancelFunc
+	active  atomic.Bool
+	bus     *InMemoryBus
+	filter  MessageFilter
 }
 
 // ID returns the unique identifier for this subscription.

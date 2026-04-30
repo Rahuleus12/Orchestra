@@ -74,10 +74,10 @@ func (e *errProvider) Stream(_ context.Context, _ provider.GenerateRequest) (<-c
 
 // flakyProvider succeeds after N failures.
 type flakyProvider struct {
-	name       string
-	failCount  atomic.Int64
+	name         string
+	failCount    atomic.Int64
 	succeedAfter int64
-	result     *provider.GenerateResult
+	result       *provider.GenerateResult
 }
 
 func (f *flakyProvider) Name() string { return f.name }
@@ -117,53 +117,53 @@ func (f *flakyProvider) Stream(ctx context.Context, req provider.GenerateRequest
 
 func TestExponentialBackoff_Delay(t *testing.T) {
 	tests := []struct {
-		name      string
-		backoff   middleware.ExponentialBackoff
-		attempt   int
-		minDelay  time.Duration
-		maxDelay  time.Duration
+		name     string
+		backoff  middleware.ExponentialBackoff
+		attempt  int
+		minDelay time.Duration
+		maxDelay time.Duration
 	}{
 		{
-			name:      "first attempt with defaults",
-			backoff:   middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 2.0},
-			attempt:   0,
-			minDelay:  800 * time.Millisecond, // Allow some tolerance
-			maxDelay:  2 * time.Second,
+			name:     "first attempt with defaults",
+			backoff:  middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 2.0},
+			attempt:  0,
+			minDelay: 800 * time.Millisecond, // Allow some tolerance
+			maxDelay: 2 * time.Second,
 		},
 		{
-			name:      "second attempt doubles",
-			backoff:   middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 2.0},
-			attempt:   1,
-			minDelay:  1800 * time.Millisecond,
-			maxDelay:  2500 * time.Millisecond,
+			name:     "second attempt doubles",
+			backoff:  middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 2.0},
+			attempt:  1,
+			minDelay: 1800 * time.Millisecond,
+			maxDelay: 2500 * time.Millisecond,
 		},
 		{
-			name:      "respects max delay",
-			backoff:   middleware.ExponentialBackoff{Initial: time.Second, Max: 5 * time.Second, Multiplier: 2.0},
-			attempt:   10,
-			minDelay:  4 * time.Second,
-			maxDelay:  6 * time.Second,
+			name:     "respects max delay",
+			backoff:  middleware.ExponentialBackoff{Initial: time.Second, Max: 5 * time.Second, Multiplier: 2.0},
+			attempt:  10,
+			minDelay: 4 * time.Second,
+			maxDelay: 6 * time.Second,
 		},
 		{
-			name:      "negative attempt returns initial",
-			backoff:   middleware.ExponentialBackoff{Initial: 2 * time.Second, Max: 30 * time.Second, Multiplier: 2.0},
-			attempt:   -1,
-			minDelay:  1500 * time.Millisecond,
-			maxDelay:  3 * time.Second,
+			name:     "negative attempt returns initial",
+			backoff:  middleware.ExponentialBackoff{Initial: 2 * time.Second, Max: 30 * time.Second, Multiplier: 2.0},
+			attempt:  -1,
+			minDelay: 1500 * time.Millisecond,
+			maxDelay: 3 * time.Second,
 		},
 		{
-			name:      "zero multiplier defaults to 2.0",
-			backoff:   middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 0},
-			attempt:   2,
-			minDelay:  3500 * time.Millisecond,
-			maxDelay:  5 * time.Second,
+			name:     "zero multiplier defaults to 2.0",
+			backoff:  middleware.ExponentialBackoff{Initial: time.Second, Max: 30 * time.Second, Multiplier: 0},
+			attempt:  2,
+			minDelay: 3500 * time.Millisecond,
+			maxDelay: 5 * time.Second,
 		},
 		{
-			name:      "zero initial defaults to 1s",
-			backoff:   middleware.ExponentialBackoff{Initial: 0, Max: 30 * time.Second, Multiplier: 2.0},
-			attempt:   0,
-			minDelay:  800 * time.Millisecond,
-			maxDelay:  2 * time.Second,
+			name:     "zero initial defaults to 1s",
+			backoff:  middleware.ExponentialBackoff{Initial: 0, Max: 30 * time.Second, Multiplier: 2.0},
+			attempt:  0,
+			minDelay: 800 * time.Millisecond,
+			maxDelay: 2 * time.Second,
 		},
 	}
 
@@ -249,8 +249,8 @@ func TestRetry_SuccessOnFirstAttempt(t *testing.T) {
 
 func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	fp := &flakyProvider{
-		name:          "flaky",
-		succeedAfter:  2,
+		name:         "flaky",
+		succeedAfter: 2,
 		result: &provider.GenerateResult{
 			ID:           "test-123",
 			Message:      message.AssistantMessage("recovered"),

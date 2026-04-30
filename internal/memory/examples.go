@@ -153,7 +153,7 @@ func ExampleCompositeMemory() {
 	ctx := context.Background()
 
 	// Create individual memories
-	recentMem := NewSlidingWindowMemory(10)        // Keep last 10 messages
+	recentMem := NewSlidingWindowMemory(10) // Keep last 10 messages
 	provider := NewMockEmbeddingProvider(384)
 	semanticMem := NewSemanticMemory(provider, 50, 5, 0.6) // Semantic search
 
@@ -486,8 +486,8 @@ func ExampleConversationSession() {
 
 	// Simulate a conversation session
 	conversation := []struct {
-		role  message.Role
-		text  string
+		role message.Role
+		text string
 	}{
 		{message.RoleSystem, "You are a helpful coding assistant."},
 		{message.RoleUser, "How do I reverse a string in Go?"},
@@ -535,8 +535,8 @@ func ExampleCustomGetOptions() {
 	// Retrieve with both message and token limits
 	tokenizer := NewApproxTokenizer()
 	opts := GetOptions{
-		Limit:     10,          // At most 10 messages
-		MaxTokens: 100,         // At most 100 tokens
+		Limit:     10,  // At most 10 messages
+		MaxTokens: 100, // At most 100 tokens
 		Tokenizer: tokenizer,
 	}
 
