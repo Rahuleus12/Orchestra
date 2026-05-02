@@ -372,6 +372,7 @@ jobs:
           fi
 
       - name: Run unit tests with gotestsum
+        shell: bash
         env:
           # Ensure consistent behavior across platforms
           GODEBUG: allocmintestctx=0
