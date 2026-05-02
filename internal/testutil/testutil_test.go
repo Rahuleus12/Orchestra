@@ -275,7 +275,7 @@ func TestAssertNotPanics_Failure(t *testing.T) {
 				didPanic = true
 			}
 		}()
-	panic("unexpected panic")
+		panic("unexpected panic")
 	}()
 	if !didPanic {
 		t.Error("expected panic to be caught")
