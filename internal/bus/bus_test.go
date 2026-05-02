@@ -731,17 +731,23 @@ func TestInMemoryBus_MessageIsolation(t *testing.T) {
 	bus := NewInMemoryBus()
 	defer bus.Close()
 
+	var mu sync.Mutex
 	var msg1Payload, msg2Payload string
+	var received sync.WaitGroup
+	received.Add(2)
 
 	sub, _ := bus.Subscribe([]string{"test"}, func(ctx context.Context, msg BusMessage) error {
 		// Simulate modifying the message
 		msg.SetMetadata("modified", true)
 		// Store payload based on some criteria
+		mu.Lock()
 		if msg.Payload == "first" {
 			msg1Payload = msg.Payload.(string)
 		} else {
 			msg2Payload = msg.Payload.(string)
 		}
+		mu.Unlock()
+		received.Done()
 		return nil
 	})
 	defer sub.Unsubscribe()
@@ -750,8 +756,11 @@ func TestInMemoryBus_MessageIsolation(t *testing.T) {
 	bus.Publish(context.Background(), "test", BusMessage{Payload: "first"})
 	bus.Publish(context.Background(), "test", BusMessage{Payload: "second"})
 
-	time.Sleep(100 * time.Millisecond)
+	// Wait for both messages to be delivered
+	received.Wait()
 
+	mu.Lock()
+	defer mu.Unlock()
 	if msg1Payload != "first" {
 		t.Errorf("expected first payload 'first', got '%s'", msg1Payload)
 	}

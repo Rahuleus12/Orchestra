@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -139,7 +140,7 @@ func AssertFalse(t *testing.T, condition bool, msgAndArgs ...interface{}) {
 // AssertNil asserts that the value is nil.
 func AssertNil(t *testing.T, value interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
-	if value != nil {
+	if !isNil(value) {
 		msg := formatMessage("AssertNil", msgAndArgs...)
 		t.Errorf("%s: expected nil, got %v", msg, value)
 		Annotate(t, AnnotationError, fmt.Sprintf("%s: expected nil, got %T", msg, value))
@@ -149,7 +150,7 @@ func AssertNil(t *testing.T, value interface{}, msgAndArgs ...interface{}) {
 // AssertNotNil asserts that the value is not nil.
 func AssertNotNil(t *testing.T, value interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
-	if value == nil {
+	if isNil(value) {
 		msg := formatMessage("AssertNotNil", msgAndArgs...)
 		t.Errorf("%s: expected non-nil", msg)
 		Annotate(t, AnnotationError, fmt.Sprintf("%s: expected non-nil", msg))
@@ -628,4 +629,17 @@ func isZero(value interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// isNil checks if a value is nil, including typed nils (e.g. (*int)(nil)).
+func isNil(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	}
+	return false
 }
