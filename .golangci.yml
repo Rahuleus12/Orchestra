@@ -13,7 +13,7 @@ run:
   timeout: 5m
 
   # Go version to target
-  go: "1.24"
+  go: "1.25"
 
   # List of build tags
   build-tags:

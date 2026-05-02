@@ -50,7 +50,7 @@ env:
   # Go version to use across all jobs
   GO_VERSION: "1.25"
   # golangci-lint version (v2)
-  GOLANGCI_LINT_VERSION: "v2.1"
+  GOLANGCI_LINT_VERSION: "v2.3.0"
   # gotestsum for CI-friendly test output
   GOTESTSUM_VERSION: "v1.12.1"
   # Test timeouts
@@ -226,7 +226,7 @@ jobs:
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7.0.0
+        uses: golangci/golangci-lint-action@v7.0.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m --show-stats
