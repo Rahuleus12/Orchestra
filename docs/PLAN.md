@@ -147,6 +147,7 @@ Orchestra/
 │   ├── message/                  # Message types and conversation history
 │   │   ├── message.go
 │   │   ├── role.go
+│   │   ├── hash.go              # SHA-256 hashing & hash chain (Phase 9.6)
 │   │   └── message_test.go
 │   ├── provider/                 # Provider interface and registry
 │   │   ├── provider.go
@@ -204,7 +205,8 @@ Orchestra/
 │   │   │   ├── http.go
 │   │   │   ├── calculator.go
 │   │   │   ├── code_interpreter.go
-│   │   │   └── filesystem.go
+│   │   │   ├── filesystem.go
+│   │   │   └── lookup.go          # SHA message lookup tool (Phase 9.6)
 │   │   └── tool_test.go
 │   ├── memory/                   # Context and memory management
 │   │   ├── memory.go
@@ -212,6 +214,8 @@ Orchestra/
 │   │   ├── window.go
 │   │   ├── summary.go
 │   │   ├── semantic.go
+│   │   ├── journal.go            # SHA-tracked session journal (Phase 9.6)
+│   │   ├── compaction.go         # Compaction strategies (Phase 9.6)
 │   │   └── memory_test.go
 │   ├── bus/                      # Inter-agent message bus
 │   │   ├── bus.go
@@ -1303,6 +1307,168 @@ workflow := orchestration.NewWorkflow("content-creation").
 - [ ] Aggregate responses (majority vote, best-of-N, cascading)
 - [ ] Cost-quality tradeoff configuration
 
+#### 9.6 SHA-Tracked Session Messages & Compaction
+
+Introduce a content-addressable message store where every message in a session is
+identified by its SHA-256 hash. This allows agents and orchestration layers to
+**point back to previous messages by hash** rather than by positional index, making
+references stable across truncation, compaction, and distributed hand-offs.
+
+Periodic **compaction** replaces groups of older messages with a summary while
+preserving a compacted-message entry that records the hashes of the original
+messages — so any consumer can still trace the full lineage.
+
+**Core concepts:**
+
+| Concept | Description |
+|---|---|
+| `MessageHash` | SHA-256 of the canonical serialisation (role + content + tool calls + metadata). Computed once at creation, stored in `Message.Metadata["sha"]`. |
+| `HashChain` | Each message optionally carries `parent_hash` pointing to the SHA of the preceding message, forming an append-only hash chain. |
+| `SessionJournal` | Ordered, content-addressable log of all messages in a session. Backed by an in-memory map (`sha → Message`) plus an ordered slice for iteration. |
+| `CompactionCheckpoint` | A special system message that replaces a range of older messages. Its metadata records the list of SHA hashes that were compacted and carries the LLM-generated summary. |
+
+**Data model additions:**
+
+```go
+// internal/message/hash.go
+
+// Hash computes the SHA-256 of the canonical JSON representation of the message.
+// The hash is cached in Message.Metadata["sha"] after first computation.
+func (m *Message) Hash() (string, error)
+
+// ParentHash returns the SHA of the preceding message in the session,
+// or empty string if this is the first message.
+func (m *Message) ParentHash() string
+
+// SetParentHash sets the parent hash reference on the message.
+func (m *Message) SetParentHash(sha string)
+
+// CompactionInfo is stored in a compaction checkpoint message's Metadata["compaction"].
+type CompactionInfo struct {
+    CompactedHashes []string `json:"compacted_hashes"` // SHAs of the original messages
+    SummarySHA      string   `json:"summary_sha"`      // SHA of the summary message itself
+    CompactedAt     int64    `json:"compacted_at"`     // Unix timestamp
+    MessageCount    int      `json:"message_count"`   // Number of messages compacted
+}
+```
+
+```go
+// internal/memory/journal.go
+
+// SessionJournal is a content-addressable, append-only log of session messages.
+// Every message is indexed by its SHA-256 hash.
+type SessionJournal struct {
+    mu        sync.RWMutex
+    ordered   []string            // ordered SHA hashes (append-only)
+    store     map[string]Message  // sha → Message
+    head      string              // SHA of the latest message
+    // Compaction
+    compactor CompactionStrategy
+    compacted map[string]CompactionInfo // checkpoint SHA → info
+}
+
+// Append adds a message, computes its hash, links it to the previous head.
+func (j *SessionJournal) Append(ctx context.Context, msg Message) (string, error)
+
+// Get retrieves a message by its SHA hash (works even for compacted messages).
+func (j *SessionJournal) Get(sha string) (Message, bool)
+
+// ResolveChain walks backwards from a given hash, returning the full lineage.
+func (j *SessionJournal) ResolveChain(fromSHA string, maxDepth int) ([]Message, error)
+
+// Recent returns the most recent N messages (post-compaction view).
+func (j *SessionJournal) Recent(ctx context.Context, n int) ([]Message, error)
+
+// Compact triggers compaction of older messages according to the strategy.
+func (j *SessionJournal) Compact(ctx context.Context) error
+
+// CompactionStrategy decides when and how to compact.
+type CompactionStrategy interface {
+    ShouldCompact(journal *SessionJournal) bool
+    Compact(ctx context.Context, journal *SessionJournal) error
+}
+```
+
+**Compaction strategies:**
+
+```go
+// internal/memory/compaction.go
+
+// ThresholdCompaction compacts every N messages (e.g., every 10 prompts).
+type ThresholdCompaction struct {
+    EveryN       int               // compact after every N messages
+    Provider     provider.Provider // LLM to generate summaries
+    SummaryModel string            // model for summarisation
+}
+
+// TokenBudgetCompaction compacts when the total token count exceeds a budget.
+type TokenBudgetCompaction struct {
+    MaxTokens    int
+    KeepRecent   int               // always keep the last N messages un-compacted
+    Provider     provider.Provider
+    SummaryModel string
+    Tokenizer    Tokenizer
+}
+```
+
+**Integration with existing Memory interface:**
+
+`SessionJournal` implements the `Memory` interface, so it can be used as a
+drop-in replacement for any existing memory strategy. It additionally exposes
+SHA-based lookup and chain resolution.
+
+```go
+// A JournalMemory wraps SessionJournal to satisfy the Memory interface.
+type JournalMemory struct {
+    *SessionJournal
+}
+
+func (m *JournalMemory) Add(ctx context.Context, msg message.Message) error {
+    _, err := m.SessionJournal.Append(ctx, msg)
+    return err
+}
+```
+
+**Reference-by-SHA in prompts and tool calls:**
+
+Agents can include SHA references in their reasoning, allowing downstream
+consumers (other agents, human reviewers, audit logs) to unambiguously point
+at a specific prior message:
+
+```
+[agent-a] Based on the analysis in msg:sha256:a1b2c3..., I recommend refactoring the handler.
+```
+
+A built-in `lookup_message` tool lets agents resolve SHA references:
+
+```go
+// internal/tool/lookup.go
+var LookupMessageTool = tool.Functional(
+    "lookup_message",
+    "Look up a previous message by its SHA-256 hash",
+    func(ctx context.Context, input LookupInput) (string, error) {
+        journal := memory.JournalFromContext(ctx)
+        msg, ok := journal.Get(input.SHA)
+        // ...
+    },
+)
+```
+
+**Tasks:**
+
+- [ ] Add `Hash()`, `ParentHash()`, `SetParentHash()` to `Message` (`internal/message/hash.go`)
+- [ ] Define `CompactionInfo` struct
+- [ ] Implement `SessionJournal` with content-addressable store (`internal/memory/journal.go`)
+- [ ] Implement `JournalMemory` adapter satisfying `Memory` interface
+- [ ] Implement `ThresholdCompaction` strategy (compact every N messages)
+- [ ] Implement `TokenBudgetCompaction` strategy (compact on token budget exceeded)
+- [ ] Add `lookup_message` tool for SHA-based message retrieval
+- [ ] Add context helper `JournalFromContext` for extracting the journal from agent context
+- [ ] Auto-compact after every N prompts in the agent execution loop
+- [ ] Preserve compacted message hashes in `CompactionCheckpoint` metadata
+- [ ] Unit tests for hash computation, chain resolution, and compaction correctness
+- [ ] Integration test: agent conversation with compaction, verify SHA references still resolve
+
 ### Deliverables
 
 - [ ] RAG pipeline with vector store
@@ -1310,6 +1476,7 @@ workflow := orchestration.NewWorkflow("content-creation").
 - [ ] Planning/re-planning pattern
 - [ ] Human-in-the-loop integration
 - [ ] Multi-model ensemble pattern
+- [ ] SHA-tracked session journal with compaction strategies
 
 ### Milestone Criteria
 
@@ -1318,6 +1485,10 @@ workflow := orchestration.NewWorkflow("content-creation").
 - Planning agent creates executable plans
 - Human approval gates pause and resume correctly
 - Ensemble produces higher quality outputs than single models
+- Messages are addressable by SHA-256 hash and chain lineage can be resolved
+- Compaction replaces older messages with summaries while preserving hash lineage
+- SHA references survive compaction (compact checkpoint records original hashes)
+- Agent can look up any prior message by hash after compaction
 
 ---
 
@@ -1450,6 +1621,23 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 
 **Rationale:** Developers interact with coding tools on the command line — a CLI-first approach meets users where they work. Keeping the core as importable Go packages ensures the same functionality is available to users who want to embed multi-agent orchestration directly into their Go applications. A server mode adds operational overhead that not all users need, so it remains optional.
 
+### TDR-006: SHA-Tracked Session Messages & Compaction
+
+**Decision:** Introduce a content-addressable message store (`SessionJournal`) where every message is identified by its SHA-256 hash. Messages form a hash chain (each pointing to its predecessor), and older messages are periodically **compacted** into LLM-generated summaries that record the hashes of the original messages. The `SessionJournal` satisfies the existing `Memory` interface so it is a drop-in upgrade.
+
+**Rationale:** Position-based message references (e.g., "message #5") are brittle — they break when conversations are truncated, compacted, or handed off between agents. Content-addressable references (SHA-256 hashes) are stable, unique, and verifiable. Compaction with hash lineage means the conversation window stays within token limits while every historical reference remains resolvable. This is critical for:
+
+1. **Long coding sessions** — agents reasoning about earlier code decisions can cite specific messages.
+2. **Multi-agent hand-offs** — an agent receiving context from another agent can reference the exact source.
+3. **Audit & debug** — every message is reproducible from its hash.
+4. **Context window efficiency** — compaction reduces token usage without losing the ability to trace history.
+
+**Alternatives Considered:**
+- **UUID-based references**: Unique but not content-verifiable; no integrity guarantee.
+- **Sequential IDs**: Break under compaction or reordering; not globally unique across agents.
+- **No compaction (keep everything)**: Simple but impractical for long sessions; O(n) token growth.
+- **Sliding window only (existing)**: Loses access to older messages entirely; no stable references.
+
 ---
 
 ## 16. Risk Assessment
@@ -1464,6 +1652,8 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 | Cost overruns from unbounded token usage | Medium | High | Token budgets per workflow/agent, cost estimation before execution, alerts |
 | Concurrent access to shared agent state | Medium | High | Immutable message types, copy-on-write conversation, proper mutex usage |
 | Streaming error handling complexity | Medium | Medium | Clear error types, reconnection logic, partial result preservation |
+| SHA compaction loses critical context | Low | High | Configurable compaction thresholds, keep-recent guarantees, compacted hashes preserved for lineage |
+| Hash collision in message store | Negligible | Critical | SHA-256 collision probability is negligible; add defensive duplicate checks on append |
 
 ---
 
