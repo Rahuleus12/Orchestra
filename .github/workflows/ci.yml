@@ -362,6 +362,7 @@ jobs:
           echo "Dependencies verified successfully."
 
       - name: Check module tidiness
+        shell: bash
         run: |
           go mod tidy
           if ! git diff --quiet go.mod go.sum; then
@@ -411,6 +412,7 @@ jobs:
 
       - name: Display coverage
         if: always()
+        shell: bash
         run: |
           if [ -f unit-coverage.out ]; then
             go tool cover -func=unit-coverage.out | tail -1
