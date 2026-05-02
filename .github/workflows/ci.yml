@@ -229,6 +229,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7.0.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
+          install-mode: goinstall
           args: --timeout=5m --show-stats
           # Only show new issues in PRs
           only-new-issues: true
