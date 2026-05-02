@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/user/orchestra/internal/provider"
+	provider "github.com/user/orchestra/internal/provider"
 )
 
 // InstrumentProvider wraps provider Generate calls with tracing and metrics.
@@ -19,17 +19,27 @@ type InstrumentProvider struct {
 }
 
 // NewInstrumentProvider creates a new instrumentation helper for providers.
-func NewInstrumentProvider(tracer *TracerProvider, metrics *OrchestraMetrics, logger *slog.Logger) *InstrumentProvider {
+func NewInstrumentProvider(
+	tracer *TracerProvider,
+	metrics *OrchestraMetrics,
+	logger *slog.Logger,
+) *InstrumentProvider {
 	return &InstrumentProvider{
 		tracer:  tracer.Tracer("orchestra.provider"),
 		metrics: metrics,
-		logger:  logger.With("component", "instrumentation", "target", "provider"),
+		logger:  logger.With(
+			slog.String("component", "instrumentation"),
+			slog.String("target", "provider"),
+		),
 	}
 }
 
 // WrapGenerate instruments a provider Generate call with tracing and metrics.
 // It returns a function that wraps the original Generate function.
-func (ip *InstrumentProvider) WrapGenerate(providerName string, fn func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error)) func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
+func (ip *InstrumentProvider) WrapGenerate(
+	providerName string,
+	fn func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error),
+) func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 	return func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 		spanName := fmt.Sprintf("orchestra.provider.%s.generate", providerName)
 		ctx, span := ip.tracer.Start(ctx, spanName,
@@ -53,7 +63,9 @@ func (ip *InstrumentProvider) WrapGenerate(providerName string, fn func(ctx cont
 			ip.metrics.ProviderRequests.Inc()
 
 			if err == nil {
-				ip.metrics.TokensTotal.Add(int64(result.Usage.PromptTokens + result.Usage.CompletionTokens))
+				ip.metrics.TokensTotal.Add(
+					int64(result.Usage.PromptTokens + result.Usage.CompletionTokens),
+				)
 			}
 		}
 
@@ -65,10 +77,10 @@ func (ip *InstrumentProvider) WrapGenerate(providerName string, fn func(ctx cont
 			span.SetStatus(SpanStatusError, err.Error())
 
 			ip.logger.Error("provider call failed",
-				"provider", providerName,
-				"model", req.Model,
-				"duration_ms", duration.Milliseconds(),
-				"error", err,
+				slog.String("provider", providerName),
+				slog.String("model", req.Model),
+				slog.Int64("duration_ms", duration.Milliseconds()),
+				slog.String("error", err.Error()),
 			)
 			return nil, err
 		}
@@ -83,10 +95,10 @@ func (ip *InstrumentProvider) WrapGenerate(providerName string, fn func(ctx cont
 		span.SetStatus(SpanStatusOK, "")
 
 		ip.logger.Debug("provider call completed",
-			"provider", providerName,
-			"model", req.Model,
-			"duration_ms", duration.Milliseconds(),
-			"total_tokens", result.Usage.TotalTokens,
+			slog.String("provider", providerName),
+			slog.String("model", req.Model),
+			slog.Int64("duration_ms", duration.Milliseconds()),
+			slog.Int("total_tokens", result.Usage.TotalTokens),
 		)
 
 		return result, nil
@@ -101,16 +113,26 @@ type InstrumentAgent struct {
 }
 
 // NewInstrumentAgent creates a new instrumentation helper for agents.
-func NewInstrumentAgent(tracer *TracerProvider, metrics *OrchestraMetrics, logger *slog.Logger) *InstrumentAgent {
+func NewInstrumentAgent(
+	tracer *TracerProvider,
+	metrics *OrchestraMetrics,
+	logger *slog.Logger,
+) *InstrumentAgent {
 	return &InstrumentAgent{
 		tracer:  tracer.Tracer("orchestra.agent"),
 		metrics: metrics,
-		logger:  logger.With("component", "instrumentation", "target", "agent"),
+		logger:  logger.With(
+			slog.String("component", "instrumentation"),
+			slog.String("target", "agent"),
+		),
 	}
 }
 
 // StartRun creates a span for an agent run and increments the active agents gauge.
-func (ia *InstrumentAgent) StartRun(ctx context.Context, agentName, model string) (context.Context, Span) {
+func (ia *InstrumentAgent) StartRun(
+	ctx context.Context,
+	agentName, model string,
+) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.agent.%s.run", agentName)
 	ctx, span := ia.tracer.Start(ctx, spanName,
 		WithAttributes(
@@ -125,15 +147,22 @@ func (ia *InstrumentAgent) StartRun(ctx context.Context, agentName, model string
 	}
 
 	ia.logger.Debug("agent run started",
-		"agent", agentName,
-		"model", model,
+		slog.String("agent", agentName),
+		slog.String("model", model),
 	)
 
 	return ctx, span
 }
 
 // EndRun completes an agent run span, records metrics, and decrements the active gauge.
-func (ia *InstrumentAgent) EndRun(span Span, agentName string, duration time.Duration, turns int, usage provider.TokenUsage, err error) {
+func (ia *InstrumentAgent) EndRun(
+	span Span,
+	agentName string,
+	duration time.Duration,
+	turns int,
+	usage provider.TokenUsage,
+	err error,
+) {
 	if err != nil {
 		span.RecordError(err, StringAttr("agent", agentName))
 		span.SetStatus(SpanStatusError, err.Error())
@@ -157,15 +186,18 @@ func (ia *InstrumentAgent) EndRun(span Span, agentName string, duration time.Dur
 	}
 
 	ia.logger.Debug("agent run completed",
-		"agent", agentName,
-		"duration_ms", duration.Milliseconds(),
-		"turns", turns,
-		"total_tokens", usage.TotalTokens,
+		slog.String("agent", agentName),
+		slog.Int64("duration_ms", duration.Milliseconds()),
+		slog.Int("turns", turns),
+		slog.Int("total_tokens", usage.TotalTokens),
 	)
 }
 
 // StartToolCall creates a span for a tool execution within an agent run.
-func (ia *InstrumentAgent) StartToolCall(ctx context.Context, agentName, toolName string) (context.Context, Span) {
+func (ia *InstrumentAgent) StartToolCall(
+	ctx context.Context,
+	agentName, toolName string,
+) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.agent.%s.tool.%s", agentName, toolName)
 	ctx, span := ia.tracer.Start(ctx, spanName,
 		WithAttributes(
@@ -201,8 +233,8 @@ func (ia *InstrumentAgent) EndToolCall(span Span, toolName string, duration time
 	}
 
 	ia.logger.Debug("tool execution completed",
-		"tool", toolName,
-		"duration_ms", duration.Milliseconds(),
+		slog.String("tool", toolName),
+		slog.Int64("duration_ms", duration.Milliseconds()),
 	)
 }
 
@@ -214,16 +246,27 @@ type InstrumentWorkflow struct {
 }
 
 // NewInstrumentWorkflow creates a new instrumentation helper for workflows.
-func NewInstrumentWorkflow(tracer *TracerProvider, metrics *OrchestraMetrics, logger *slog.Logger) *InstrumentWorkflow {
+func NewInstrumentWorkflow(
+	tracer *TracerProvider,
+	metrics *OrchestraMetrics,
+	logger *slog.Logger,
+) *InstrumentWorkflow {
 	return &InstrumentWorkflow{
 		tracer:  tracer.Tracer("orchestra.workflow"),
 		metrics: metrics,
-		logger:  logger.With("component", "instrumentation", "target", "workflow"),
+		logger:  logger.With(
+			slog.String("component", "instrumentation"),
+			slog.String("target", "workflow"),
+		),
 	}
 }
 
 // StartWorkflow creates a span for a workflow execution and increments the active gauge.
-func (iw *InstrumentWorkflow) StartWorkflow(ctx context.Context, workflowName string, stepCount int) (context.Context, Span) {
+func (iw *InstrumentWorkflow) StartWorkflow(
+	ctx context.Context,
+	workflowName string,
+	stepCount int,
+) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.workflow.%s.execute", workflowName)
 	ctx, span := iw.tracer.Start(ctx, spanName,
 		WithAttributes(
@@ -238,15 +281,21 @@ func (iw *InstrumentWorkflow) StartWorkflow(ctx context.Context, workflowName st
 	}
 
 	iw.logger.Debug("workflow execution started",
-		"workflow", workflowName,
-		"step_count", stepCount,
+		slog.String("workflow", workflowName),
+		slog.Int("step_count", stepCount),
 	)
 
 	return ctx, span
 }
 
 // EndWorkflow completes a workflow execution span.
-func (iw *InstrumentWorkflow) EndWorkflow(span Span, workflowName string, duration time.Duration, usage provider.TokenUsage, err error) {
+func (iw *InstrumentWorkflow) EndWorkflow(
+	span Span,
+	workflowName string,
+	duration time.Duration,
+	usage provider.TokenUsage,
+	err error,
+) {
 	if err != nil {
 		span.RecordError(err, StringAttr("workflow", workflowName))
 		span.SetStatus(SpanStatusError, err.Error())
@@ -266,14 +315,17 @@ func (iw *InstrumentWorkflow) EndWorkflow(span Span, workflowName string, durati
 	}
 
 	iw.logger.Debug("workflow execution completed",
-		"workflow", workflowName,
-		"duration_ms", duration.Milliseconds(),
-		"total_tokens", usage.TotalTokens,
+		slog.String("workflow", workflowName),
+		slog.Int64("duration_ms", duration.Milliseconds()),
+		slog.Int("total_tokens", usage.TotalTokens),
 	)
 }
 
 // StartStep creates a span for a workflow step.
-func (iw *InstrumentWorkflow) StartStep(ctx context.Context, workflowName, stepID, agentName string) (context.Context, Span) {
+func (iw *InstrumentWorkflow) StartStep(
+	ctx context.Context,
+	workflowName, stepID, agentName string,
+) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.workflow.%s.step.%s", workflowName, stepID)
 	ctx, span := iw.tracer.Start(ctx, spanName,
 		WithAttributes(

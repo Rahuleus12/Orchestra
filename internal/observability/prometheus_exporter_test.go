@@ -1,6 +1,8 @@
+//nolint:testpackage // internal test package - uses unexported helpers
 package observability
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -47,23 +49,21 @@ func newTestExporter(t *testing.T) (*PrometheusExporter, *MeterProvider) {
 }
 
 // doGet performs a GET request against the given handler and returns status code + body.
-func doGet(t *testing.T, handler http.HandlerFunc, path string) (int, string) {
+func doGet(t *testing.T, handler http.HandlerFunc, path string) (statusCode int, body string) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req := httptest.NewRequest(http.MethodGet, path, http.NoBody)
 	w := httptest.NewRecorder()
 	handler(w, req)
-	body := w.Body.String()
-	return w.Code, body
+	return w.Code, w.Body.String()
 }
 
 // doPost performs a POST request against the given handler and returns status code + body.
-func doPost(t *testing.T, handler http.HandlerFunc, path string) (int, string) {
+func doPost(t *testing.T, handler http.HandlerFunc, path string) (statusCode int, body string) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req := httptest.NewRequest(http.MethodPost, path, http.NoBody)
 	w := httptest.NewRecorder()
 	handler(w, req)
-	body := w.Body.String()
-	return w.Code, body
+	return w.Code, w.Body.String()
 }
 
 // ===================================================================
@@ -72,6 +72,7 @@ func doPost(t *testing.T, handler http.HandlerFunc, path string) (int, string) {
 
 // TestNewPrometheusExporter verifies basic construction.
 func TestNewPrometheusExporter(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 	logger := slog.Default()
 
@@ -86,6 +87,7 @@ func TestNewPrometheusExporter(t *testing.T) {
 
 // TestHandler_MethodNotAllowed ensures non-GET requests are rejected.
 func TestHandler_MethodNotAllowed(t *testing.T) {
+	t.Parallel()
 	pe, _ := newTestExporter(t)
 	handler := pe.Handler()
 
@@ -95,7 +97,7 @@ func TestHandler_MethodNotAllowed(t *testing.T) {
 	}
 
 	// Also try PUT
-	req := httptest.NewRequest(http.MethodPut, "/metrics", nil)
+	req := httptest.NewRequest(http.MethodPut, "/metrics", http.NoBody)
 	w := httptest.NewRecorder()
 	handler(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
@@ -103,7 +105,7 @@ func TestHandler_MethodNotAllowed(t *testing.T) {
 	}
 
 	// Also try DELETE
-	req = httptest.NewRequest(http.MethodDelete, "/metrics", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/metrics", http.NoBody)
 	w = httptest.NewRecorder()
 	handler(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
@@ -114,6 +116,7 @@ func TestHandler_MethodNotAllowed(t *testing.T) {
 // TestHandler_EmptyMetrics verifies the handler returns a valid response
 // when no metrics have been recorded yet.
 func TestHandler_EmptyMetrics(t *testing.T) {
+	t.Parallel()
 	pe, _ := newTestExporter(t)
 	handler := pe.Handler()
 
@@ -129,7 +132,7 @@ func TestHandler_EmptyMetrics(t *testing.T) {
 	}
 
 	// Body may be empty or whitespace-only – just make sure it's valid text
-	if len(body) > 0 {
+	if body != "" {
 		// Should contain no control characters other than newline
 		for _, r := range body {
 			if r < 32 && r != '\n' && r != '\t' {
@@ -151,6 +154,7 @@ func header(_ http.HandlerFunc, _ string) string {
 
 // TestExport_CounterNoLabels verifies a counter with no labels.
 func TestExport_CounterNoLabels(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	c := meter.Int64Counter("http_requests_total")
@@ -165,6 +169,7 @@ func TestExport_CounterNoLabels(t *testing.T) {
 
 // TestExport_CounterWithLabels verifies label formatting.
 func TestExport_CounterWithLabels(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	c := meter.Int64Counter("http_requests_total", WithCounterLabels(map[string]string{
@@ -177,13 +182,14 @@ func TestExport_CounterWithLabels(t *testing.T) {
 
 	// Label order from map iteration is non-deterministic; check for value
 	mustContain(t, output, "http_requests_total{")
-	mustContain(t, output, "method=\"GET\"")
-	mustContain(t, output, "path=\"/api/v1\"")
+	mustContain(t, output, `method="GET"`)
+	mustContain(t, output, `path="/api/v1"`)
 	mustContain(t, output, "} 7")
 }
 
 // TestExport_CounterZero verifies that a counter starting at zero is still exported.
 func TestExport_CounterZero(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	_ = meter.Int64Counter("requests_zero")
@@ -197,6 +203,7 @@ func TestExport_CounterZero(t *testing.T) {
 
 // TestExport_CounterInc verifies the Inc() shorthand.
 func TestExport_CounterInc(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	c := meter.Int64Counter("increments")
@@ -214,6 +221,7 @@ func TestExport_CounterInc(t *testing.T) {
 
 // TestExport_HistogramNoObservations verifies output for an empty histogram.
 func TestExport_HistogramNoObservations(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	_ = meter.Float64Histogram("request_duration_seconds")
@@ -223,13 +231,14 @@ func TestExport_HistogramNoObservations(t *testing.T) {
 	mustContain(t, output, "# HELP request_duration_seconds Distribution")
 	mustContain(t, output, "# TYPE request_duration_seconds histogram")
 	// +Inf bucket and count should be 0
-	mustContain(t, output, "request_duration_seconds_bucket{le=\"+Inf\"} 0")
+	mustContain(t, output, `request_duration_seconds_bucket{le="+Inf"} 0`)
 	mustContain(t, output, "request_duration_seconds_sum 0.000000")
 	mustContain(t, output, "request_duration_seconds_count 0")
 }
 
 // TestExport_HistogramSingleObservation verifies a single recorded value.
 func TestExport_HistogramSingleObservation(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	h := meter.Float64Histogram("latency_seconds")
@@ -238,15 +247,16 @@ func TestExport_HistogramSingleObservation(t *testing.T) {
 	output := pe.Export()
 
 	// 0.15 falls into the 0.1 bucket and the 0.25 bucket
-	mustContain(t, output, "latency_seconds_bucket{le=\"0.1\"} 0")
-	mustContain(t, output, "latency_seconds_bucket{le=\"0.25\"} 1")
-	mustContain(t, output, "latency_seconds_bucket{le=\"+Inf\"} 1")
+	mustContain(t, output, `latency_seconds_bucket{le="0.1"} 0`)
+	mustContain(t, output, `latency_seconds_bucket{le="0.25"} 1`)
+	mustContain(t, output, `latency_seconds_bucket{le="+Inf"} 1`)
 	mustContain(t, output, "latency_seconds_sum 0.150000")
 	mustContain(t, output, "latency_seconds_count 1")
 }
 
 // TestExport_HistogramMultipleObservations verifies bucket distribution.
 func TestExport_HistogramMultipleObservations(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	h := meter.Float64Histogram("response_size_bytes")
@@ -262,7 +272,7 @@ func TestExport_HistogramMultipleObservations(t *testing.T) {
 	output := pe.Export()
 
 	// All 6 observations in +Inf
-	mustContain(t, output, "response_size_bytes_bucket{le=\"+Inf\"} 6")
+	mustContain(t, output, `response_size_bytes_bucket{le="+Inf"} 6`)
 	mustContain(t, output, "response_size_bytes_count 6")
 
 	// Verify sum is correct: 0.001 + 0.007 + 0.03 + 0.3 + 1.5 + 12.0 = 13.838
@@ -271,6 +281,7 @@ func TestExport_HistogramMultipleObservations(t *testing.T) {
 
 // TestExport_HistogramCustomBuckets verifies non-default bucket boundaries.
 func TestExport_HistogramCustomBuckets(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	h := meter.Float64Histogram("custom_buckets", WithBuckets([]float64{1, 5, 10}))
@@ -282,14 +293,15 @@ func TestExport_HistogramCustomBuckets(t *testing.T) {
 	output := pe.Export()
 
 	// 3 falls into bucket 5, 7 falls into bucket 10, 15 exceeds all
-	mustContain(t, output, "custom_buckets_bucket{le=\"1\"} 0")
-	mustContain(t, output, "custom_buckets_bucket{le=\"5\"} 1")
-	mustContain(t, output, "custom_buckets_bucket{le=\"10\"} 2")
-	mustContain(t, output, "custom_buckets_bucket{le=\"+Inf\"} 3")
+	mustContain(t, output, `custom_buckets_bucket{le="1"} 0`)
+	mustContain(t, output, `custom_buckets_bucket{le="5"} 1`)
+	mustContain(t, output, `custom_buckets_bucket{le="10"} 2`)
+	mustContain(t, output, `custom_buckets_bucket{le="+Inf"} 3`)
 }
 
 // TestExport_HistogramWithLabels verifies labels are included in histogram output.
 func TestExport_HistogramWithLabels(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	h := meter.Float64Histogram("rpc_duration",
@@ -300,12 +312,13 @@ func TestExport_HistogramWithLabels(t *testing.T) {
 	output := pe.Export()
 	// Histograms currently don't include labels in bucket lines from Export(),
 	// but labels are stored and visible in snapshots. Verify the metric appears.
-	mustContain(t, output, "rpc_duration_bucket{le=\"+Inf\"} 1")
+	mustContain(t, output, `rpc_duration_bucket{le="+Inf"} 1`)
 	mustContain(t, output, "rpc_duration_count 1")
 }
 
 // TestExport_HistogramRecordDuration verifies RecordDuration convenience method.
 func TestExport_HistogramRecordDuration(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	h := meter.Float64Histogram("operation_seconds")
@@ -323,6 +336,7 @@ func TestExport_HistogramRecordDuration(t *testing.T) {
 
 // TestExport_GaugeNoLabels verifies a gauge without labels.
 func TestExport_GaugeNoLabels(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	g := meter.Int64Gauge("active_connections")
@@ -337,6 +351,7 @@ func TestExport_GaugeNoLabels(t *testing.T) {
 
 // TestExport_GaugeWithLabels verifies label formatting on gauges.
 func TestExport_GaugeWithLabels(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	g := meter.Int64Gauge("temperature_c", WithGaugeLabels(map[string]string{
@@ -346,11 +361,12 @@ func TestExport_GaugeWithLabels(t *testing.T) {
 
 	output := pe.Export()
 
-	mustContain(t, output, "temperature_c{room=\"server-room\"} 22")
+	mustContain(t, output, `temperature_c{room="server-room"} 22`)
 }
 
 // TestExport_GaugeIncDec verifies Inc/Dec operations.
 func TestExport_GaugeIncDec(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
 	g := meter.Int64Gauge("in_flight")
@@ -366,6 +382,7 @@ func TestExport_GaugeIncDec(t *testing.T) {
 
 // TestFormatLabels_NoLabels verifies output without labels.
 func TestFormatLabels_NoLabels(t *testing.T) {
+	t.Parallel()
 	result := formatLabels("my_counter", 42, nil)
 	if result != "my_counter 42\n" {
 		t.Errorf("expected %q, got %q", "my_counter 42\n", result)
@@ -374,6 +391,7 @@ func TestFormatLabels_NoLabels(t *testing.T) {
 
 // TestFormatLabels_WithLabels verifies label key=value pairs.
 func TestFormatLabels_WithLabels(t *testing.T) {
+	t.Parallel()
 	labels := map[string]string{"method": "POST", "status": "200"}
 	result := formatLabels("http_requests", 10, labels)
 
@@ -387,6 +405,7 @@ func TestFormatLabels_WithLabels(t *testing.T) {
 
 // TestSortedFloat64Keys verifies bucket boundary sorting.
 func TestSortedFloat64Keys(t *testing.T) {
+	t.Parallel()
 	m := map[float64]int64{
 		10:  1,
 		0.1: 1,
@@ -409,6 +428,7 @@ func TestSortedFloat64Keys(t *testing.T) {
 
 // TestSortedFloat64Keys_Empty verifies empty map handling.
 func TestSortedFloat64Keys_Empty(t *testing.T) {
+	t.Parallel()
 	sorted := sortedFloat64Keys(map[float64]int64{})
 	if len(sorted) != 0 {
 		t.Errorf("expected empty slice, got %v", sorted)
@@ -421,6 +441,7 @@ func TestSortedFloat64Keys_Empty(t *testing.T) {
 
 // TestExport_MixedMetrics verifies a realistic mix of all metric types.
 func TestExport_MixedMetrics(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	m := mp.Meter("orchestra")
 
@@ -439,7 +460,7 @@ func TestExport_MixedMetrics(t *testing.T) {
 
 	// Counter
 	mustContain(t, output, "# TYPE orchestra_provider_requests_total counter")
-	mustContain(t, output, "orchestra_provider_requests_total{provider=\"openai\"} 100")
+	mustContain(t, output, `orchestra_provider_requests_total{provider="openai"} 100`)
 
 	// Histogram
 	mustContain(t, output, "# TYPE orchestra_provider_latency_seconds histogram")
@@ -453,6 +474,7 @@ func TestExport_MixedMetrics(t *testing.T) {
 
 // TestExport_OrchestraMetrics uses the convenience constructor.
 func TestExport_OrchestraMetrics(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("orchestra")
 	om := NewOrchestraMetrics(meter)
@@ -482,6 +504,7 @@ func TestExport_OrchestraMetrics(t *testing.T) {
 
 // TestExport_MultipleMeters verifies metrics from different meters are all exported.
 func TestExport_MultipleMeters(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 
 	mp.Meter("agent").Int64Counter("agent_calls").Add(10)
@@ -496,6 +519,7 @@ func TestExport_MultipleMeters(t *testing.T) {
 // TestExport_DeduplicatedMeterName verifies that requesting the same meter name
 // returns the existing meter (metrics are shared).
 func TestExport_DeduplicatedMeterName(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 
 	m1 := mp.Meter("shared")
@@ -519,6 +543,7 @@ func TestExport_DeduplicatedMeterName(t *testing.T) {
 
 // TestStartServer_MetricsEndpoint verifies the /metrics endpoint on the real server.
 func TestStartServer_MetricsEndpoint(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 	meter := mp.Meter("test")
 	meter.Int64Counter("server_test_counter").Add(99)
@@ -538,7 +563,7 @@ func TestStartServer_MetricsEndpoint(t *testing.T) {
 	ts := httptest.NewServer(exporter.Handler())
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/metrics")
+	resp, err := httpGet(t, ts.URL+"/metrics")
 	if err != nil {
 		t.Fatalf("GET /metrics failed: %v", err)
 	}
@@ -556,6 +581,7 @@ func TestStartServer_MetricsEndpoint(t *testing.T) {
 
 // TestStartServer_HealthEndpoints verifies /health, /ready, and /live.
 func TestStartServer_HealthEndpoints(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 	exporter := NewPrometheusExporter(mp, slog.Default())
 	health := newHealthChecker(slog.Default())
@@ -570,7 +596,7 @@ func TestStartServer_HealthEndpoints(t *testing.T) {
 	defer ts.Close()
 
 	// /live should always be 200
-	resp, err := http.Get(ts.URL + "/live")
+	resp, err := httpGet(t, ts.URL+"/live")
 	if err != nil {
 		t.Fatalf("GET /live failed: %v", err)
 	}
@@ -580,7 +606,7 @@ func TestStartServer_HealthEndpoints(t *testing.T) {
 	}
 
 	// /ready should be 200 by default
-	resp, err = http.Get(ts.URL + "/ready")
+	resp, err = httpGet(t, ts.URL+"/ready")
 	if err != nil {
 		t.Fatalf("GET /ready failed: %v", err)
 	}
@@ -590,7 +616,7 @@ func TestStartServer_HealthEndpoints(t *testing.T) {
 	}
 
 	// /health should return JSON with status "healthy"
-	resp, err = http.Get(ts.URL + "/health")
+	resp, err = httpGet(t, ts.URL+"/health")
 	if err != nil {
 		t.Fatalf("GET /health failed: %v", err)
 	}
@@ -605,6 +631,7 @@ func TestStartServer_HealthEndpoints(t *testing.T) {
 
 // TestStartServer_NilLogger verifies StartServer works with a nil logger.
 func TestStartServer_NilLogger(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 	shutdown, err := StartServer(mp, "127.0.0.1:0", nil)
 	if err != nil {
@@ -618,6 +645,7 @@ func TestStartServer_NilLogger(t *testing.T) {
 
 // TestStartServer_Shutdown verifies graceful shutdown works.
 func TestStartServer_Shutdown(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 
 	shutdown, err := StartServer(mp, "127.0.0.1:0", slog.Default())
@@ -636,13 +664,14 @@ func TestStartServer_Shutdown(t *testing.T) {
 
 // TestStartServer_ContentHeaders verifies the Content-Type header on /metrics.
 func TestStartServer_ContentHeaders(t *testing.T) {
+	t.Parallel()
 	mp := newTestMeterProvider()
 	exporter := NewPrometheusExporter(mp, slog.Default())
 
 	ts := httptest.NewServer(exporter.Handler())
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/metrics")
+	resp, err := httpGet(t, ts.URL+"/metrics")
 	if err != nil {
 		t.Fatalf("GET /metrics failed: %v", err)
 	}
@@ -660,6 +689,7 @@ func TestStartServer_ContentHeaders(t *testing.T) {
 
 // TestConcurrentExport verifies that Export is safe to call concurrently.
 func TestConcurrentExport(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("concurrent")
 	counter := meter.Int64Counter("concurrent_counter")
@@ -669,14 +699,15 @@ func TestConcurrentExport(t *testing.T) {
 	increments := 50
 
 	// Concurrent increments
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < increments; j++ {
+			for range increments {
 				counter.Inc()
 			}
 		}()
+		_ = i // avoid unused variable warning
 	}
 	wg.Wait()
 
@@ -686,7 +717,7 @@ func TestConcurrentExport(t *testing.T) {
 	}
 
 	// Concurrent exports should not panic
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -699,6 +730,7 @@ func TestConcurrentExport(t *testing.T) {
 
 // TestConcurrentCounterAddAndExport races Counter.Add against Export.
 func TestConcurrentCounterAddAndExport(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("race")
 	counter := meter.Int64Counter("race_counter")
@@ -734,6 +766,7 @@ func TestConcurrentCounterAddAndExport(t *testing.T) {
 
 // TestConcurrentHistogramRecordAndExport races Histogram.Record against Export.
 func TestConcurrentHistogramRecordAndExport(t *testing.T) {
+	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("race_hist")
 	hist := meter.Float64Histogram("race_histogram")
@@ -744,10 +777,10 @@ func TestConcurrentHistogramRecordAndExport(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		i := 0.0
+		idx := 0.0
 		for !stop.Load() {
-			hist.Record(i)
-			i += 0.001
+			hist.Record(idx)
+			idx += 0.001
 		}
 	}()
 
@@ -776,7 +809,7 @@ func BenchmarkExport_Empty(b *testing.B) {
 	pe := NewPrometheusExporter(mp, slog.Default())
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = pe.Export()
 	}
 }
@@ -785,13 +818,13 @@ func BenchmarkExport_Empty(b *testing.B) {
 func BenchmarkExport_100Counters(b *testing.B) {
 	mp := newTestMeterProvider()
 	meter := mp.Meter("bench")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		meter.Int64Counter(fmt.Sprintf("counter_%d", i)).Add(int64(i))
 	}
 	pe := NewPrometheusExporter(mp, slog.Default())
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = pe.Export()
 	}
 }
@@ -801,16 +834,16 @@ func BenchmarkExport_100Counters(b *testing.B) {
 func BenchmarkExport_100Histograms(b *testing.B) {
 	mp := newTestMeterProvider()
 	meter := mp.Meter("bench")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		h := meter.Float64Histogram(fmt.Sprintf("hist_%d", i))
-		for j := 0; j < 10; j++ {
+		for j := range 10 {
 			h.Record(float64(j) * 0.01)
 		}
 	}
 	pe := NewPrometheusExporter(mp, slog.Default())
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = pe.Export()
 	}
 }
@@ -822,7 +855,7 @@ func BenchmarkCounter_Add(b *testing.B) {
 	c := meter.Int64Counter("bench_counter")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		c.Inc()
 	}
 }
@@ -834,7 +867,7 @@ func BenchmarkHistogram_Record(b *testing.B) {
 	h := meter.Float64Histogram("bench_histogram")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		h.Record(float64(i) * 0.001)
 	}
 }
@@ -849,4 +882,14 @@ func mustContain(t *testing.T, haystack, needle string) {
 	if !strings.Contains(haystack, needle) {
 		t.Errorf("expected output to contain %q\n\ngot:\n%s", needle, haystack)
 	}
+}
+
+// httpGet performs a GET request with context (noctx linter compliance).
+func httpGet(t *testing.T, rawURL string) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
 }

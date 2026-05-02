@@ -13,6 +13,7 @@ import (
 // HealthStatus represents the health state of the system.
 type HealthStatus string
 
+// Health status constants representing the system state.
 const (
 	HealthStatusHealthy   HealthStatus = "healthy"
 	HealthStatusDegraded  HealthStatus = "degraded"
@@ -55,7 +56,7 @@ type HealthChecker struct {
 // newHealthChecker creates a new health checker.
 func newHealthChecker(logger *slog.Logger) *HealthChecker {
 	hc := &HealthChecker{
-		logger:    logger.With("component", "health"),
+		logger:    logger.With(slog.String("component", "health")),
 		checks:    make(map[string]HealthCheck),
 		startTime: time.Now(),
 		version:   "0.1.0",
@@ -70,7 +71,7 @@ func (hc *HealthChecker) RegisterCheck(name string, check HealthCheck) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	hc.checks[name] = check
-	hc.logger.Debug("health check registered", "check", name)
+	hc.logger.Debug("health check registered", slog.String("check", name))
 }
 
 // UnregisterCheck removes a health check by name.
@@ -89,7 +90,7 @@ func (hc *HealthChecker) SetReady() {
 // SetNotReady marks the service as not ready to accept traffic.
 func (hc *HealthChecker) SetNotReady(reason string) {
 	hc.ready.Store(false)
-	hc.logger.Warn("service marked as not ready", "reason", reason)
+	hc.logger.Warn("service marked as not ready", slog.String("reason", reason))
 }
 
 // IsReady returns whether the service is ready.
@@ -157,7 +158,7 @@ func (hc *HealthChecker) CheckHealth() HealthResponse {
 //
 // GET /health
 //
-// Response: 200 (healthy/degraded) or 503 (unhealthy)
+// Response: 200 (healthy/degraded) or 503 (unhealthy).
 func (hc *HealthChecker) HandleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -178,7 +179,7 @@ func (hc *HealthChecker) HandleHealth() http.HandlerFunc {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(response); err != nil {
-			hc.logger.Error("failed to encode health response", "error", err)
+			hc.logger.Error("failed to encode health response", slog.String("error", err.Error()))
 		}
 	}
 }
@@ -186,7 +187,7 @@ func (hc *HealthChecker) HandleHealth() http.HandlerFunc {
 // HandleReady returns an http.HandlerFunc that serves the readiness probe.
 // Returns 200 if the service is ready, 503 otherwise.
 //
-// GET /ready
+// GET /ready.
 func (hc *HealthChecker) HandleReady() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -211,7 +212,7 @@ func (hc *HealthChecker) HandleReady() http.HandlerFunc {
 // HandleLive returns an http.HandlerFunc that serves the liveness probe.
 // Always returns 200 if the process is running.
 //
-// GET /live
+// GET /live.
 func (hc *HealthChecker) HandleLive() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

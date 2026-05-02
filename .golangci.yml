@@ -332,10 +332,14 @@ linters:
     testifylint:
       enable-all: true
 
+    # Noctx
+    noctx:
+      http-client-only: true
+
     # Importas
     importas:
       no-unaliased: true
-      no-extra-aliases: true
+      no-extra-aliases: false
       alias:
         - pkg: github.com/user/orchestra/internal/message
           alias: message
@@ -359,6 +363,7 @@ linters:
           - errcheck
           - varnamelen
           - maintidx
+          - testpackage
 
       # Exclude generated files
       - path: ".*generated.*\\.go$"

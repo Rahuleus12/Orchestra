@@ -31,7 +31,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/user/orchestra/internal/config"
+	config "github.com/user/orchestra/internal/config"
 )
 
 // Orchestra holds initialized observability providers.
@@ -56,7 +56,7 @@ type Orchestra struct {
 // Orchestra with no-op providers and the error. This allows the application to
 // continue running without observability rather than crashing.
 func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Context) error, error) {
-	o := &Orchestra{
+	orch := &Orchestra{
 		config: cfg,
 	}
 
@@ -64,8 +64,8 @@ func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Con
 	var cleanups []func(context.Context) error
 	cleanup := func(ctx context.Context) error {
 		var firstErr error
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			if err := cleanups[i](ctx); err != nil && firstErr == nil {
+		for idx := len(cleanups) - 1; idx >= 0; idx-- {
+			if err := cleanups[idx](ctx); err != nil && firstErr == nil {
 				firstErr = err
 			}
 		}
@@ -73,43 +73,43 @@ func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Con
 	}
 
 	// Setup structured logging first so other components can use it
-	o.logger = setupLogger(cfg.Logging)
+	orch.logger = setupLogger(cfg.Logging)
 
 	// Setup tracing
-	tp, tpCleanup, err := setupTracerProvider(ctx, cfg.Observability.Tracing, o.logger)
+	tp, tpCleanup, err := setupTracerProvider(ctx, cfg.Observability.Tracing, orch.logger)
 	if err != nil {
-		o.logger.Warn("tracing setup failed, using no-op provider",
-			"error", err,
+		orch.logger.Warn("tracing setup failed, using no-op provider",
+			slog.String("error", err.Error()),
 		)
-		o.setupErr = err
+		orch.setupErr = err
 		// Continue with no-op tracer
 		tp, tpCleanup = newNoopTracerProvider(), func(context.Context) error { return nil }
 	}
-	o.tracer = tp
+	orch.tracer = tp
 	cleanups = append(cleanups, tpCleanup)
 
 	// Setup metrics
-	mp, mpCleanup, err := setupMeterProvider(ctx, cfg.Observability.Metrics, o.logger)
+	mp, mpCleanup, err := setupMeterProvider(ctx, cfg.Observability.Metrics, orch.logger)
 	if err != nil {
-		o.logger.Warn("metrics setup failed, using no-op provider",
-			"error", err,
+		orch.logger.Warn("metrics setup failed, using no-op provider",
+			slog.String("error", err.Error()),
 		)
-		o.setupErr = err
+		orch.setupErr = err
 		mp, mpCleanup = newNoopMeterProvider(), func(context.Context) error { return nil }
 	}
-	o.meter = mp
+	orch.meter = mp
 	cleanups = append(cleanups, mpCleanup)
 
 	// Setup health checker
-	o.health = newHealthChecker(o.logger)
+	orch.health = newHealthChecker(orch.logger)
 
-	o.logger.Info("observability initialized",
-		"tracing_enabled", cfg.Observability.Tracing.Enabled,
-		"metrics_enabled", cfg.Observability.Metrics.Enabled,
-		"service_name", cfg.Observability.Tracing.GetServiceName(),
+	orch.logger.Info("observability initialized",
+		slog.Bool("tracing_enabled", cfg.Observability.Tracing.Enabled),
+		slog.Bool("metrics_enabled", cfg.Observability.Metrics.Enabled),
+		slog.String("service_name", cfg.Observability.Tracing.GetServiceName()),
 	)
 
-	return o, cleanup, o.setupErr
+	return orch, cleanup, orch.setupErr
 }
 
 // Logger returns the configured structured logger.
@@ -172,7 +172,7 @@ func (o *Orchestra) SetupError() error {
 // This is the recommended way to create loggers for different parts of
 // Orchestra (agents, workflows, providers, tools).
 func (o *Orchestra) ComponentLogger(component string) *slog.Logger {
-	return o.logger.With("component", component)
+	return o.logger.With(slog.String("component", component))
 }
 
 // setupLogger creates a slog.Logger based on the logging configuration.
@@ -223,7 +223,11 @@ type lockedWriter struct {
 func (w *lockedWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return fmt.Fprintf(stderrWriter, "%s", p)
+	n, err := fmt.Fprintf(stderrWriter, "%s", p)
+	if err != nil {
+		return n, fmt.Errorf("writing to stderr: %w", err)
+	}
+	return n, nil
 }
 
 // No-op Orchestra for when observability is completely disabled.
@@ -244,5 +248,5 @@ func Noop() *Orchestra {
 // from the global slog.Default(). Use when you don't have access to an
 // Orchestra instance.
 func ComponentLogger(component string) *slog.Logger {
-	return slog.Default().With("component", component)
+	return slog.Default().With(slog.String("component", component))
 }

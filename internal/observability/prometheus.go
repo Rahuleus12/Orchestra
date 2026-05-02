@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,7 +25,7 @@ type PrometheusExporter struct {
 func NewPrometheusExporter(mp *MeterProvider, logger *slog.Logger) *PrometheusExporter {
 	return &PrometheusExporter{
 		meter:  mp,
-		logger: logger.With("component", "prometheus_exporter"),
+		logger: logger.With(slog.String("component", "prometheus_exporter")),
 	}
 }
 
@@ -56,7 +57,11 @@ func (pe *PrometheusExporter) Handler() http.HandlerFunc {
 		content := pe.Export()
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, content)
+		if _, err := io.WriteString(w, content); err != nil {
+			pe.logger.Error("failed to write metrics response",
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 }
 
@@ -69,36 +74,36 @@ func (pe *PrometheusExporter) Export() string {
 	var sb strings.Builder
 
 	// Export counters
-	for _, c := range snapshot.Counters {
-		sb.WriteString(fmt.Sprintf("# HELP %s Total count\n", c.Name))
-		sb.WriteString(fmt.Sprintf("# TYPE %s counter\n", c.Name))
-		sb.WriteString(formatLabels(c.Name, c.Value, c.Labels))
+	for _, counter := range snapshot.Counters {
+		sb.WriteString(fmt.Sprintf("# HELP %s Total count\n", counter.Name))
+		sb.WriteString(fmt.Sprintf("# TYPE %s counter\n", counter.Name))
+		sb.WriteString(formatLabels(counter.Name, counter.Value, counter.Labels))
 		sb.WriteString("\n")
 	}
 
 	// Export histograms
-	for _, h := range snapshot.Histograms {
-		sb.WriteString(fmt.Sprintf("# HELP %s Distribution\n", h.Name))
-		sb.WriteString(fmt.Sprintf("# TYPE %s histogram\n", h.Name))
+	for _, hist := range snapshot.Histograms {
+		sb.WriteString(fmt.Sprintf("# HELP %s Distribution\n", hist.Name))
+		sb.WriteString(fmt.Sprintf("# TYPE %s histogram\n", hist.Name))
 
 		// Bucket entries
-		for _, boundary := range sortedFloat64Keys(h.Buckets) {
+		for _, boundary := range sortedFloat64Keys(hist.Buckets) {
 			sb.WriteString(fmt.Sprintf("%s_bucket{le=\"%.6g\"} %d\n",
-				h.Name, boundary, h.Buckets[boundary]))
+				hist.Name, boundary, hist.Buckets[boundary]))
 		}
 		// +Inf bucket
-		sb.WriteString(fmt.Sprintf("%s_bucket{le=\"+Inf\"} %d\n", h.Name, h.Count))
+		sb.WriteString(fmt.Sprintf("%s_bucket{le=\"+Inf\"} %d\n", hist.Name, hist.Count))
 		// Sum and count
-		sb.WriteString(fmt.Sprintf("%s_sum %.6f\n", h.Name, h.Sum))
-		sb.WriteString(fmt.Sprintf("%s_count %d\n", h.Name, h.Count))
+		sb.WriteString(fmt.Sprintf("%s_sum %.6f\n", hist.Name, hist.Sum))
+		sb.WriteString(fmt.Sprintf("%s_count %d\n", hist.Name, hist.Count))
 		sb.WriteString("\n")
 	}
 
 	// Export gauges
-	for _, g := range snapshot.Gauges {
-		sb.WriteString(fmt.Sprintf("# HELP %s Current value\n", g.Name))
-		sb.WriteString(fmt.Sprintf("# TYPE %s gauge\n", g.Name))
-		sb.WriteString(formatLabels(g.Name, g.Value, g.Labels))
+	for _, gauge := range snapshot.Gauges {
+		sb.WriteString(fmt.Sprintf("# HELP %s Current value\n", gauge.Name))
+		sb.WriteString(fmt.Sprintf("# TYPE %s gauge\n", gauge.Name))
+		sb.WriteString(formatLabels(gauge.Name, gauge.Value, gauge.Labels))
 		sb.WriteString("\n")
 	}
 
@@ -111,9 +116,9 @@ func formatLabels(name string, value int64, labels map[string]string) string {
 		return fmt.Sprintf("%s %d\n", name, value)
 	}
 
-	var pairs []string
+	pairs := make([]string, 0, len(labels))
 	for k, v := range labels {
-		pairs = append(pairs, fmt.Sprintf("%s=\"%s\"", k, v))
+		pairs = append(pairs, fmt.Sprintf("%s=%q", k, v))
 	}
 	return fmt.Sprintf("%s{%s} %d\n", name, strings.Join(pairs, ","), value)
 }
@@ -161,9 +166,9 @@ func StartServer(mp *MeterProvider, addr string, logger *slog.Logger) (shutdown 
 
 	// Start server in goroutine
 	go func() {
-		logger.Info("starting metrics server", "addr", addr)
-		if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-			logger.Error("metrics server error", "error", listenErr)
+		logger.Info("starting metrics server", slog.String("addr", addr))
+		if listenErr := server.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			logger.Error("metrics server error", slog.String("error", listenErr.Error()))
 		}
 	}()
 

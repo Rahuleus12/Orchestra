@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 )
@@ -91,7 +92,10 @@ func (h *sanitizingHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	newR := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-	return innerHandler.Handle(ctx, newR)
+	if err := innerHandler.Handle(ctx, newR); err != nil {
+		return fmt.Errorf("sanitizing handler: %w", err)
+	}
+	return nil
 }
 
 func (h *sanitizingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

@@ -7,11 +7,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/user/orchestra/internal/config"
+	config "github.com/user/orchestra/internal/config"
 )
 
 // setupMeterProvider creates a new MeterProvider based on the configuration.
-func setupMeterProvider(ctx context.Context, cfg config.MetricsConfig, logger *slog.Logger) (*MeterProvider, func(context.Context) error, error) {
+func setupMeterProvider(
+	ctx context.Context,
+	cfg config.MetricsConfig,
+	logger *slog.Logger,
+) (*MeterProvider, func(context.Context) error, error) {
 	internalCfg := MetricsConfig{
 		Enabled:        cfg.Enabled,
 		Endpoint:       cfg.GetEndpoint(),
@@ -22,7 +26,7 @@ func setupMeterProvider(ctx context.Context, cfg config.MetricsConfig, logger *s
 
 	mp := &MeterProvider{
 		meters:  make(map[string]*Meter),
-		logger:  logger.With("component", "metrics"),
+		logger:  logger.With(slog.String("component", "metrics")),
 		enabled: cfg.Enabled,
 		config:  internalCfg,
 		registry: &metricRegistry{
@@ -38,10 +42,10 @@ func setupMeterProvider(ctx context.Context, cfg config.MetricsConfig, logger *s
 	}
 
 	mp.logger.Info("metrics enabled",
-		"endpoint", internalCfg.Endpoint,
-		"service_name", internalCfg.ServiceName,
-		"namespace", internalCfg.Namespace,
-		"export_interval", internalCfg.ExportInterval,
+		slog.String("endpoint", internalCfg.Endpoint),
+		slog.String("service_name", internalCfg.ServiceName),
+		slog.String("namespace", internalCfg.Namespace),
+		slog.String("export_interval", internalCfg.ExportInterval.String()),
 	)
 
 	cleanup := func(ctx context.Context) error {
@@ -111,7 +115,7 @@ func (mp *MeterProvider) Meter(name string) *Meter {
 
 	m := &Meter{
 		name:     name,
-		logger:   mp.logger.With("meter", name),
+		logger:   mp.logger.With(slog.String("meter", name)),
 		registry: mp.registry,
 	}
 	mp.meters[name] = m
@@ -150,37 +154,37 @@ func (mp *MeterProvider) GetAllMetrics() MetricsSnapshot {
 		Gauges:     make(map[string]GaugeSnapshot, len(mp.registry.gauges)),
 	}
 
-	for name, c := range mp.registry.counters {
+	for name, counter := range mp.registry.counters {
 		snapshot.Counters[name] = CounterSnapshot{
-			Name:   c.name,
-			Value:  c.value.Load(),
-			Labels: c.labels,
+			Name:   counter.name,
+			Value:  counter.value.Load(),
+			Labels: counter.labels,
 		}
 	}
 
-	for name, h := range mp.registry.histograms {
-		h.mu.Lock()
+	for name, hist := range mp.registry.histograms {
+		hist.mu.Lock()
 		hs := HistogramSnapshot{
-			Name:    h.name,
-			Count:   len(h.values),
-			Sum:     h.sum,
-			Min:     h.min,
-			Max:     h.max,
-			Labels:  h.labels,
+			Name:    hist.name,
+			Count:   len(hist.values),
+			Sum:     hist.sum,
+			Min:     hist.min,
+			Max:     hist.max,
+			Labels:  hist.labels,
 			Buckets: make(map[float64]int64),
 		}
-		for b, count := range h.buckets {
+		for b, count := range hist.buckets {
 			hs.Buckets[b] = count
 		}
-		h.mu.Unlock()
+		hist.mu.Unlock()
 		snapshot.Histograms[name] = hs
 	}
 
-	for name, g := range mp.registry.gauges {
+	for name, gauge := range mp.registry.gauges {
 		snapshot.Gauges[name] = GaugeSnapshot{
-			Name:   g.name,
-			Value:  g.value.Load(),
-			Labels: g.labels,
+			Name:   gauge.name,
+			Value:  gauge.value.Load(),
+			Labels: gauge.labels,
 		}
 	}
 
@@ -236,8 +240,8 @@ type CounterOption func(*Counter)
 
 // WithCounterLabels sets static labels on a counter.
 func WithCounterLabels(labels map[string]string) CounterOption {
-	return func(c *Counter) {
-		c.labels = labels
+	return func(counter *Counter) {
+		counter.labels = labels
 	}
 }
 
@@ -250,15 +254,15 @@ func (m *Meter) Int64Counter(name string, opts ...CounterOption) *Counter {
 		return existing
 	}
 
-	c := &Counter{
+	counter := &Counter{
 		name:   name,
 		labels: make(map[string]string),
 	}
 	for _, opt := range opts {
-		opt(c)
+		opt(counter)
 	}
-	m.registry.counters[name] = c
-	return c
+	m.registry.counters[name] = counter
+	return counter
 }
 
 // Inc increments the counter by 1.
@@ -304,17 +308,17 @@ type HistogramOption func(*Histogram)
 
 // WithHistogramLabels sets static labels on a histogram.
 func WithHistogramLabels(labels map[string]string) HistogramOption {
-	return func(h *Histogram) {
-		h.labels = labels
+	return func(hist *Histogram) {
+		hist.labels = labels
 	}
 }
 
 // WithBuckets sets custom bucket boundaries for the histogram.
 func WithBuckets(boundaries []float64) HistogramOption {
-	return func(h *Histogram) {
-		h.buckets = make(map[float64]int64, len(boundaries))
+	return func(hist *Histogram) {
+		hist.buckets = make(map[float64]int64, len(boundaries))
 		for _, b := range boundaries {
-			h.buckets[b] = 0
+			hist.buckets[b] = 0
 		}
 	}
 }
@@ -334,7 +338,7 @@ func (m *Meter) Float64Histogram(name string, opts ...HistogramOption) *Histogra
 		return existing
 	}
 
-	h := &Histogram{
+	hist := &Histogram{
 		name:    name,
 		buckets: make(map[float64]int64),
 		labels:  make(map[string]string),
@@ -343,15 +347,15 @@ func (m *Meter) Float64Histogram(name string, opts ...HistogramOption) *Histogra
 	// Apply default buckets if none specified
 	defaultBuckets := DefaultLatencyBuckets()
 	for _, b := range defaultBuckets {
-		h.buckets[b] = 0
+		hist.buckets[b] = 0
 	}
 
 	for _, opt := range opts {
-		opt(h)
+		opt(hist)
 	}
 
-	m.registry.histograms[name] = h
-	return h
+	m.registry.histograms[name] = hist
+	return hist
 }
 
 // Record records a new observation.
@@ -459,8 +463,8 @@ type GaugeOption func(*Gauge)
 
 // WithGaugeLabels sets static labels on a gauge.
 func WithGaugeLabels(labels map[string]string) GaugeOption {
-	return func(g *Gauge) {
-		g.labels = labels
+	return func(gauge *Gauge) {
+		gauge.labels = labels
 	}
 }
 
@@ -473,15 +477,15 @@ func (m *Meter) Int64Gauge(name string, opts ...GaugeOption) *Gauge {
 		return existing
 	}
 
-	g := &Gauge{
+	gauge := &Gauge{
 		name:   name,
 		labels: make(map[string]string),
 	}
 	for _, opt := range opts {
-		opt(g)
+		opt(gauge)
 	}
-	m.registry.gauges[name] = g
-	return g
+	m.registry.gauges[name] = gauge
+	return gauge
 }
 
 // Set sets the gauge to the given value.

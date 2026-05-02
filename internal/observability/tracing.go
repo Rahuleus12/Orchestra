@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/orchestra/internal/config"
+	config "github.com/user/orchestra/internal/config"
 )
 
 // SpanKind describes the relationship between the span and its parent.
 type SpanKind int
 
+// Span kind constants.
 const (
 	SpanKindInternal SpanKind = iota
 	SpanKindServer
@@ -25,6 +26,7 @@ const (
 // SpanStatus represents the status of a span.
 type SpanStatus int
 
+// Span status constants.
 const (
 	SpanStatusUnset SpanStatus = iota
 	SpanStatusOK
@@ -90,8 +92,8 @@ type SpanEndConfig struct {
 
 // WithTimestamp sets the end timestamp for the span.
 func WithTimestamp(t time.Time) SpanEndOption {
-	return func(c *SpanEndConfig) {
-		c.Timestamp = t
+	return func(spanCfg *SpanEndConfig) {
+		spanCfg.Timestamp = t
 	}
 }
 
@@ -123,7 +125,11 @@ type TracingConfig struct {
 }
 
 // setupTracerProvider creates a new TracerProvider based on the configuration.
-func setupTracerProvider(ctx context.Context, cfg config.TracingConfig, logger *slog.Logger) (*TracerProvider, func(context.Context) error, error) {
+func setupTracerProvider(
+	ctx context.Context,
+	cfg config.TracingConfig,
+	logger *slog.Logger,
+) (*TracerProvider, func(context.Context) error, error) {
 	internalCfg := TracingConfig{
 		Enabled:      cfg.Enabled,
 		Endpoint:     cfg.GetEndpoint(),
@@ -133,7 +139,7 @@ func setupTracerProvider(ctx context.Context, cfg config.TracingConfig, logger *
 
 	tp := &TracerProvider{
 		tracers: make(map[string]*Tracer),
-		logger:  logger.With("component", "tracing"),
+		logger:  logger.With(slog.String("component", "tracing")),
 		enabled: cfg.Enabled,
 		config:  internalCfg,
 	}
@@ -144,9 +150,9 @@ func setupTracerProvider(ctx context.Context, cfg config.TracingConfig, logger *
 	}
 
 	tp.logger.Info("tracing enabled",
-		"endpoint", internalCfg.Endpoint,
-		"service_name", internalCfg.ServiceName,
-		"sampling_rate", internalCfg.SamplingRate,
+		slog.String("endpoint", internalCfg.Endpoint),
+		slog.String("service_name", internalCfg.ServiceName),
+		slog.Float64("sampling_rate", internalCfg.SamplingRate),
 	)
 
 	cleanup := func(ctx context.Context) error {
@@ -177,7 +183,7 @@ func (tp *TracerProvider) Tracer(name string, opts ...TracerOption) *Tracer {
 
 	t := &Tracer{
 		name:   name,
-		logger: tp.logger.With("tracer", name),
+		logger: tp.logger.With(slog.String("tracer", name)),
 	}
 	tp.tracers[name] = t
 	return t
@@ -195,9 +201,9 @@ type TracerOption func(*Tracer)
 //   - "orchestra.workflow.{name}.step.{step_id}"
 //   - "orchestra.provider.{provider}.generate"
 func (t *Tracer) Start(ctx context.Context, spanName string, opts ...SpanStartOption) (context.Context, Span) {
-	config := SpanStartConfig{}
+	spanCfg := SpanStartConfig{}
 	for _, opt := range opts {
-		opt(&config)
+		opt(&spanCfg)
 	}
 
 	// Extract parent span from context if present
@@ -214,12 +220,12 @@ func (t *Tracer) Start(ctx context.Context, spanName string, opts ...SpanStartOp
 		attributes: make(map[string]any),
 		status:     SpanStatusUnset,
 		parent:     parentSpan,
-		kind:       config.Kind,
+		kind:       spanCfg.Kind,
 	}
 
 	// Apply initial attributes
-	if config.Attributes != nil {
-		for _, attr := range config.Attributes {
+	if spanCfg.Attributes != nil {
+		for _, attr := range spanCfg.Attributes {
 			span.attributes[attr.Key] = attr.Value
 		}
 	}
@@ -231,8 +237,8 @@ func (t *Tracer) Start(ctx context.Context, spanName string, opts ...SpanStartOp
 
 	// Also store in provider for retrieval
 	t.logger.Debug("span started",
-		"span", spanName,
-		"trace_id", span.spanContext().TraceID,
+		slog.String("span", spanName),
+		slog.String("trace_id", span.spanContext().TraceID),
 	)
 
 	return ContextWithSpan(ctx, span), span
@@ -272,23 +278,23 @@ func (s *recordingSpan) End(options ...SpanEndOption) {
 		return
 	}
 
-	config := SpanEndConfig{}
+	spanCfg := SpanEndConfig{}
 	for _, opt := range options {
-		opt(&config)
+		opt(&spanCfg)
 	}
 
-	if config.Timestamp.IsZero() {
+	if spanCfg.Timestamp.IsZero() {
 		s.endTime = time.Now()
 	} else {
-		s.endTime = config.Timestamp
+		s.endTime = spanCfg.Timestamp
 	}
 	s.ended = true
 
 	duration := s.endTime.Sub(s.startTime)
 	s.tracer.logger.Debug("span ended",
-		"span", s.name,
-		"duration_ms", duration.Milliseconds(),
-		"status", s.status,
+		slog.String("span", s.name),
+		slog.Int64("duration_ms", duration.Milliseconds()),
+		slog.String("status", s.status.String()),
 	)
 }
 
@@ -399,22 +405,22 @@ type SpanStartConfig struct {
 
 // WithAttributes sets the initial attributes for a new span.
 func WithAttributes(attrs ...Attribute) SpanStartOption {
-	return func(c *SpanStartConfig) {
-		c.Attributes = attrs
+	return func(spanCfg *SpanStartConfig) {
+		spanCfg.Attributes = attrs
 	}
 }
 
 // WithSpanKind sets the kind of a new span.
 func WithSpanKind(kind SpanKind) SpanStartOption {
-	return func(c *SpanStartConfig) {
-		c.Kind = kind
+	return func(spanCfg *SpanStartConfig) {
+		spanCfg.Kind = kind
 	}
 }
 
 // WithNewRoot indicates the span should be a new root span, ignoring
 // any parent span in the context.
 func WithNewRoot() SpanStartOption {
-	return func(c *SpanStartConfig) {
+	return func(spanCfg *SpanStartConfig) {
 		// Mark as root by clearing parent (handled in Start)
 	}
 }
@@ -440,22 +446,22 @@ func (tp *TracerProvider) GetSpans() []SpanInfo {
 	defer tp.spanMu.Unlock()
 
 	result := make([]SpanInfo, 0, len(tp.spans))
-	for _, s := range tp.spans {
-		s.mu.Lock()
+	for _, recorded := range tp.spans {
+		recorded.mu.Lock()
 		info := SpanInfo{
-			Name:         s.name,
-			StartTime:    s.startTime,
-			EndTime:      s.endTime,
-			Duration:     s.endTime.Sub(s.startTime),
-			Attributes:   make(map[string]any, len(s.attributes)),
-			Status:       s.status,
-			ErrorMessage: s.statusMsg,
-			Kind:         s.kind,
+			Name:         recorded.name,
+			StartTime:    recorded.startTime,
+			EndTime:      recorded.endTime,
+			Duration:     recorded.endTime.Sub(recorded.startTime),
+			Attributes:   make(map[string]any, len(recorded.attributes)),
+			Status:       recorded.status,
+			ErrorMessage: recorded.statusMsg,
+			Kind:         recorded.kind,
 		}
-		for k, v := range s.attributes {
+		for k, v := range recorded.attributes {
 			info.Attributes[k] = v
 		}
-		s.mu.Unlock()
+		recorded.mu.Unlock()
 		result = append(result, info)
 	}
 	return result
@@ -471,6 +477,18 @@ type SpanInfo struct {
 	Status       SpanStatus
 	ErrorMessage string
 	Kind         SpanKind
+}
+
+// String returns a human-readable representation of the SpanStatus.
+func (s SpanStatus) String() string {
+	switch s {
+	case SpanStatusOK:
+		return "OK"
+	case SpanStatusError:
+		return "ERROR"
+	default:
+		return "UNSET"
+	}
 }
 
 // ---------------------------------------------------------------------------
