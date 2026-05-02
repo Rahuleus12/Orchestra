@@ -52,7 +52,7 @@ env:
   # golangci-lint version (v2)
   GOLANGCI_LINT_VERSION: "v2.3.0"
   # gotestsum for CI-friendly test output
-  GOTESTSUM_VERSION: "v1.12.2"
+  GOTESTSUM_VERSION: "v1.13.0"
   # Test timeouts
   UNIT_TEST_TIMEOUT: "5m"
   INTEGRATION_TEST_TIMEOUT: "10m"
