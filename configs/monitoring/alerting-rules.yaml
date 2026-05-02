@@ -1,0 +1,221 @@
+# Orchestra Alerting Rules
+# These rules define alerts for common issues in the Orchestra multi-agent system.
+#
+# To use with Prometheus:
+# 1. Add this file to your Prometheus configuration:
+#    rule_files:
+#      - /path/to/orchestra-alerting-rules.yaml
+# 2. Reload Prometheus configuration
+
+groups:
+  - name: orchestra.alerts
+    interval: 30s
+    rules:
+      # ============================================================
+      # Provider Alerts
+      # ============================================================
+
+      - alert: HighProviderErrorRate
+        expr: |
+          (
+            sum by (provider, model) (rate(orchestra_provider_requests_total{status="error"}[5m]))
+            /
+            sum by (provider, model) (rate(orchestra_provider_requests_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: provider
+        annotations:
+          summary: "High error rate for provider {{ $labels.provider }}"
+          description: >
+            Provider {{ $labels.provider }} (model: {{ $labels.model }}) has an error rate of
+            {{ $value | humanizePercentage }} over the last 5 minutes.
+          runbook_url: "https://github.com/user/orchestra/docs/runbooks/high-provider-error-rate.md"
+
+      - alert: ProviderLatencyHigh
+        expr: |
+          histogram_quantile(0.95, rate(orchestra_provider_latency_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: provider
+        annotations:
+          summary: "High provider latency detected"
+          description: >
+            Provider request latency (p95) is {{ $value | humanizeDuration }}.
+            This may indicate provider issues or network problems.
+
+      - alert: ProviderLatencyCritical
+        expr: |
+          histogram_quantile(0.95, rate(orchestra_provider_latency_seconds_bucket[5m])) > 60
+        for: 2m
+        labels:
+          severity: critical
+          component: provider
+        annotations:
+          summary: "Critical provider latency"
+          description: >
+            Provider request latency (p95) is {{ $value | humanizeDuration }}.
+            Investigate immediately for potential service degradation.
+
+      # ============================================================
+      # Token Budget Alerts
+      # ============================================================
+
+      - alert: HighTokenUsageRate
+        expr: |
+          sum(rate(orchestra_tokens_total[5m])) > 10000
+        for: 10m
+        labels:
+          severity: warning
+          component: cost
+        annotations:
+          summary: "High token usage rate detected"
+          description: >
+            Token usage rate is {{ $value | humanize }} tokens/second over the last 10 minutes.
+            Review for potential cost optimization opportunities.
+
+      - alert: TokenBudgetWarning
+        expr: |
+          sum(increase(orchestra_tokens_total[1h])) > 500000
+        for: 1h
+        labels:
+          severity: warning
+          component: cost
+        annotations:
+          summary: "Token budget warning threshold exceeded"
+          description: >
+            {{ $value | humanize }} tokens used in the last hour.
+            Consider reviewing agent workflows for optimization.
+
+      # ============================================================
+      # Tool Execution Alerts
+      # ============================================================
+
+      - alert: ToolExecutionErrors
+        expr: |
+          (
+            sum by (tool) (rate(orchestra_tool_executions_total{status="error"}[5m]))
+            /
+            sum by (tool) (rate(orchestra_tool_executions_total[5m]))
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: tool
+        annotations:
+          summary: "High tool execution error rate"
+          description: >
+            Tool {{ $labels.tool }} has an error rate of {{ $value | humanizePercentage }}.
+            Check tool configuration and external dependencies.
+
+      - alert: ToolExecutionLatencyHigh
+        expr: |
+          histogram_quantile(0.95, rate(orchestra_tool_latency_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: tool
+        annotations:
+          summary: "High tool execution latency"
+          description: >
+            Tool execution latency (p95) is {{ $value | humanizeDuration }}.
+            External services or tool implementations may be slow.
+
+      # ============================================================
+      # Agent & Workflow Alerts
+      # ============================================================
+
+      - alert: TooManyActiveAgents
+        expr: |
+          orchestra_active_agents > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: agent
+        annotations:
+          summary: "High number of active agents"
+          description: >
+            Currently {{ $value }} active agents running.
+            This may indicate resource pressure or runaway workflows.
+
+      - alert: TooManyActiveWorkflows
+        expr: |
+          orchestra_active_workflows > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: workflow
+        annotations:
+          summary: "High number of active workflows"
+          description: >
+            Currently {{ $value }} active workflows.
+            Review workflow queue and resource allocation.
+
+      - alert: WorkflowDurationHigh
+        expr: |
+          histogram_quantile(0.95, rate(orchestra_workflow_duration_seconds_bucket[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          component: workflow
+        annotations:
+          summary: "High workflow execution duration"
+          description: >
+            Workflow duration (p95) is {{ $value | humanizeDuration }}.
+            Complex workflows or bottlenecks may be causing delays.
+
+      # ============================================================
+      # System Health Alerts
+      # ============================================================
+
+      - alert: NoMetricsReported
+        expr: |
+          absent(orchestra_active_agents) or
+          absent(orchestra_provider_requests_total)
+        for: 2m
+        labels:
+          severity: critical
+          component: observability
+        annotations:
+          summary: "Orchestra metrics not being reported"
+          description: >
+            No Orchestra metrics have been reported in the last 2 minutes.
+            Check that the metrics server is running and accessible.
+
+  # ============================================================
+  # Recording Rules - Pre-computed metrics for faster queries
+  # ============================================================
+
+  - name: orchestra.recording
+    interval: 30s
+    rules:
+      # Per-provider request rates
+      - record: orchestra:provider_request_rate:5m
+        expr: |
+          sum by (provider, model) (rate(orchestra_provider_requests_total[5m]))
+
+      # Per-provider token rates
+      - record: orchestra:token_usage_rate:5m
+        expr: |
+          sum by (provider) (rate(orchestra_tokens_total[5m]))
+
+      # Total token usage (1h rolling)
+      - record: orchestra:token_usage_total:1h
+        expr: |
+          sum(increase(orchestra_tokens_total[1h]))
+
+      # Provider error rate
+      - record: orchestra:provider_error_rate:5m
+        expr: |
+          (
+            sum by (provider) (rate(orchestra_provider_requests_total{status="error"}[5m]))
+            /
+            sum by (provider) (rate(orchestra_provider_requests_total[5m]))
+          )
+
+      # Agent throughput
+      - record: orchestra:agent_turn_rate:5m
+        expr: |
+          sum(rate(orchestra_agent_turns_total[5m]))

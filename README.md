@@ -156,6 +156,10 @@ Orchestra/
 │   ├── PHASE2_REPORT.md          # Phase 2 completion report
 │   ├── PHASE3_REPORT.md          # Phase 3 completion report
 │   ├── PHASE4_REPORT.md          # Phase 4 completion report
+│   ├── PHASE5_REPORT.md          # Phase 5 completion report
+│   ├── PHASE6_REPORT.md          # Phase 6 completion report
+│   ├── PHASE7_REPORT.md          # Phase 7 completion report
+│   ├── PHASE8_REPORT.md          # Phase 8 completion report
 │   └── ADR/                      # Architecture Decision Records
 ├── internal/
 │   ├── message/                  # Message types and conversation history
@@ -199,11 +203,21 @@ Orchestra/
 │   │   ├── config.go             # Config types and validation
 │   │   ├── loader.go             # YAML loading with env var interpolation
 │   │   └── config_test.go        # Config and loader tests
-│   └── observe/                  # (Phase 8) Observability
+│   └── observability/           # (Phase 8) Observability & operations
+│       ├── observability.go      # Main setup and configuration
+│       ├── tracing.go            # Distributed tracing
+│       ├── metrics.go            # Metrics collection
+│       ├── instrument.go         # Provider/agent/workflow instrumentation
+│       ├── prometheus.go         # Prometheus exporter
+│       ├── health.go             # Health check endpoints
+│       └── sanitize.go           # Sensitive data redaction
 ├── pkg/
 │   └── orchestra/                # Public API surface (re-exports)
 ├── configs/
-│   └── orchestra.yaml            # Default configuration
+│   ├── orchestra.yaml            # Default configuration
+│   └── monitoring/               # (Phase 8) Monitoring configs
+│       ├── orchestra-dashboard.json # Grafana dashboard template
+│       └── alerting-rules.yaml   # Prometheus alerting rules
 ├── scripts/
 │   ├── build.sh
 │   ├── test.sh
@@ -548,10 +562,10 @@ The GitHub Actions pipeline runs on every push and pull request:
 | 2 | Provider Integrations (OpenAI, Anthropic, Gemini, Ollama, Mistral, Cohere) | ✅ Complete |
 | 3 | Agent Runtime & Lifecycle | ✅ Complete |
 | 4 | Orchestration Engine (DAG-based workflows) | ✅ Complete |
-| 5 | Inter-Agent Communication (Message Bus) | 🔲 Planned |
-| 6 | Tool System & Function Calling | 🔲 Planned |
+| 5 | Inter-Agent Communication (Message Bus) | ✅ Complete |
+| 6 | Tool System & Function Calling | ✅ Complete |
 | 7 | Memory & Context Management | ✅ Complete |
-| 8 | Observability & Operations | 🔲 Planned |
+| 8 | Observability & Operations | ✅ Complete |
 | 9 | Advanced Patterns (RAG, Self-Reflection, HITL) | 🔲 Planned |
 | 10 | Production Readiness | 🔲 Planned |
 
