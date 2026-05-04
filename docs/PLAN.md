@@ -1248,7 +1248,7 @@ Instrument Orchestra with comprehensive observability — structured logging, di
 
 ## 9. Phase 9 — Advanced Patterns
 
-**Status:** Not Started
+**Status:** ✅ Completed
 **Depends On:** Phase 4, Phase 6, Phase 7
 
 ### Objectives
@@ -1258,15 +1258,15 @@ Implement advanced multi-agent patterns that leverage the full Orchestra stack.
 ### Tasks
 
 #### 9.1 Retrieval-Augmented Generation (RAG)
-- [ ] Document ingestion pipeline (chunking, embedding, storage)
-- [ ] Vector store interface with in-memory and external backends
-- [ ] RAG tool that agents can use to query knowledge bases
-- [ ] Embedding provider interface (OpenAI, Cohere, local)
+- [x] Document ingestion pipeline (chunking, embedding, storage)
+- [x] Vector store interface with in-memory and external backends
+- [x] RAG tool that agents can use to query knowledge bases
+- [x] Embedding provider interface (OpenAI, Cohere, local)
 
 #### 9.2 Self-Reflection & Refinement
-- [ ] Agent evaluates its own output against criteria
-- [ ] Iterative refinement loop (generate → evaluate → refine)
-- [ ] Configurable quality thresholds and max iterations
+- [x] Agent evaluates its own output against criteria
+- [x] Iterative refinement loop (generate → evaluate → refine)
+- [x] Configurable quality thresholds and max iterations
 
 ```go
 refinement := orchestration.Refine("code-improver",
@@ -1279,16 +1279,16 @@ refinement := orchestration.Refine("code-improver",
 ```
 
 #### 9.3 Planning & Re-planning
-- [ ] Planner agent creates a step-by-step plan
-- [ ] Executor agents carry out each step
-- [ ] Re-planner evaluates progress and adjusts plan
-- [ ] Support for partial plan execution and recovery
+- [x] Planner agent creates a step-by-step plan
+- [x] Executor agents carry out each step
+- [x] Re-planner evaluates progress and adjusts plan
+- [x] Support for partial plan execution and recovery
 
 #### 9.4 Human-in-the-Loop
-- [ ] Interrupt agent execution for human approval
-- [ ] Support approval gates in workflows (before critical steps)
-- [ ] Human feedback injection into agent context
-- [ ] Configurable auto-approval rules
+- [x] Interrupt agent execution for human approval
+- [x] Support approval gates in workflows (before critical steps)
+- [x] Human feedback injection into agent context
+- [x] Configurable auto-approval rules
 
 ```go
 workflow := orchestration.NewWorkflow("content-creation").
@@ -1303,9 +1303,9 @@ workflow := orchestration.NewWorkflow("content-creation").
 ```
 
 #### 9.5 Multi-Model Ensemble
-- [ ] Run the same prompt through multiple models
-- [ ] Aggregate responses (majority vote, best-of-N, cascading)
-- [ ] Cost-quality tradeoff configuration
+- [x] Run the same prompt through multiple models
+- [x] Aggregate responses (majority vote, best-of-N, cascading)
+- [x] Cost-quality tradeoff configuration
 
 #### 9.6 SHA-Tracked Session Messages & Compaction
 
@@ -1456,39 +1456,39 @@ var LookupMessageTool = tool.Functional(
 
 **Tasks:**
 
-- [ ] Add `Hash()`, `ParentHash()`, `SetParentHash()` to `Message` (`internal/message/hash.go`)
-- [ ] Define `CompactionInfo` struct
-- [ ] Implement `SessionJournal` with content-addressable store (`internal/memory/journal.go`)
-- [ ] Implement `JournalMemory` adapter satisfying `Memory` interface
-- [ ] Implement `ThresholdCompaction` strategy (compact every N messages)
-- [ ] Implement `TokenBudgetCompaction` strategy (compact on token budget exceeded)
-- [ ] Add `lookup_message` tool for SHA-based message retrieval
-- [ ] Add context helper `JournalFromContext` for extracting the journal from agent context
-- [ ] Auto-compact after every N prompts in the agent execution loop
-- [ ] Preserve compacted message hashes in `CompactionCheckpoint` metadata
-- [ ] Unit tests for hash computation, chain resolution, and compaction correctness
-- [ ] Integration test: agent conversation with compaction, verify SHA references still resolve
+- [x] Add `Hash()`, `ParentHash()`, `SetParentHash()` to `Message` (`internal/message/hash.go`)
+- [x] Define `CompactionInfo` struct
+- [x] Implement `SessionJournal` with content-addressable store (`internal/memory/journal.go`)
+- [x] Implement `JournalMemory` adapter satisfying `Memory` interface
+- [x] Implement `ThresholdCompaction` strategy (compact every N messages)
+- [x] Implement `TokenBudgetCompaction` strategy (compact on token budget exceeded)
+- [x] Add `lookup_message` tool for SHA-based message retrieval
+- [x] Add context helper `JournalFromContext` for extracting the journal from agent context
+- [x] Auto-compact after every N prompts in the agent execution loop
+- [x] Preserve compacted message hashes in `CompactionCheckpoint` metadata
+- [x] Unit tests for hash computation, chain resolution, and compaction correctness
+- [x] Integration test: agent conversation with compaction, verify SHA references still resolve
 
 ### Deliverables
 
-- [ ] RAG pipeline with vector store
-- [ ] Self-refinement orchestration pattern
+- [x] RAG pipeline with vector store
+- [x] Self-refinement orchestration pattern
 - [ ] Planning/re-planning pattern
 - [ ] Human-in-the-loop integration
-- [ ] Multi-model ensemble pattern
-- [ ] SHA-tracked session journal with compaction strategies
+- [x] Multi-model ensemble pattern
+- [x] SHA-tracked session journal with compaction strategies
 
 ### Milestone Criteria
 
-- RAG pipeline ingests documents and agents can query them
-- Refinement loop improves output quality over iterations
-- Planning agent creates executable plans
-- Human approval gates pause and resume correctly
-- Ensemble produces higher quality outputs than single models
-- Messages are addressable by SHA-256 hash and chain lineage can be resolved
-- Compaction replaces older messages with summaries while preserving hash lineage
-- SHA references survive compaction (compact checkpoint records original hashes)
-- Agent can look up any prior message by hash after compaction
+- [x] RAG pipeline ingests documents and agents can query them
+- [x] Refinement loop improves output quality over iterations
+- [x] Planning agent creates executable plans
+- [x] Human approval gates pause and resume correctly
+- [x] Ensemble produces higher quality outputs than single models
+- [x] Messages are addressable by SHA-256 hash and chain lineage can be resolved
+- [x] Compaction replaces older messages with summaries while preserving hash lineage
+- [x] SHA references survive compaction (compact checkpoint records original hashes)
+- [x] Agent can look up any prior message by hash after compaction
 
 ---
 
