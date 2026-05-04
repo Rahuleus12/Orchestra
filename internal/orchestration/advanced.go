@@ -15,6 +15,11 @@ import (
 // 9.2 Self-Reflection & Refinement
 // ---------------------------------------------------------------------------
 
+const (
+	keyIteration = "iteration"
+	keyError     = "error"
+)
+
 // RefinementConfig configures the refinement pattern.
 type RefinementConfig struct {
 	// Name is the name of the refinement workflow.
@@ -238,8 +243,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		refineResult, err := cfg.Refiner.Run(ctx, refinePrompt)
 		if err != nil {
 			e.logger.Warn("Refinement failed, keeping current output",
-				slog.Int("iteration", iteration),
-				slog.Any("error", err),
+				slog.Int(keyIteration, iteration),
+				slog.Any(keyError, err),
 			)
 			break
 		}
