@@ -238,7 +238,7 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		refineResult, err := cfg.Refiner.Run(ctx, refinePrompt)
 		if err != nil {
 			e.logger.Warn("Refinement failed, keeping current output",
-				"iteration", iteration,
+				slog.Int("iteration", iteration),
 				slog.Any("error", err),
 			)
 			break
