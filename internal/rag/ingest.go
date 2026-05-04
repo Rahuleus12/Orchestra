@@ -192,7 +192,6 @@ type IngestionResult struct {
 
 // DocumentIngester handles the ingestion of documents into the RAG system.
 type DocumentIngester struct {
-	mu          sync.Mutex
 	embedder    Embedder
 	store       VectorStore
 	chunker     ChunkingStrategy

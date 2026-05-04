@@ -239,7 +239,7 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		if err != nil {
 			e.logger.Warn("Refinement failed, keeping current output",
 				"iteration", iteration,
-				"error", err,
+				slog.Any("error", err),
 			)
 			break
 		}
@@ -982,22 +982,15 @@ func HumanApprovalStep(step *Step, approvalStore *ApprovalStore, opts ...HumanAp
 	originalAgent := step.Agent
 
 	// Wrap the agent with approval logic
-	approvedAgent := NewApprovalAgentWrapper(originalAgent, approvalStore, cfg)
+	approvedAgent := wrapAgentWithApproval(originalAgent, approvalStore, cfg)
 	step.Agent = approvedAgent
 
 	return step
 }
 
-// ApprovalAgentWrapper wraps an agent with approval logic.
-type ApprovalAgentWrapper struct {
-	inner         *agent.Agent
-	approvalStore *ApprovalStore
-	config        *humanApprovalConfig
-}
-
-// NewApprovalAgentWrapper creates a new approval agent wrapper.
-func NewApprovalAgentWrapper(inner *agent.Agent, store *ApprovalStore, config *humanApprovalConfig) *agent.Agent {
-	// Return a modified agent - in practice, this would need more integration
+// wrapAgentWithApproval wraps an agent with approval logic.
+// In practice, this would need deeper integration with the agent interface.
+func wrapAgentWithApproval(inner *agent.Agent, _ *ApprovalStore, _ *humanApprovalConfig) *agent.Agent {
 	return inner
 }
 
