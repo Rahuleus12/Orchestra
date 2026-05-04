@@ -1,0 +1,93 @@
+// Example: Memory Management
+//
+// This example demonstrates the various memory strategies available
+// in Orchestra for managing conversation context.
+//
+// This is documentation - not meant to be compiled directly.
+// See internal/memory/examples.go for runnable examples.
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/user/orchestra/internal/memory"
+	"github.com/user/orchestra/internal/message"
+)
+
+func main() {
+	ctx := context.Background()
+
+	fmt.Println("=== Memory Management Examples ===")
+	fmt.Println()
+
+	// Example 1: Buffer Memory (simple FIFO)
+	exampleBufferMemory(ctx)
+
+	// Example 2: Sliding Window Memory
+	exampleSlidingWindowMemory(ctx)
+}
+
+// exampleBufferMemory demonstrates the simplest memory strategy.
+func exampleBufferMemory(ctx context.Context) {
+	fmt.Println("--- Buffer Memory ---")
+	fmt.Println("Stores all messages up to a limit (FIFO).")
+	fmt.Println()
+
+	// Create a buffer memory that stores up to 100 messages
+	mem := memory.NewBufferMemory(100)
+
+	// Add messages
+	_ = mem.Add(ctx, message.UserMessage("Hello!"))
+	_ = mem.Add(ctx, message.AssistantMessage("Hi there! How can I help?"))
+	_ = mem.Add(ctx, message.UserMessage("Tell me about Go."))
+
+	// Retrieve all messages
+	msgs, err := mem.GetAll(ctx, memory.DefaultGetOptions())
+	if err != nil {
+		log.Fatalf("Failed to get messages: %v", err)
+	}
+
+	fmt.Printf("Messages in memory: %d\n", len(msgs))
+	for i, msg := range msgs {
+		fmt.Printf("  %d: [%s] %s\n", i+1, msg.Role, msg.Text())
+	}
+	fmt.Println()
+}
+
+// exampleSlidingWindowMemory demonstrates automatic message pruning.
+func exampleSlidingWindowMemory(ctx context.Context) {
+	fmt.Println("--- Sliding Window Memory ---")
+	fmt.Println("Keeps only the most recent messages.")
+	fmt.Println()
+
+	// Create a sliding window that keeps only 3 messages
+	mem := memory.NewSlidingWindowMemory(3)
+
+	// Add 5 messages
+	for i := 1; i <= 5; i++ {
+		_ = mem.Add(ctx, message.UserMessage(fmt.Sprintf("Message %d", i)))
+	}
+
+	fmt.Printf("Added 5 messages, but memory size is: %d\n", mem.Size(ctx))
+	fmt.Println("(Oldest messages are automatically removed)")
+	fmt.Println()
+}
+
+// Memory Strategies Available:
+//
+//   - BufferMemory: Simple FIFO buffer with optional size limit
+//   - SlidingWindowMemory: Keeps only last N messages
+//   - SummaryMemory: Summarizes old messages using LLM
+//   - SemanticMemory: Embedding-based retrieval
+//   - CompositeMemory: Combines multiple strategies
+//   - JournalMemory: SHA-tracked immutable journal
+//
+// Using memory with agents:
+//
+//   agent, _ := agent.New("assistant",
+//       agent.WithProvider(provider, "model"),
+//       agent.WithMemory(memory.NewBufferMemory(100)),
+//   )

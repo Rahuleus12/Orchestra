@@ -1,0 +1,70 @@
+// Example: Single Agent with One Provider
+//
+// This example demonstrates creating and running a simple agent
+// that interacts with a single LLM provider.
+//
+// This is documentation - not meant to be compiled directly.
+// See internal/orchestration/examples_test.go for runnable examples.
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/user/orchestra/internal/agent"
+	"github.com/user/orchestra/internal/provider/mock"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Create a mock provider (use real provider like openai.New() in production)
+	provider := mock.NewProvider("openai-mock")
+
+	// Optionally customize the response
+	// provider.SetResponse("Paris is the capital of France.")
+
+	// Create an agent with the provider
+	assistant, err := agent.New("assistant",
+		agent.WithProvider(provider, "mock-model"),
+		agent.WithSystemPrompt("You are a helpful assistant. Be concise and friendly."),
+		agent.WithMaxTurns(5),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create agent: %v", err)
+	}
+
+	// Run the agent with a simple query
+	result, err := assistant.Run(ctx, "What is the capital of France?")
+	if err != nil {
+		log.Fatalf("Agent execution failed: %v", err)
+	}
+
+	// Print the result
+	fmt.Println("=== Agent Response ===")
+	fmt.Println(result.Output)
+	fmt.Println()
+
+	// Print usage statistics
+	fmt.Println("=== Usage Statistics ===")
+	fmt.Printf("Prompt tokens: %d\n", result.Usage.PromptTokens)
+	fmt.Printf("Completion tokens: %d\n", result.Usage.CompletionTokens)
+	fmt.Printf("Total tokens: %d\n", result.Usage.TotalTokens)
+	fmt.Printf("Duration: %v\n", result.Duration)
+	fmt.Printf("Turns: %d\n", result.Turns)
+}
+
+// Using a real provider (e.g., OpenAI):
+//
+//   import "github.com/user/orchestra/internal/provider/openai"
+//
+//   cfg := config.ProviderConfig{
+//       APIKey: os.Getenv("OPENAI_API_KEY"),
+//   }
+//   provider, _ := openai.New(cfg)
+//   agent, _ := agent.New("assistant",
+//       agent.WithProvider(provider, "gpt-4o"),
+//       agent.WithSystemPrompt("You are a helpful assistant."),
+//   )

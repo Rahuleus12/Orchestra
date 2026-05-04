@@ -1,0 +1,94 @@
+// Example: Hierarchical Delegation
+//
+// This example demonstrates the hierarchical orchestration pattern,
+// where a manager agent delegates tasks to specialized worker agents.
+//
+// This is documentation - not meant to be compiled directly.
+// See internal/orchestration/examples_test.go for runnable examples.
+
+package main
+
+import (
+	"github.com/user/orchestra/internal/agent"
+	"github.com/user/orchestra/internal/orchestration"
+)
+
+func main() {
+	// Create specialized worker agents
+	researcher := createAgent("researcher", "You are a research specialist.")
+	writer := createAgent("writer", "You are a content writer.")
+	editor := createAgent("editor", "You are an editor.")
+
+	// Create a manager agent that coordinates the workers
+	manager := createAgent("manager", "You are a project manager who delegates tasks.")
+
+	// Configure hierarchical delegation
+	config := orchestration.HierarchicalConfig{
+		Name:    "content-creation-team",
+		Manager: manager,
+		Workers: map[string]*agent.Agent{
+			"researcher": researcher,
+			"writer":     writer,
+			"editor":     editor,
+		},
+		MaxDelegations: 10,
+		MaxDepth:       3,
+	}
+
+	// Create the hierarchical workflow
+	workflow, err := orchestration.Hierarchical(config)
+	if err != nil {
+		panic(err)
+	}
+
+	// Execute using the engine
+	// engine := orchestration.NewEngine()
+	// result, err := engine.Execute(ctx, workflow, map[string]any{
+	//     "input": "Create a comprehensive report about renewable energy trends",
+	// })
+	_ = workflow
+}
+
+// createAgent creates a mock agent for examples.
+func createAgent(name, systemPrompt string) *agent.Agent {
+	// Simplified for documentation
+	return nil
+}
+
+// Hierarchical Delegation Pattern Overview:
+//
+// The hierarchical pattern has a manager agent that analyzes tasks
+// and delegates them to specialized worker agents.
+//
+// Flow:
+//
+//   1. Manager receives the high-level task
+//   2. Manager breaks down the task into sub-tasks
+//   3. Manager assigns each sub-task to an appropriate worker
+//   4. Workers execute their assigned tasks
+//   5. Manager aggregates results and produces final output
+//
+// Use cases:
+//   - Complex task decomposition
+//   - Multi-step content creation
+//   - Research and report generation
+//   - Code development with specialized roles
+//
+// Configuration options:
+//
+//   config := orchestration.HierarchicalConfig{
+//       Name:          "my-team",      // Workflow name
+//       Manager:       managerAgent,   // Required manager
+//       Workers:       workers,        // Map of worker type -> agent
+//       MaxDelegations: 10,            // Max total delegations
+//       MaxDepth:       3,             // Max delegation depth
+//   }
+//
+// Worker delegation format:
+//
+// The manager should respond with a JSON array of tasks:
+//
+//   [
+//     {"id": "1", "description": "Research topic", "worker_type": "researcher"},
+//     {"id": "2", "description": "Write report", "worker_type": "writer"}
+//   ]

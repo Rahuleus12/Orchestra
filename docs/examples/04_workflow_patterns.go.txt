@@ -1,0 +1,148 @@
+// Example: Workflow Patterns
+//
+// This example demonstrates various orchestration patterns
+// available in Orchestra for multi-agent workflows.
+//
+// This is documentation - not meant to be compiled directly.
+// See internal/orchestration/examples_test.go for runnable examples.
+
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/user/orchestra/internal/agent"
+	"github.com/user/orchestra/internal/orchestration"
+)
+
+func main() {
+	ctx := context.Background()
+
+	fmt.Println("=== Workflow Pattern Examples ===")
+	fmt.Println()
+
+	// Example 1: Sequential Pipeline
+	exampleSequentialPipeline(ctx)
+
+	// Example 2: Parallel Fan-Out/Fan-In
+	exampleParallelWorkflow(ctx)
+}
+
+// exampleSequentialPipeline demonstrates a linear processing pipeline.
+func exampleSequentialPipeline(ctx context.Context) {
+	fmt.Println("--- Sequential Pipeline ---")
+	fmt.Println("Steps execute one after another.")
+	fmt.Println()
+
+	// Create agents for each step
+	extractAgent := createAgent("extractor", "Extract key information.")
+	transformAgent := createAgent("transformer", "Transform the information.")
+	loadAgent := createAgent("loader", "Load the data.")
+
+	// Create a sequential workflow
+	agents := []*agent.Agent{extractAgent, transformAgent, loadAgent}
+	workflow, err := orchestration.Sequence("etl-pipeline", agents)
+	if err != nil {
+		fmt.Printf("Failed to create sequence: %v\n", err)
+		return
+	}
+
+	// Execute the workflow
+	engine := orchestration.NewEngine()
+	result, err := engine.Execute(ctx, workflow, map[string]any{
+		"input": "Process this document.",
+	})
+	if err != nil {
+		fmt.Printf("Execution failed: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Status: %s\n", result.Status)
+	fmt.Printf("Steps executed: %d\n", len(result.Steps))
+	fmt.Println()
+}
+
+// exampleParallelWorkflow demonstrates concurrent execution.
+func exampleParallelWorkflow(ctx context.Context) {
+	fmt.Println("--- Parallel Fan-Out/Fan-In ---")
+	fmt.Println("Multiple agents process input concurrently.")
+	fmt.Println()
+
+	// Create agents with different perspectives
+	optimist := createAgent("optimist", "Analyze optimistically.")
+	pessimist := createAgent("pessimist", "Analyze pessimistically.")
+	analyst := createAgent("analyst", "Provide balanced analysis.")
+
+	// Create a synthesizer to combine results
+	synthesizer := func(results []*agent.AgentResult) (string, error) {
+		var synthesis string
+		for i, r := range results {
+			synthesis += fmt.Sprintf("Perspective %d: %s\n", i+1, r.Output)
+		}
+		return synthesis, nil
+	}
+
+	// Create parallel workflow
+	agents := []*agent.Agent{optimist, pessimist, analyst}
+	workflow, err := orchestration.Parallel("multi-perspective", agents, synthesizer)
+	if err != nil {
+		fmt.Printf("Failed to create parallel workflow: %v\n", err)
+		return
+	}
+
+	// Execute
+	engine := orchestration.NewEngine()
+	result, err := engine.Execute(ctx, workflow, map[string]any{
+		"topic": "The future of AI",
+	})
+	if err != nil {
+		fmt.Printf("Execution failed: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Status: %s\n", result.Status)
+	fmt.Println("(All three agents ran in parallel)")
+	fmt.Println()
+}
+
+// createAgent creates a mock agent for examples.
+// In real usage, you would use a real provider.
+func createAgent(name, systemPrompt string) *agent.Agent {
+	// Simplified for documentation
+	// See internal/orchestration/examples_test.go for mockAgent helper
+	return nil
+}
+
+// Other Available Patterns:
+//
+//   - Router: Conditional branching based on input content
+//   - Debate: Multiple agents discuss, judge decides
+//   - Hierarchical: Manager delegates to specialized workers
+//
+// Router example:
+//
+//   router := orchestration.NewRouter("content-router")
+//   router.AddRoute("code", codeAgent, func(ctx) bool { ... })
+//   router.AddRoute("writing", writingAgent, func(ctx) bool { ... })
+//   router.SetDefault(defaultAgent)
+//   workflow := router.Build()
+//
+// Debate example:
+//
+//   config := orchestration.DebateConfig{
+//       Name:     "debate",
+//       Debaters: []*agent.Agent{proAgent, conAgent},
+//       Judge:    judgeAgent,
+//       Rounds:   3,
+//       Topic:    "Should AI be regulated?",
+//   }
+//   workflow, _ := orchestration.Debate(config)
+//
+// Custom DAG workflow:
+//
+//   workflow, _ := orchestration.NewWorkflowBuilder("pipeline").
+//       AddStep("research", researchAgent).
+//       AddStep("write", writeAgent).DependsOn("research").
+//       AddStep("edit", editAgent).DependsOn("write").
+//       Build()

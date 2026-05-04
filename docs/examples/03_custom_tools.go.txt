@@ -1,0 +1,111 @@
+// Example: Custom Tool Creation
+//
+// This example demonstrates how to create custom tools
+// that agents can use to interact with external systems.
+//
+// This is documentation - not meant to be compiled directly.
+
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+)
+
+// Tool interface from Orchestra
+type Tool interface {
+	Name() string
+	Description() string
+	Parameters() json.RawMessage
+	Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error)
+}
+
+func main() {
+	ctx := context.Background()
+
+	fmt.Println("=== Custom Tool Examples ===")
+	fmt.Println()
+
+	// Example 1: Create a simple calculator tool
+	calculator := NewCalculatorTool()
+	fmt.Printf("Tool: %s\n", calculator.Name())
+	fmt.Printf("Description: %s\n", calculator.Description())
+	fmt.Println()
+
+	// Example 2: Execute the tool
+	result, err := calculator.Execute(ctx, json.RawMessage(`{"expression": "2 + 2"}`))
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Calculator result: %s\n", string(result))
+}
+
+// CalculatorTool demonstrates implementing the Tool interface.
+type CalculatorTool struct{}
+
+func NewCalculatorTool() *CalculatorTool {
+	return &CalculatorTool{}
+}
+
+func (t *CalculatorTool) Name() string {
+	return "calculator"
+}
+
+func (t *CalculatorTool) Description() string {
+	return "Evaluate a mathematical expression"
+}
+
+func (t *CalculatorTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"expression": {
+				"type": "string",
+				"description": "The mathematical expression to evaluate"
+			}
+		},
+		"required": ["expression"]
+	}`)
+}
+
+func (t *CalculatorTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
+	var params struct {
+		Expression string `json:"expression"`
+	}
+	if err := json.Unmarshal(input, &params); err != nil {
+		return nil, fmt.Errorf("invalid input: %w", err)
+	}
+
+	// In production, use a proper expression parser
+	result := map[string]interface{}{
+		"result":     4, // placeholder
+		"expression": params.Expression,
+	}
+
+	return json.Marshal(result)
+}
+
+// Using tools with Orchestra's tool registry:
+//
+//   import "github.com/user/orchestra/internal/tool"
+//
+//   registry := tool.NewRegistry()
+//   registry.MustRegister(NewCalculatorTool())
+//
+//   // Pass registry to agent
+//   agent, _ := agent.New("assistant",
+//       agent.WithProvider(provider, "model"),
+//       agent.WithTools(registry),
+//   )
+//
+// Using ToolFunc for simple tools:
+//
+//   simpleTool := tool.NewToolFunc(
+//       "greet",
+//       "Greet a person by name",
+//       func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
+//           // implementation
+//       },
+//   )

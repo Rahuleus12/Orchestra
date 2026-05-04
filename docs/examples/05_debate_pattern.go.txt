@@ -1,0 +1,79 @@
+// Example: Debate Pattern
+//
+// This example demonstrates the debate orchestration pattern,
+// where multiple agents discuss a topic and a judge makes a final decision.
+//
+// This is documentation - not meant to be compiled directly.
+// See internal/orchestration/examples_test.go for runnable examples.
+
+package main
+
+import (
+	"github.com/user/orchestra/internal/agent"
+	"github.com/user/orchestra/internal/orchestration"
+)
+
+func main() {
+	// Create debater agents with different perspectives
+	proAgent := createAgent("proponent", "You argue in favor of the proposition.")
+	conAgent := createAgent("opponent", "You argue against the proposition.")
+
+	// Create a judge agent to make the final decision
+	judgeAgent := createAgent("judge", "You are an impartial judge.")
+
+	// Configure the debate
+	config := orchestration.DebateConfig{
+		Name:      "ai-regulation-debate",
+		Debaters:  []*agent.Agent{proAgent, conAgent},
+		Judge:     judgeAgent,
+		Rounds:    3,
+		Topic:     "Should AI development be regulated by governments?",
+		StopEarly: false,
+	}
+
+	// Create the debate workflow
+	workflow, err := orchestration.Debate(config)
+	if err != nil {
+		panic(err)
+	}
+
+	// Execute using the engine
+	// engine := orchestration.NewEngine()
+	// result, err := engine.Execute(ctx, workflow, map[string]any{"topic": config.Topic})
+	_ = workflow
+}
+
+// createAgent creates a mock agent for examples.
+func createAgent(name, systemPrompt string) *agent.Agent {
+	// Simplified for documentation
+	return nil
+}
+
+// Debate Pattern Overview:
+//
+// The debate pattern allows multiple agents to discuss a topic over
+// several rounds, with a judge agent making the final decision.
+//
+// Flow:
+//
+//   1. Setup: First debater prepares initial context
+//   2. Rounds: Each debater presents arguments
+//      - Debaters see previous arguments in the round
+//      - Debaters see arguments from previous rounds
+//   3. Verdict: Judge agent reviews all arguments and decides
+//
+// Use cases:
+//   - Exploring different perspectives on complex issues
+//   - Quality assurance through adversarial review
+//   - Decision support with balanced analysis
+//
+// Configuration options:
+//
+//   config := orchestration.DebateConfig{
+//       Name:      "my-debate",        // Workflow name
+//       Debaters:  agents,             // At least 2 debaters
+//       Judge:     judgeAgent,         // Required judge
+//       Rounds:    3,                  // Number of rounds
+//       Topic:     "Your debate topic", // Initial topic
+//       StopEarly: true,               // Stop if consensus reached
+//   }
