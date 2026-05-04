@@ -25,21 +25,21 @@ func (m *Message) Hash() (string, error) {
 func (m *Message) canonicalForHash() ([]byte, error) {
 	// Create a copy of the message for hashing
 	type hashMessage struct {
-		Role      Role           `json:"role"`
-		Content   []ContentBlock `json:"content"`
-		Name      string         `json:"name,omitempty"`
-		ToolCalls []ToolCall     `json:"tool_calls,omitempty"`
-		ToolResult *ToolResult   `json:"tool_result,omitempty"`
-		Metadata  map[string]any `json:"metadata,omitempty"`
+		Role       Role           `json:"role"`
+		Content    []ContentBlock `json:"content"`
+		Name       string         `json:"name,omitempty"`
+		ToolCalls  []ToolCall     `json:"tool_calls,omitempty"`
+		ToolResult *ToolResult    `json:"tool_result,omitempty"`
+		Metadata   map[string]any `json:"metadata,omitempty"`
 	}
 
 	hm := hashMessage{
-		Role:      m.Role,
-		Content:   m.Content,
-		Name:      m.Name,
-		ToolCalls: m.ToolCalls,
+		Role:       m.Role,
+		Content:    m.Content,
+		Name:       m.Name,
+		ToolCalls:  m.ToolCalls,
 		ToolResult: m.ToolResult,
-		Metadata:  make(map[string]any),
+		Metadata:   make(map[string]any),
 	}
 
 	// Copy metadata, excluding "sha"

@@ -14,10 +14,10 @@ import (
 // across truncation, compaction, and distributed hand-offs.
 type SessionJournal struct {
 	mu        sync.RWMutex
-	ordered   []string            // ordered SHA hashes (append-only)
-	store     map[string]message.Message  // sha → Message
-	head      string              // SHA of the latest message
-	sessionID string              // unique session identifier
+	ordered   []string                   // ordered SHA hashes (append-only)
+	store     map[string]message.Message // sha → Message
+	head      string                     // SHA of the latest message
+	sessionID string                     // unique session identifier
 
 	// Compaction
 	compactor CompactionStrategy

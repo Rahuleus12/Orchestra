@@ -239,7 +239,7 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		if err != nil {
 			e.logger.Warn("Refinement failed, keeping current output",
 				"iteration", iteration,
-			"error", err,
+				"error", err,
 			)
 			break
 		}
@@ -705,9 +705,9 @@ STEP [number]: [step description]`
 // parsePlanResponse parses the planner's response into a Plan.
 func parsePlanResponse(response string) *Plan {
 	plan := &Plan{
-		ID:          "plan-" + generateWorkflowID(),
-		Steps:       make([]PlanStep, 0),
-		PlanStatus:  PlanStatusPending,
+		ID:         "plan-" + generateWorkflowID(),
+		Steps:      make([]PlanStep, 0),
+		PlanStatus: PlanStatusPending,
 	}
 
 	lines := strings.Split(response, "\n")
@@ -851,17 +851,18 @@ func (s *ApprovalStore) RequestApproval(ctx context.Context, stepID, title, desc
 
 	// Try each handler until one responds
 	var response *ApprovalResponse
-	var err error
 
 	for _, handler := range handlers {
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("approval request timed out")
 		default:
-			response, err = handler(ctx, request)
-			if err == nil && response != nil {
-				break
-			}
+		}
+
+		resp, err := handler(ctx, request)
+		if err == nil && resp != nil {
+			response = resp
+			break
 		}
 	}
 
@@ -920,11 +921,11 @@ func HumanApproval(title string, opts ...HumanApprovalOption) *agent.Agent {
 
 // humanApprovalConfig configures human approval.
 type humanApprovalConfig struct {
-	Title             string
-	Description       string
-	Timeout           time.Duration
-	CallbackEndpoint  string
-	AutoApproveRules  []AutoApproveRule
+	Title            string
+	Description      string
+	Timeout          time.Duration
+	CallbackEndpoint string
+	AutoApproveRules []AutoApproveRule
 }
 
 // HumanApprovalOption configures human approval.
@@ -989,9 +990,9 @@ func HumanApprovalStep(step *Step, approvalStore *ApprovalStore, opts ...HumanAp
 
 // ApprovalAgentWrapper wraps an agent with approval logic.
 type ApprovalAgentWrapper struct {
-	inner          *agent.Agent
-	approvalStore  *ApprovalStore
-	config         *humanApprovalConfig
+	inner         *agent.Agent
+	approvalStore *ApprovalStore
+	config        *humanApprovalConfig
 }
 
 // NewApprovalAgentWrapper creates a new approval agent wrapper.
@@ -1204,10 +1205,10 @@ func (e *EnsembleEngine) Execute(ctx context.Context, cfg *EnsembleConfig, input
 	}
 
 	return &EnsembleResult{
-		Output:         output,
-		Responses:      responses,
-		SelectedIndex:  selectedIndex,
-		Duration:       time.Since(startTime),
+		Output:        output,
+		Responses:     responses,
+		SelectedIndex: selectedIndex,
+		Duration:      time.Since(startTime),
 	}, nil
 }
 

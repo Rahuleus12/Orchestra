@@ -332,10 +332,6 @@ linters:
     testifylint:
       enable-all: true
 
-    # Noctx
-    noctx:
-      http-client-only: true
-
     # Importas
     importas:
       no-unaliased: true

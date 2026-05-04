@@ -206,7 +206,9 @@ func (e *MockEmbedder) Dimensions() int {
 }
 
 // Compile-time interface checks
-var _ Embedder = (*MockEmbedder)(nil)
-var _ VectorStore = (*MemoryVectorStore)(nil)
-var _ ChunkingStrategy = (*FixedSizeChunker)(nil)
-var _ ChunkingStrategy = (*ParagraphChunker)(nil)
+var (
+	_ Embedder         = (*MockEmbedder)(nil)
+	_ VectorStore      = (*MemoryVectorStore)(nil)
+	_ ChunkingStrategy = (*FixedSizeChunker)(nil)
+	_ ChunkingStrategy = (*ParagraphChunker)(nil)
+)

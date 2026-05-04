@@ -123,10 +123,10 @@ func NewLookupMessageTool() (tool.Tool, error) {
 func messageToView(msg message.Message) MessageView {
 	sha, _ := msg.GetHash()
 	return MessageView{
-		SHA:                   sha,
-		Role:                  string(msg.Role),
-		Content:               msg.Text(),
-		ParentSHA:             msg.ParentHash(),
+		SHA:                    sha,
+		Role:                   string(msg.Role),
+		Content:                msg.Text(),
+		ParentSHA:              msg.ParentHash(),
 		IsCompactionCheckpoint: msg.IsCompactionCheckpoint(),
 	}
 }

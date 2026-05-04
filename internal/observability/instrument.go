@@ -27,7 +27,7 @@ func NewInstrumentProvider(
 	return &InstrumentProvider{
 		tracer:  tracer.Tracer("orchestra.provider"),
 		metrics: metrics,
-		logger:  logger.With(
+		logger: logger.With(
 			slog.String("component", "instrumentation"),
 			slog.String("target", "provider"),
 		),
@@ -121,7 +121,7 @@ func NewInstrumentAgent(
 	return &InstrumentAgent{
 		tracer:  tracer.Tracer("orchestra.agent"),
 		metrics: metrics,
-		logger:  logger.With(
+		logger: logger.With(
 			slog.String("component", "instrumentation"),
 			slog.String("target", "agent"),
 		),
@@ -254,7 +254,7 @@ func NewInstrumentWorkflow(
 	return &InstrumentWorkflow{
 		tracer:  tracer.Tracer("orchestra.workflow"),
 		metrics: metrics,
-		logger:  logger.With(
+		logger: logger.With(
 			slog.String("component", "instrumentation"),
 			slog.String("target", "workflow"),
 		),

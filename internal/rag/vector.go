@@ -112,10 +112,10 @@ func DefaultSearchOptions() SearchOptions {
 // MemoryVectorStore is an in-memory implementation of VectorStore.
 // It is suitable for development, testing, and small datasets.
 type MemoryVectorStore struct {
-	mu       sync.RWMutex
-	vectors  map[string]Vector
-	ordered  []string // preserves insertion order
-	dimSize  int      // expected vector dimensionality
+	mu      sync.RWMutex
+	vectors map[string]Vector
+	ordered []string // preserves insertion order
+	dimSize int      // expected vector dimensionality
 }
 
 // NewMemoryVectorStore creates a new in-memory vector store.
