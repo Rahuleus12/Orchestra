@@ -429,7 +429,8 @@ func (m *Mailbox) Send(msg BusMessage) error {
 	// Apply inbound filter
 	if m.inboundFilter != nil && !m.inboundFilter(msg) {
 		m.filtered.Add(1)
-		m.logger.Debug("Message filtered out",
+		m.logger.Debug(
+			"Message filtered out",
 			"agent_id", m.agentID,
 			"message_id", msg.ID,
 		)
@@ -448,7 +449,8 @@ func (m *Mailbox) Send(msg BusMessage) error {
 			dropped := m.messages[0]
 			m.messages = m.messages[1:]
 			m.dropped.Add(1)
-			m.logger.Debug("Dropped oldest message",
+			m.logger.Debug(
+				"Dropped oldest message",
 				"agent_id", m.agentID,
 				"dropped_message_id", dropped.ID,
 				"capacity", m.capacity,
@@ -456,7 +458,8 @@ func (m *Mailbox) Send(msg BusMessage) error {
 
 		case MailboxDropNewest:
 			m.dropped.Add(1)
-			m.logger.Debug("Dropped new message",
+			m.logger.Debug(
+				"Dropped new message",
 				"agent_id", m.agentID,
 				"new_message_id", msg.ID,
 				"capacity", m.capacity,
@@ -478,7 +481,8 @@ func (m *Mailbox) Send(msg BusMessage) error {
 				if newCap > MaxCapacity {
 					newCap = MaxCapacity
 				}
-				m.logger.Debug("Growing mailbox capacity",
+				m.logger.Debug(
+					"Growing mailbox capacity",
 					"agent_id", m.agentID,
 					"old_capacity", m.capacity,
 					"new_capacity", newCap,
@@ -499,7 +503,8 @@ func (m *Mailbox) Send(msg BusMessage) error {
 	m.messages = append(m.messages, msg)
 	m.received.Add(1)
 
-	m.logger.Debug("Message received",
+	m.logger.Debug(
+		"Message received",
 		"agent_id", m.agentID,
 		"message_id", msg.ID,
 		"from_agent", msg.FromAgent,
@@ -574,7 +579,8 @@ func (m *Mailbox) Close() error {
 	m.signal()
 	m.signal() // Send multiple signals to wake multiple waiters
 
-	m.logger.Info("Mailbox closed",
+	m.logger.Info(
+		"Mailbox closed",
 		"agent_id", m.agentID,
 		"total_received", m.received.Load(),
 		"total_consumed", m.consumed.Load(),
@@ -633,7 +639,8 @@ func (m *Mailbox) ConnectToBus(bus Bus) error {
 
 	m.subscriptions = append(m.subscriptions, sub)
 
-	m.logger.Info("Mailbox connected to bus",
+	m.logger.Info(
+		"Mailbox connected to bus",
 		"agent_id", m.agentID,
 		"subscription_id", sub.ID(),
 	)
@@ -668,7 +675,8 @@ func (m *Mailbox) ConnectToBusTopic(bus Bus, topic string) error {
 
 	m.subscriptions = append(m.subscriptions, sub)
 
-	m.logger.Info("Mailbox connected to bus topic",
+	m.logger.Info(
+		"Mailbox connected to bus topic",
 		"agent_id", m.agentID,
 		"topic", topic,
 		"subscription_id", sub.ID(),
@@ -688,7 +696,8 @@ func (m *Mailbox) DisconnectFromBus() {
 	m.subscriptions = nil
 	m.bus = nil
 
-	m.logger.Info("Mailbox disconnected from bus",
+	m.logger.Info(
+		"Mailbox disconnected from bus",
 		"agent_id", m.agentID,
 	)
 }

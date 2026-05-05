@@ -26,7 +26,8 @@ func TestNewMailbox(t *testing.T) {
 }
 
 func TestNewMailbox_WithOptions(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(50),
 		WithMailboxBehavior(MailboxDropNewest),
 		WithMailboxFilter(func(msg BusMessage) bool {
@@ -41,7 +42,8 @@ func TestNewMailbox_WithOptions(t *testing.T) {
 }
 
 func TestNewMailbox_MinimumCapacity(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(0),
 		WithMailboxCapacity(-10),
 	)
@@ -343,7 +345,8 @@ func TestMailbox_FifoOrder(t *testing.T) {
 }
 
 func TestMailbox_IsEmpty_IsFull(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(3),
 	)
 	defer mailbox.Close()
@@ -437,7 +440,8 @@ func TestMailbox_Close_UnblocksReceivers(t *testing.T) {
 }
 
 func TestMailbox_DropOldest(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(3),
 		WithMailboxBehavior(MailboxDropOldest),
 	)
@@ -468,7 +472,8 @@ func TestMailbox_DropOldest(t *testing.T) {
 }
 
 func TestMailbox_DropNewest(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(3),
 		WithMailboxBehavior(MailboxDropNewest),
 	)
@@ -502,7 +507,8 @@ func TestMailbox_DropNewest(t *testing.T) {
 }
 
 func TestMailbox_Grow(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(4),
 		WithMailboxBehavior(MailboxGrow),
 	)
@@ -539,7 +545,8 @@ func TestMailbox_Grow(t *testing.T) {
 func TestMailbox_InboundFilter(t *testing.T) {
 	filterCalled := atomic.Int32{}
 
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxFilter(func(msg BusMessage) bool {
 			filterCalled.Add(1)
 			return msg.FromAgent != "blocked"
@@ -570,7 +577,8 @@ func TestMailbox_OnMessage(t *testing.T) {
 	var received []BusMessage
 	var mu sync.Mutex
 
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithOnMessage(func(msg BusMessage) {
 			mu.Lock()
 			received = append(received, msg)
@@ -591,7 +599,8 @@ func TestMailbox_OnMessage(t *testing.T) {
 }
 
 func TestMailbox_Stats(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(10),
 	)
 	defer mailbox.Close()
@@ -797,7 +806,8 @@ func TestMailbox_Close_CancelsBusSubscriptions(t *testing.T) {
 }
 
 func TestMailbox_ConcurrentSend(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(1000),
 	)
 	defer mailbox.Close()
@@ -1052,7 +1062,8 @@ func isMailboxError(err error, target *MailboxError, expectedType MailboxErrorTy
 }
 
 func TestMailbox_GrowToMaxCapacity(t *testing.T) {
-	mailbox := NewMailbox("agent-1",
+	mailbox := NewMailbox(
+		"agent-1",
 		WithMailboxCapacity(2),
 		WithMailboxBehavior(MailboxGrow),
 	)

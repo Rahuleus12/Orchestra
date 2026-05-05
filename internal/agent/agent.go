@@ -376,7 +376,8 @@ func (a *Agent) RunConversation(ctx context.Context, messages []message.Message)
 			req.Tools = a.tools.Definitions()
 		}
 
-		a.logger.Debug("agent generating",
+		a.logger.Debug(
+			"agent generating",
 			slog.String("agent", a.name),
 			slog.Int("turn", turn),
 			slog.String("model", a.model),
@@ -398,7 +399,8 @@ func (a *Agent) RunConversation(ctx context.Context, messages []message.Message)
 
 		// Check for tool calls
 		if genResult.IsToolCall() && len(genResult.Message.ToolCalls) > 0 {
-			a.logger.Debug("agent tool calls",
+			a.logger.Debug(
+				"agent tool calls",
 				slog.String("agent", a.name),
 				slog.Int("turn", turn),
 				slog.Int("tool_calls", len(genResult.Message.ToolCalls)),
@@ -427,7 +429,8 @@ func (a *Agent) RunConversation(ctx context.Context, messages []message.Message)
 
 				result.ToolCalls = append(result.ToolCalls, toolExec)
 
-				a.logger.Debug("tool executed",
+				a.logger.Debug(
+					"tool executed",
 					slog.String("agent", a.name),
 					slog.String("tool", tc.Function.Name),
 					slog.Duration("duration", toolDuration),
@@ -451,7 +454,8 @@ func (a *Agent) RunConversation(ctx context.Context, messages []message.Message)
 			_ = a.memory.Add(ctx, genResult.Message)
 		}
 
-		a.logger.Debug("agent completed",
+		a.logger.Debug(
+			"agent completed",
 			slog.String("agent", a.name),
 			slog.Int("turns", result.Turns),
 			slog.Duration("duration", result.Duration),

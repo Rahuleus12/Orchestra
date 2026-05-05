@@ -72,7 +72,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 	}
 
 	// Log start
-	e.logger.Info("Starting workflow execution",
+	e.logger.Info(
+		"Starting workflow execution",
 		"workflow_id", result.ID,
 		"workflow_name", result.Name,
 		"input_keys", inputKeys(input),
@@ -85,7 +86,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 		result.Error = fmt.Errorf("failed to get execution order: %w", err)
 		result.EndTime = time.Now()
 		result.Duration = result.EndTime.Sub(result.StartTime)
-		e.logger.Error("Workflow execution failed",
+		e.logger.Error(
+			"Workflow execution failed",
 			"workflow_id", result.ID,
 			"error", result.Error,
 		)
@@ -98,7 +100,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 	// Execute each level sequentially
 	var lastError error
 	for levelIdx, levelSteps := range levels {
-		e.logger.Debug("Executing workflow level",
+		e.logger.Debug(
+			"Executing workflow level",
 			"workflow_id", result.ID,
 			"level", levelIdx,
 			"steps", levelSteps,
@@ -113,7 +116,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 
 			if stepResult.Error != nil {
 				lastError = stepResult.Error
-				e.logger.Error("Step failed",
+				e.logger.Error(
+					"Step failed",
 					"workflow_id", result.ID,
 					"step_id", stepResult.StepID,
 					"error", stepResult.Error,
@@ -150,7 +154,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 
 			if finalResult != nil {
 				if err := workflow.GetOutputMapping()(finalResult, wfCtx); err != nil {
-					e.logger.Warn("Failed to apply output mapping",
+					e.logger.Warn(
+						"Failed to apply output mapping",
 						"workflow_id", result.ID,
 						"error", err,
 					)
@@ -191,7 +196,8 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 	}
 
 	// Log completion
-	e.logger.Info("Workflow execution completed",
+	e.logger.Info(
+		"Workflow execution completed",
 		"workflow_id", result.ID,
 		"status", result.Status,
 		"duration", result.Duration,
@@ -246,7 +252,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 		Timestamp: time.Now(),
 	}
 
-	e.logger.Debug("Executing step",
+	e.logger.Debug(
+		"Executing step",
 		"workflow_id", workflow.ID(),
 		"step_id", stepID,
 		"agent", step.Agent.Name(),
@@ -255,7 +262,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 	// Check condition
 	if step.Condition != nil && !step.Condition(wfCtx) {
 		stepResult.Status = StatusCompleted
-		e.logger.Debug("Step condition not met, skipping",
+		e.logger.Debug(
+			"Step condition not met, skipping",
 			"workflow_id", workflow.ID(),
 			"step_id", stepID,
 		)
@@ -273,7 +281,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 			stepResult.Status = StatusFailed
 			stepResult.Error = fmt.Errorf("failed to map input: %w", err)
 			stepResult.Duration = time.Since(stepResult.Timestamp)
-			e.logger.Error("Failed to map input for step",
+			e.logger.Error(
+				"Failed to map input for step",
 				"workflow_id", workflow.ID(),
 				"step_id", stepID,
 				"error", err,
@@ -324,7 +333,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 			// Store step output in context
 			if step.OutputMap != nil {
 				if err := step.OutputMap(agentResult, wfCtx); err != nil {
-					e.logger.Warn("Failed to apply output mapping for step",
+					e.logger.Warn(
+						"Failed to apply output mapping for step",
 						"workflow_id", workflow.ID(),
 						"step_id", stepID,
 						"error", err,
@@ -335,7 +345,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 
 			wfCtx.SetStepOutput(stepID, agentResult)
 
-			e.logger.Debug("Step completed successfully",
+			e.logger.Debug(
+				"Step completed successfully",
 				"workflow_id", workflow.ID(),
 				"step_id", stepID,
 				"attempt", attempt,
@@ -348,7 +359,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 
 		// Failure
 		lastError = err
-		e.logger.Warn("Step attempt failed",
+		e.logger.Warn(
+			"Step attempt failed",
 			"workflow_id", workflow.ID(),
 			"step_id", stepID,
 			"attempt", attempt,
@@ -359,7 +371,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 		// Check if we should retry
 		if attempt < retryPolicy.MaxAttempts && !errors.Is(err, context.Canceled) {
 			delay := retryPolicy.ComputeDelay(attempt)
-			e.logger.Debug("Retrying step after delay",
+			e.logger.Debug(
+				"Retrying step after delay",
 				"workflow_id", workflow.ID(),
 				"step_id", stepID,
 				"attempt", attempt,
@@ -382,7 +395,8 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 	stepResult.Error = lastError
 	stepResult.Duration = time.Since(stepResult.Timestamp)
 
-	e.logger.Error("Step failed after all attempts",
+	e.logger.Error(
+		"Step failed after all attempts",
 		"workflow_id", workflow.ID(),
 		"step_id", stepID,
 		"attempts", stepResult.Attempts,

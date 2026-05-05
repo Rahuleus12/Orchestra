@@ -58,7 +58,8 @@ func (pe *PrometheusExporter) Handler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		if _, err := io.WriteString(w, content); err != nil {
-			pe.logger.Error("failed to write metrics response",
+			pe.logger.Error(
+				"failed to write metrics response",
 				slog.String("error", err.Error()),
 			)
 		}

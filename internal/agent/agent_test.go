@@ -221,7 +221,8 @@ func TestNew_WithTools_Multiple(t *testing.T) {
 
 func TestNew_WithTools_DuplicateName(t *testing.T) {
 	mp := mock.NewProvider("test")
-	_, err := New("test",
+	_, err := New(
+		"test",
 		WithProvider(mp, "model"),
 		WithTools(&echoTool{}, &echoTool{}),
 	)
@@ -234,7 +235,8 @@ func TestNew_WithTools_DuplicateName(t *testing.T) {
 }
 
 func TestNew_WithGenerateOptions(t *testing.T) {
-	a := newTestAgent(t,
+	a := newTestAgent(
+		t,
 		WithGenerateOptions(provider.WithTemperature(0.7)),
 		WithGenerateOptions(provider.WithMaxTokens(100)),
 	)
@@ -281,7 +283,8 @@ func TestNew_OptionsAppliedInOrder(t *testing.T) {
 		}
 	}
 
-	_, err := New("test",
+	_, err := New(
+		"test",
 		WithProvider(mp, "model"),
 		captureOpt("first"),
 		captureOpt("second"),
@@ -336,7 +339,8 @@ func TestRun_SingleTurn(t *testing.T) {
 }
 
 func TestRun_WithSystemPrompt(t *testing.T) {
-	a, mp := newTestAgentWithMock(t,
+	a, mp := newTestAgentWithMock(
+		t,
 		WithSystemPrompt("You are a {{.Role}}."),
 		WithSystemData(map[string]any{"Role": "helper"}),
 	)
@@ -897,7 +901,8 @@ func TestStream_MaxTurnsExceeded(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestClone_Basic(t *testing.T) {
-	a, mp := newTestAgentWithMock(t,
+	a, mp := newTestAgentWithMock(
+		t,
 		WithSystemPrompt("You are helpful."),
 		WithTools(&echoTool{}),
 		WithMaxTurns(10),
@@ -1874,7 +1879,8 @@ func TestAgent_WithMemory_ContextIncludedInNextRun(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestAgent_WithMiddleware(t *testing.T) {
-	a, mp := newTestAgentWithMock(t,
+	a, mp := newTestAgentWithMock(
+		t,
 		WithMiddleware(middleware.WithRetry(3, middleware.ExponentialBackoff{Initial: 1 * time.Millisecond})),
 	)
 	mp.SetDefaultResponse(mock.MockResponse{

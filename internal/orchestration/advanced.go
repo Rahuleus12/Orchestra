@@ -178,7 +178,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 	startTime := time.Now()
 	iterationResults := make([]IterationResult, 0, cfg.MaxIterations)
 
-	e.logger.Info("Starting refinement process",
+	e.logger.Info(
+		"Starting refinement process",
 		"name", cfg.Name,
 		"max_iterations", cfg.MaxIterations,
 		"threshold", cfg.Threshold,
@@ -200,7 +201,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		evaluationPrompt := buildEvaluationPrompt(cfg.Criteria, currentOutput)
 		evalResult, err := cfg.Evaluator.Run(ctx, evaluationPrompt)
 		if err != nil {
-			e.logger.Warn("Evaluation failed, stopping refinement",
+			e.logger.Warn(
+				"Evaluation failed, stopping refinement",
 				"iteration", iteration,
 				"error", err,
 			)
@@ -217,7 +219,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 			Feedback:  feedback,
 		})
 
-		e.logger.Debug("Refinement iteration completed",
+		e.logger.Debug(
+			"Refinement iteration completed",
 			"iteration", iteration,
 			"score", score,
 			"feedback", truncateString(feedback, 100),
@@ -225,7 +228,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 
 		// Check if threshold is met
 		if score >= cfg.Threshold {
-			e.logger.Info("Refinement threshold met",
+			e.logger.Info(
+				"Refinement threshold met",
 				"iteration", iteration,
 				"score", score,
 				"threshold", cfg.Threshold,
@@ -242,7 +246,8 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		refinePrompt := buildRefinementPrompt(input, currentOutput, feedback)
 		refineResult, err := cfg.Refiner.Run(ctx, refinePrompt)
 		if err != nil {
-			e.logger.Warn("Refinement failed, keeping current output",
+			e.logger.Warn(
+				"Refinement failed, keeping current output",
 				slog.Int(keyIteration, iteration),
 				slog.Any(keyError, err),
 			)
@@ -503,7 +508,8 @@ func (e *PlanningEngine) Execute(ctx context.Context, cfg *PlanningConfig, goal 
 
 	startTime := time.Now()
 
-	e.logger.Info("Starting planning process",
+	e.logger.Info(
+		"Starting planning process",
 		"goal", truncateString(goal, 100),
 	)
 
@@ -528,7 +534,8 @@ func (e *PlanningEngine) Execute(ctx context.Context, cfg *PlanningConfig, goal 
 		// Check if we should replan
 		replanCount++
 		if replanCount > cfg.MaxReplanAttempts {
-			e.logger.Warn("Max replan attempts reached, giving up",
+			e.logger.Warn(
+				"Max replan attempts reached, giving up",
 				"replan_count", replanCount,
 				"max_attempts", cfg.MaxReplanAttempts,
 			)
@@ -537,7 +544,8 @@ func (e *PlanningEngine) Execute(ctx context.Context, cfg *PlanningConfig, goal 
 		}
 
 		// Replan
-		e.logger.Info("Replanning after failure",
+		e.logger.Info(
+			"Replanning after failure",
 			"replan_count", replanCount,
 			"error", executionErr,
 		)
@@ -620,7 +628,8 @@ Execute this step and provide your output:`,
 		step.Status = StepStatusCompleted
 		step.Result = result.FinalText()
 
-		e.logger.Debug("Step completed",
+		e.logger.Debug(
+			"Step completed",
 			"step_id", step.ID,
 			"description", truncateString(step.Description, 50),
 		)
@@ -1146,7 +1155,8 @@ func (e *EnsembleEngine) Execute(ctx context.Context, cfg *EnsembleConfig, input
 		defer cancel()
 	}
 
-	e.logger.Info("Starting ensemble execution",
+	e.logger.Info(
+		"Starting ensemble execution",
 		"name", cfg.Name,
 		"strategy", cfg.Strategy,
 		"agent_count", len(cfg.Agents),

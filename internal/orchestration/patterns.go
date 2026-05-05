@@ -137,7 +137,8 @@ func Debate(config DebateConfig) (*Workflow, error) {
 
 	// Add setup step (optional, can be used to prepare initial context)
 	setupStepID := "debate-setup"
-	builder.AddStep(setupStepID, config.Debaters[0],
+	builder.AddStep(
+		setupStepID, config.Debaters[0],
 		WithInput(func(ctx *WorkflowContext) (string, error) {
 			topic, ok := ctx.Get("topic").(string)
 			if !ok {
@@ -156,7 +157,8 @@ func Debate(config DebateConfig) (*Workflow, error) {
 		// Each debater presents their argument for this round
 		for i, debater := range config.Debaters {
 			debaterStepID := fmt.Sprintf("debater-%d-round-%d", i, round)
-			builder.AddStep(debaterStepID, debater,
+			builder.AddStep(
+				debaterStepID, debater,
 				WithInput(func(ctx *WorkflowContext) (string, error) {
 					topic, ok := ctx.Get("topic").(string)
 					if !ok {
@@ -208,7 +210,8 @@ func Debate(config DebateConfig) (*Workflow, error) {
 
 		// Add judge evaluation for this round
 		judgeStepID := fmt.Sprintf("judge-round-%d", round)
-		builder.AddStep(judgeStepID, config.Judge,
+		builder.AddStep(
+			judgeStepID, config.Judge,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				topic, ok := ctx.Get("topic").(string)
 				if !ok {
@@ -245,7 +248,8 @@ func Debate(config DebateConfig) (*Workflow, error) {
 
 	// Add final verdict step
 	verdictStepID := "final-verdict"
-	builder.AddStep(verdictStepID, config.Judge,
+	builder.AddStep(
+		verdictStepID, config.Judge,
 		WithInput(func(ctx *WorkflowContext) (string, error) {
 			topic, ok := ctx.Get("topic").(string)
 			if !ok {
@@ -328,7 +332,8 @@ func Hierarchical(config HierarchicalConfig) (*Workflow, error) {
 
 	// Step 1: Manager decomposes the task
 	analysisStepID := "manager-analysis"
-	builder.AddStep(analysisStepID, config.Manager,
+	builder.AddStep(
+		analysisStepID, config.Manager,
 		WithInput(func(ctx *WorkflowContext) (string, error) {
 			topic, ok := ctx.Get("topic").(string)
 			if !ok {
@@ -352,7 +357,8 @@ func Hierarchical(config HierarchicalConfig) (*Workflow, error) {
 	for workerType, worker := range config.Workers {
 		workerStepID := fmt.Sprintf("worker-%s", workerType)
 
-		builder.AddStep(workerStepID, worker,
+		builder.AddStep(
+			workerStepID, worker,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				topic, ok := ctx.Get("topic").(string)
 				if !ok {
@@ -389,7 +395,8 @@ func Hierarchical(config HierarchicalConfig) (*Workflow, error) {
 
 	// Step 3: Manager synthesizes worker results
 	synthesisStepID := "manager-synthesis"
-	builder.AddStep(synthesisStepID, config.Manager,
+	builder.AddStep(
+		synthesisStepID, config.Manager,
 		WithInput(func(ctx *WorkflowContext) (string, error) {
 			topic, ok := ctx.Get("topic").(string)
 			if !ok {

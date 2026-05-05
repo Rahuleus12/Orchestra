@@ -504,11 +504,13 @@ func TestWorkflowBuilderChaining(t *testing.T) {
 		WithInput(inputMapping).
 		WithOutput(outputMapping).
 		WithMetadata("key", "value").
-		AddStep("step-1", agent1,
+		AddStep(
+			"step-1", agent1,
 			WithTimeout(5*time.Minute),
 			WithRetry(retryPolicy),
 		).
-		AddStep("step-2", agent2,
+		AddStep(
+			"step-2", agent2,
 			WithCondition(func(ctx *WorkflowContext) bool {
 				return true
 			}),

@@ -41,7 +41,8 @@ func setupMeterProvider(
 		return mp, func(context.Context) error { return nil }, nil
 	}
 
-	mp.logger.Info("metrics enabled",
+	mp.logger.Info(
+		"metrics enabled",
 		slog.String("endpoint", internalCfg.Endpoint),
 		slog.String("service_name", internalCfg.ServiceName),
 		slog.String("namespace", internalCfg.Namespace),

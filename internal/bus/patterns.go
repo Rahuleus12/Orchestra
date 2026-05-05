@@ -77,7 +77,8 @@ func (rr *RequestResponse) Request(ctx context.Context, toAgent, topic string, p
 		return BusMessage{}, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	rr.logger.Debug("Sent request",
+	rr.logger.Debug(
+		"Sent request",
 		"correlation_id", correlationID,
 		"to_agent", toAgent,
 		"topic", topic,
@@ -93,7 +94,8 @@ func (rr *RequestResponse) Request(ctx context.Context, toAgent, topic string, p
 
 	select {
 	case resp := <-responseCh:
-		rr.logger.Debug("Received response",
+		rr.logger.Debug(
+			"Received response",
 			"correlation_id", correlationID,
 			"from_agent", resp.FromAgent,
 		)
@@ -242,7 +244,8 @@ func (rb *RequestBroadcast) Broadcast(
 		reqMsg.SetMetadata("broadcast", true)
 
 		if err := rb.bus.Publish(ctx, topic, reqMsg); err != nil {
-			rb.logger.Warn("Failed to send broadcast to agent",
+			rb.logger.Warn(
+				"Failed to send broadcast to agent",
 				"agent_id", agentID,
 				"error", err,
 			)
@@ -250,7 +253,8 @@ func (rb *RequestBroadcast) Broadcast(
 		}
 	}
 
-	rb.logger.Debug("Sent broadcast",
+	rb.logger.Debug(
+		"Sent broadcast",
 		"correlation_id", correlationID,
 		"target_agents", targetAgents,
 		"topic", topic,
@@ -270,7 +274,8 @@ func (rb *RequestBroadcast) Broadcast(
 			count := len(responses)
 			mu.Unlock()
 
-			rb.logger.Debug("Received broadcast response",
+			rb.logger.Debug(
+				"Received broadcast response",
 				"correlation_id", correlationID,
 				"from_agent", resp.FromAgent,
 				"progress", fmt.Sprintf("%d/%d", count, expectedCount),
@@ -283,7 +288,8 @@ func (rb *RequestBroadcast) Broadcast(
 
 		case <-timeoutCtx.Done():
 			// Timeout expired
-			rb.logger.Debug("Broadcast timeout",
+			rb.logger.Debug(
+				"Broadcast timeout",
 				"correlation_id", correlationID,
 				"received", len(responses),
 				"expected", expectedCount,
@@ -480,14 +486,16 @@ func (c *Consensus) Propose(
 		proposalMsg.SetMetadata("vote_options", "yes,no") // Default options
 
 		if err := c.bus.Publish(ctx, topic, proposalMsg); err != nil {
-			c.logger.Warn("Failed to send proposal to voter",
+			c.logger.Warn(
+				"Failed to send proposal to voter",
 				"voter_id", voterID,
 				"error", err,
 			)
 		}
 	}
 
-	c.logger.Debug("Sent consensus proposal",
+	c.logger.Debug(
+		"Sent consensus proposal",
 		"correlation_id", correlationID,
 		"voters", voters,
 		"topic", topic,
@@ -508,7 +516,8 @@ func (c *Consensus) Propose(
 			votes[vote.VoterID] = vote
 			mu.Unlock()
 
-			c.logger.Debug("Received vote",
+			c.logger.Debug(
+				"Received vote",
 				"correlation_id", correlationID,
 				"voter_id", vote.VoterID,
 				"value", vote.Value,
@@ -520,7 +529,8 @@ func (c *Consensus) Propose(
 			}
 
 		case <-timeoutCtx.Done():
-			c.logger.Debug("Consensus timeout",
+			c.logger.Debug(
+				"Consensus timeout",
 				"correlation_id", correlationID,
 				"votes_received", len(votes),
 				"voters", len(voters),
@@ -813,14 +823,16 @@ func (a *Auction) Start(
 		auctionMsg.SetMetadata("auction_strategy", config.Strategy)
 
 		if err := a.bus.Publish(ctx, topic, auctionMsg); err != nil {
-			a.logger.Warn("Failed to send auction invitation to bidder",
+			a.logger.Warn(
+				"Failed to send auction invitation to bidder",
 				"bidder_id", bidderID,
 				"error", err,
 			)
 		}
 	}
 
-	a.logger.Debug("Started auction",
+	a.logger.Debug(
+		"Started auction",
 		"correlation_id", correlationID,
 		"bidders", bidders,
 		"topic", topic,
@@ -846,7 +858,8 @@ func (a *Auction) Start(
 			currentBidCount := len(bids)
 			mu.Unlock()
 
-			a.logger.Debug("Received bid",
+			a.logger.Debug(
+				"Received bid",
 				"correlation_id", correlationID,
 				"bidder_id", bid.BidderID,
 				"value", bid.Value,
@@ -861,7 +874,8 @@ func (a *Auction) Start(
 			}
 
 		case <-timeoutCtx.Done():
-			a.logger.Debug("Auction timeout",
+			a.logger.Debug(
+				"Auction timeout",
 				"correlation_id", correlationID,
 				"bids_received", len(bids),
 				"bidders", len(bidders),
@@ -1080,7 +1094,8 @@ func (m *Multicast) Send(
 				failedCount++
 				mu.Unlock()
 
-				m.logger.Warn("Failed to multicast to agent",
+				m.logger.Warn(
+					"Failed to multicast to agent",
 					"agent_id", targetID,
 					"message_id", messageID,
 					"error", err,
@@ -1093,7 +1108,8 @@ func (m *Multicast) Send(
 
 	wg.Wait()
 
-	m.logger.Debug("Multicast complete",
+	m.logger.Debug(
+		"Multicast complete",
 		"message_id", messageID,
 		"sent", sentCount,
 		"failed", failedCount,

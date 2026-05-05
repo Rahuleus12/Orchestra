@@ -78,7 +78,8 @@ func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Con
 	// Setup tracing
 	tp, tpCleanup, err := setupTracerProvider(ctx, cfg.Observability.Tracing, orch.logger)
 	if err != nil {
-		orch.logger.Warn("tracing setup failed, using no-op provider",
+		orch.logger.Warn(
+			"tracing setup failed, using no-op provider",
 			slog.String("error", err.Error()),
 		)
 		orch.setupErr = err
@@ -91,7 +92,8 @@ func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Con
 	// Setup metrics
 	mp, mpCleanup, err := setupMeterProvider(ctx, cfg.Observability.Metrics, orch.logger)
 	if err != nil {
-		orch.logger.Warn("metrics setup failed, using no-op provider",
+		orch.logger.Warn(
+			"metrics setup failed, using no-op provider",
 			slog.String("error", err.Error()),
 		)
 		orch.setupErr = err
@@ -103,7 +105,8 @@ func Setup(ctx context.Context, cfg config.Config) (*Orchestra, func(context.Con
 	// Setup health checker
 	orch.health = newHealthChecker(orch.logger)
 
-	orch.logger.Info("observability initialized",
+	orch.logger.Info(
+		"observability initialized",
 		slog.Bool("tracing_enabled", cfg.Observability.Tracing.Enabled),
 		slog.Bool("metrics_enabled", cfg.Observability.Metrics.Enabled),
 		slog.String("service_name", cfg.Observability.Tracing.GetServiceName()),

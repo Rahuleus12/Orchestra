@@ -56,7 +56,8 @@ type MessageView struct {
 // NewLookupMessageTool creates a tool that allows agents to look up messages by SHA hash.
 // The journal is extracted from context using JournalFromContext.
 func NewLookupMessageTool() (tool.Tool, error) {
-	return tool.New("lookup_message",
+	return tool.New(
+		"lookup_message",
 		tool.WithDescription("Look up a previous message by its SHA-256 hash. This allows referencing specific messages from the conversation history, even after compaction."),
 		tool.WithInputSchema[LookupMessageInput](),
 		tool.WithHandler[LookupMessageInput, LookupMessageOutput](func(ctx context.Context, input LookupMessageInput) (LookupMessageOutput, error) {

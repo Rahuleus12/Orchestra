@@ -202,7 +202,8 @@ func (hc *HealthChecker) HandleReady() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ready","timestamp":"%s","uptime":"%s"}`,
+		fmt.Fprintf(
+			w, `{"status":"ready","timestamp":"%s","uptime":"%s"}`,
 			time.Now().Format(time.RFC3339),
 			time.Since(hc.startTime).Round(time.Second),
 		)
@@ -221,7 +222,8 @@ func (hc *HealthChecker) HandleLive() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"alive","timestamp":"%s"}`,
+		fmt.Fprintf(
+			w, `{"status":"alive","timestamp":"%s"}`,
 			time.Now().Format(time.RFC3339),
 		)
 	}

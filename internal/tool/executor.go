@@ -256,7 +256,8 @@ func (e *Executor) ExecuteSandboxed(ctx context.Context, call ToolCallInput, san
 
 	// Check memory limit (best effort)
 	if sandbox.MaxMemoryBytes > 0 && memUsed > sandbox.MaxMemoryBytes {
-		e.config.Logger.Warn("tool exceeded memory limit",
+		e.config.Logger.Warn(
+			"tool exceeded memory limit",
 			slog.String("tool", call.Name),
 			slog.Int64("used", memUsed),
 			slog.Int64("limit", sandbox.MaxMemoryBytes),
@@ -303,7 +304,8 @@ func (e *Executor) execute(ctx context.Context, call ToolCallInput) ToolCallResu
 		}
 	}
 
-	e.config.Logger.Debug("executing tool",
+	e.config.Logger.Debug(
+		"executing tool",
 		slog.String("tool", call.Name),
 		slog.String("input", truncate(string(call.Input), 500)),
 	)
@@ -312,12 +314,14 @@ func (e *Executor) execute(ctx context.Context, call ToolCallInput) ToolCallResu
 	output, execErr := tool.Execute(ctx, call.Input)
 
 	if execErr != nil {
-		e.config.Logger.Debug("tool execution failed",
+		e.config.Logger.Debug(
+			"tool execution failed",
 			slog.String("tool", call.Name),
 			slog.String("error", execErr.Error()),
 		)
 	} else {
-		e.config.Logger.Debug("tool execution completed",
+		e.config.Logger.Debug(
+			"tool execution completed",
 			slog.String("tool", call.Name),
 			slog.String("output", truncate(string(output), 500)),
 		)

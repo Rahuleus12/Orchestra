@@ -201,7 +201,8 @@ func (r *ToolRegistry) RegisterInNamespace(namespace string, t Tool) error {
 	r.names[fqn] = namespace
 	r.original[fqn] = name
 
-	r.logger.Debug("tool registered",
+	r.logger.Debug(
+		"tool registered",
 		slog.String("name", name),
 		slog.String("namespace", namespace),
 		slog.String("fqn", fqn),
@@ -573,7 +574,8 @@ func (t *loggingTool) Parameters() json.RawMessage {
 
 func (t *loggingTool) Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 	start := timeNow()
-	t.logger.Debug("tool execution started",
+	t.logger.Debug(
+		"tool execution started",
 		slog.String("tool", t.inner.Name()),
 		slog.String("input", truncate(string(input), 500)),
 	)
@@ -582,13 +584,15 @@ func (t *loggingTool) Execute(ctx context.Context, input json.RawMessage) (json.
 	duration := time.Duration(timeSince(start))
 
 	if err != nil {
-		t.logger.Error("tool execution failed",
+		t.logger.Error(
+			"tool execution failed",
 			slog.String("tool", t.inner.Name()),
 			slog.Duration("duration", duration),
 			slog.String("error", err.Error()),
 		)
 	} else {
-		t.logger.Debug("tool execution completed",
+		t.logger.Debug(
+			"tool execution completed",
 			slog.String("tool", t.inner.Name()),
 			slog.Duration("duration", duration),
 			slog.String("output", truncate(string(output), 500)),

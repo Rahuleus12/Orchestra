@@ -199,7 +199,8 @@ func Parallel(name string, agents []*agent.Agent, aggregator AggregatorFunc) (*W
 	// Add parallel steps
 	for i, agent := range agents {
 		stepID := fmt.Sprintf("parallel-%d", i)
-		builder.AddStep(stepID, agent,
+		builder.AddStep(
+			stepID, agent,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				// All parallel steps get the same input
 				if topic, ok := ctx.Get("topic").(string); ok {
@@ -212,7 +213,8 @@ func Parallel(name string, agents []*agent.Agent, aggregator AggregatorFunc) (*W
 
 	// Add aggregator step
 	aggregatorID := "aggregator"
-	builder.AddStep(aggregatorID, agents[0], // Use first agent as placeholder
+	builder.AddStep(
+		aggregatorID, agents[0], // Use first agent as placeholder
 		WithInput(func(ctx *WorkflowContext) (string, error) {
 			// Collect all parallel step outputs
 			results := make([]*agent.AgentResult, 0, len(agents))

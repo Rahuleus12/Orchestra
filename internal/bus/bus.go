@@ -262,7 +262,8 @@ func (b *InMemoryBus) Publish(ctx context.Context, topic string, msg BusMessage)
 
 	b.published.Add(1)
 
-	b.logger.Debug("Publishing message",
+	b.logger.Debug(
+		"Publishing message",
 		"message_id", msg.ID,
 		"topic", topic,
 		"from_agent", msg.FromAgent,
@@ -286,7 +287,8 @@ func (b *InMemoryBus) Publish(ctx context.Context, topic string, msg BusMessage)
 	b.mu.RUnlock()
 
 	if len(targets) == 0 {
-		b.logger.Debug("No matching subscribers for message",
+		b.logger.Debug(
+			"No matching subscribers for message",
 			"message_id", msg.ID,
 			"topic", topic,
 		)
@@ -362,7 +364,8 @@ func (b *InMemoryBus) SubscribeWithFilter(topics []string, handler Handler, filt
 	}
 	b.mu.Unlock()
 
-	b.logger.Debug("New subscription",
+	b.logger.Debug(
+		"New subscription",
 		"subscription_id", sub.id,
 		"topics", topics,
 	)
@@ -396,7 +399,8 @@ func (b *InMemoryBus) removeSubscription(sub *Subscription) {
 		}
 	}
 
-	b.logger.Debug("Subscription removed",
+	b.logger.Debug(
+		"Subscription removed",
 		"subscription_id", sub.id,
 		"topics", sub.topics,
 	)
@@ -421,7 +425,8 @@ func (b *InMemoryBus) Close() error {
 	// Wait for in-flight deliveries to complete
 	b.wg.Wait()
 
-	b.logger.Info("Bus closed",
+	b.logger.Info(
+		"Bus closed",
 		"published", b.published.Load(),
 		"delivered", b.delivered.Load(),
 		"dropped", b.dropped.Load(),
@@ -465,7 +470,8 @@ func (b *InMemoryBus) deliverMessage(sub *Subscription, msg BusMessage) {
 
 	if err != nil {
 		b.errors.Add(1)
-		b.logger.Warn("Handler error",
+		b.logger.Warn(
+			"Handler error",
 			"subscription_id", sub.id,
 			"message_id", msg.ID,
 			"topic", msg.Topic,

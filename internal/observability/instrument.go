@@ -42,7 +42,8 @@ func (ip *InstrumentProvider) WrapGenerate(
 ) func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 	return func(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 		spanName := fmt.Sprintf("orchestra.provider.%s.generate", providerName)
-		ctx, span := ip.tracer.Start(ctx, spanName,
+		ctx, span := ip.tracer.Start(
+			ctx, spanName,
 			WithAttributes(
 				StringAttr("provider", providerName),
 				StringAttr("model", req.Model),
@@ -70,13 +71,15 @@ func (ip *InstrumentProvider) WrapGenerate(
 		}
 
 		if err != nil {
-			span.RecordError(err,
+			span.RecordError(
+				err,
 				StringAttr("provider", providerName),
 				StringAttr("model", req.Model),
 			)
 			span.SetStatus(SpanStatusError, err.Error())
 
-			ip.logger.Error("provider call failed",
+			ip.logger.Error(
+				"provider call failed",
 				slog.String("provider", providerName),
 				slog.String("model", req.Model),
 				slog.Int64("duration_ms", duration.Milliseconds()),
@@ -94,7 +97,8 @@ func (ip *InstrumentProvider) WrapGenerate(
 		)
 		span.SetStatus(SpanStatusOK, "")
 
-		ip.logger.Debug("provider call completed",
+		ip.logger.Debug(
+			"provider call completed",
 			slog.String("provider", providerName),
 			slog.String("model", req.Model),
 			slog.Int64("duration_ms", duration.Milliseconds()),
@@ -134,7 +138,8 @@ func (ia *InstrumentAgent) StartRun(
 	agentName, model string,
 ) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.agent.%s.run", agentName)
-	ctx, span := ia.tracer.Start(ctx, spanName,
+	ctx, span := ia.tracer.Start(
+		ctx, spanName,
 		WithAttributes(
 			StringAttr("agent", agentName),
 			StringAttr("model", model),
@@ -146,7 +151,8 @@ func (ia *InstrumentAgent) StartRun(
 		ia.metrics.ActiveAgents.Inc()
 	}
 
-	ia.logger.Debug("agent run started",
+	ia.logger.Debug(
+		"agent run started",
 		slog.String("agent", agentName),
 		slog.String("model", model),
 	)
@@ -185,7 +191,8 @@ func (ia *InstrumentAgent) EndRun(
 		ia.metrics.TokensTotal.Add(int64(usage.TotalTokens))
 	}
 
-	ia.logger.Debug("agent run completed",
+	ia.logger.Debug(
+		"agent run completed",
 		slog.String("agent", agentName),
 		slog.Int64("duration_ms", duration.Milliseconds()),
 		slog.Int("turns", turns),
@@ -199,7 +206,8 @@ func (ia *InstrumentAgent) StartToolCall(
 	agentName, toolName string,
 ) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.agent.%s.tool.%s", agentName, toolName)
-	ctx, span := ia.tracer.Start(ctx, spanName,
+	ctx, span := ia.tracer.Start(
+		ctx, spanName,
 		WithAttributes(
 			StringAttr("agent", agentName),
 			StringAttr("tool", toolName),
@@ -232,7 +240,8 @@ func (ia *InstrumentAgent) EndToolCall(span Span, toolName string, duration time
 		ia.metrics.ToolLatency.RecordDuration(duration)
 	}
 
-	ia.logger.Debug("tool execution completed",
+	ia.logger.Debug(
+		"tool execution completed",
 		slog.String("tool", toolName),
 		slog.Int64("duration_ms", duration.Milliseconds()),
 	)
@@ -268,7 +277,8 @@ func (iw *InstrumentWorkflow) StartWorkflow(
 	stepCount int,
 ) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.workflow.%s.execute", workflowName)
-	ctx, span := iw.tracer.Start(ctx, spanName,
+	ctx, span := iw.tracer.Start(
+		ctx, spanName,
 		WithAttributes(
 			StringAttr("workflow", workflowName),
 			IntAttr("step_count", stepCount),
@@ -280,7 +290,8 @@ func (iw *InstrumentWorkflow) StartWorkflow(
 		iw.metrics.ActiveWorkflows.Inc()
 	}
 
-	iw.logger.Debug("workflow execution started",
+	iw.logger.Debug(
+		"workflow execution started",
 		slog.String("workflow", workflowName),
 		slog.Int("step_count", stepCount),
 	)
@@ -314,7 +325,8 @@ func (iw *InstrumentWorkflow) EndWorkflow(
 		iw.metrics.WorkflowDuration.RecordDuration(duration)
 	}
 
-	iw.logger.Debug("workflow execution completed",
+	iw.logger.Debug(
+		"workflow execution completed",
 		slog.String("workflow", workflowName),
 		slog.Int64("duration_ms", duration.Milliseconds()),
 		slog.Int("total_tokens", usage.TotalTokens),
@@ -327,7 +339,8 @@ func (iw *InstrumentWorkflow) StartStep(
 	workflowName, stepID, agentName string,
 ) (context.Context, Span) {
 	spanName := fmt.Sprintf("orchestra.workflow.%s.step.%s", workflowName, stepID)
-	ctx, span := iw.tracer.Start(ctx, spanName,
+	ctx, span := iw.tracer.Start(
+		ctx, spanName,
 		WithAttributes(
 			StringAttr("workflow", workflowName),
 			StringAttr("step_id", stepID),

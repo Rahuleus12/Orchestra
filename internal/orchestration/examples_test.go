@@ -18,7 +18,8 @@ func BasicWorkflow() {
 
 	// Build a sequential workflow
 	workflow, err := NewWorkflowBuilder("content-pipeline").
-		AddStep("research", researcher,
+		AddStep(
+			"research", researcher,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				topic, ok := ctx.Get("topic").(string)
 				if !ok {
@@ -27,7 +28,8 @@ func BasicWorkflow() {
 				return fmt.Sprintf("Research: %s", topic), nil
 			}),
 		).
-		AddStep("write", writer,
+		AddStep(
+			"write", writer,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				topic := ctx.Get("topic")
 				researchOutput, _ := ctx.GetStepOutput("research")
@@ -35,7 +37,8 @@ func BasicWorkflow() {
 					topic, researchOutput.FinalText()), nil
 			}),
 		).DependsOn("research").
-		AddStep("review", reviewer,
+		AddStep(
+			"review", reviewer,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				writeOutput, _ := ctx.GetStepOutput("write")
 				return fmt.Sprintf("Review: %s", writeOutput.FinalText()), nil
@@ -112,7 +115,8 @@ func ParallelWorkflow() {
 		return synthesis, nil
 	}
 
-	workflow, err := Parallel("multi-perspective-analysis",
+	workflow, err := Parallel(
+		"multi-perspective-analysis",
 		[]*agent.Agent{optimist, pessimist, neutral},
 		synthesizer,
 	)
@@ -305,7 +309,8 @@ func RetryPolicyDemo() {
 	}
 
 	workflow, err := NewWorkflowBuilder("retry-example").
-		AddStep("unreliable-step", mockAgent("flaky-agent"),
+		AddStep(
+			"unreliable-step", mockAgent("flaky-agent"),
 			WithRetry(retryPolicy),
 			WithTimeout(10*time.Second),
 		).
@@ -329,14 +334,16 @@ func RetryPolicyDemo() {
 func ConditionalExecution() {
 	workflow, err := NewWorkflowBuilder("conditional-workflow").
 		AddStep("analyze", mockAgent("analyzer")).
-		AddStep("process-a", mockAgent("processor-a"),
+		AddStep(
+			"process-a", mockAgent("processor-a"),
 			WithCondition(func(ctx *WorkflowContext) bool {
 				// Only execute if analysis flag is set
 				flag, ok := ctx.Get("use_processor_a").(bool)
 				return ok && flag
 			}),
 		).DependsOn("analyze").
-		AddStep("process-b", mockAgent("processor-b"),
+		AddStep(
+			"process-b", mockAgent("processor-b"),
 			WithCondition(func(ctx *WorkflowContext) bool {
 				// Only execute if use_processor_a is not set or false
 				flag, ok := ctx.Get("use_processor_a").(bool)
@@ -369,7 +376,8 @@ func ConditionalExecution() {
 // CustomMappings demonstrates custom input/output mappings.
 func CustomMappings() {
 	workflow, err := NewWorkflowBuilder("custom-mappings").
-		AddStep("transform", mockAgent("transformer"),
+		AddStep(
+			"transform", mockAgent("transformer"),
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				// Extract and transform input data
 				data := ctx.Get("raw_data").(string)
@@ -459,7 +467,8 @@ func ComplexWorkflow() {
 	validatorAgent := mockAgent("validator")
 
 	workflow, err := NewWorkflowBuilder("complex-workflow").
-		AddStep("route", routerAgent,
+		AddStep(
+			"route", routerAgent,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				topic := ctx.Get("topic").(string)
 				return fmt.Sprintf("Route task: %s", topic), nil
@@ -471,7 +480,8 @@ func ComplexWorkflow() {
 		DependsOn("route").
 		AddStep("worker-3", processorAgents[2]).
 		DependsOn("route").
-		AddStep("aggregate", aggregatorAgent,
+		AddStep(
+			"aggregate", aggregatorAgent,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				// Collect outputs from all workers
 				var outputs string
@@ -487,7 +497,8 @@ func ComplexWorkflow() {
 		DependsOn("worker-1").
 		DependsOn("worker-2").
 		DependsOn("worker-3").
-		AddStep("validate", validatorAgent,
+		AddStep(
+			"validate", validatorAgent,
 			WithInput(func(ctx *WorkflowContext) (string, error) {
 				aggregateOutput, _ := ctx.GetStepOutput("aggregate")
 				return fmt.Sprintf("Validate: %s", aggregateOutput.FinalText()), nil
@@ -528,11 +539,13 @@ func Metadata() {
 		WithMetadata("version", "1.0").
 		WithMetadata("author", "orchestration-team").
 		WithMetadata("priority", "high").
-		AddStep("step-1", mockAgent("worker"),
+		AddStep(
+			"step-1", mockAgent("worker"),
 			WithStepMetadata("estimated-duration", "30s"),
 			WithStepMetadata("requires-resource", "GPU"),
 		).
-		AddStep("step-2", mockAgent("worker"),
+		AddStep(
+			"step-2", mockAgent("worker"),
 			WithStepMetadata("estimated-duration", "60s"),
 			WithStepMetadata("requires-resource", "CPU"),
 		).
@@ -576,7 +589,8 @@ func ErrorHandling() {
 
 	workflow, err := NewWorkflowBuilder("error-handling").
 		AddStep("step-1", mockAgent("stable-agent")).
-		AddStep("step-2", failingAgent,
+		AddStep(
+			"step-2", failingAgent,
 			WithRetry(&RetryPolicy{
 				MaxAttempts:  3,
 				InitialDelay: 1 * time.Second,

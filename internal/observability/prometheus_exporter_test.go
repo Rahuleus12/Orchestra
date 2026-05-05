@@ -304,7 +304,8 @@ func TestExport_HistogramWithLabels(t *testing.T) {
 	t.Parallel()
 	pe, mp := newTestExporter(t)
 	meter := mp.Meter("test")
-	h := meter.Float64Histogram("rpc_duration",
+	h := meter.Float64Histogram(
+		"rpc_duration",
 		WithHistogramLabels(map[string]string{"service": "cart"}),
 	)
 	h.Record(0.25)

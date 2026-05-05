@@ -449,7 +449,8 @@ func (l *loggingProvider) Generate(ctx context.Context, req provider.GenerateReq
 	duration := time.Since(start)
 
 	if err != nil {
-		logger.Error("provider request failed",
+		logger.Error(
+			"provider request failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err,
 		)
@@ -462,7 +463,8 @@ func (l *loggingProvider) Generate(ctx context.Context, req provider.GenerateReq
 		"result_id", result.ID,
 	}
 	if result.Usage.TotalTokens > 0 {
-		attrs = append(attrs,
+		attrs = append(
+			attrs,
 			"prompt_tokens", result.Usage.PromptTokens,
 			"completion_tokens", result.Usage.CompletionTokens,
 			"total_tokens", result.Usage.TotalTokens,
@@ -487,7 +489,8 @@ func (l *loggingProvider) Stream(ctx context.Context, req provider.GenerateReque
 	innerCh, err := l.inner.Stream(ctx, req)
 	if err != nil {
 		duration := time.Since(start)
-		logger.Error("provider stream setup failed",
+		logger.Error(
+			"provider stream setup failed",
 			"duration_ms", duration.Milliseconds(),
 			"error", err,
 		)
@@ -511,7 +514,8 @@ func (l *loggingProvider) Stream(ctx context.Context, req provider.GenerateReque
 			case provider.StreamEventDone:
 				usage = evt.Usage
 			case provider.StreamEventError:
-				logger.Error("provider stream error",
+				logger.Error(
+					"provider stream error",
 					"error", evt.Error,
 				)
 			}
@@ -531,7 +535,8 @@ func (l *loggingProvider) Stream(ctx context.Context, req provider.GenerateReque
 			"tool_calls", toolCallCount,
 		}
 		if usage != nil {
-			attrs = append(attrs,
+			attrs = append(
+				attrs,
 				"prompt_tokens", usage.PromptTokens,
 				"completion_tokens", usage.CompletionTokens,
 				"total_tokens", usage.TotalTokens,

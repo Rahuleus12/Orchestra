@@ -546,7 +546,8 @@ func TestRegistry_MustRegisterInNamespace_Panic(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuilder_Basic(t *testing.T) {
-	tool, err := New("greet",
+	tool, err := New(
+		"greet",
 		WithDescription("Greet someone"),
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 			return json.RawMessage(`"hello"`), nil
@@ -578,7 +579,8 @@ func TestBuilder_WithInputSchema(t *testing.T) {
 		Count int    `json:"count" description:"Number of results" default:"5"`
 	}
 
-	tool, err := New("search",
+	tool, err := New(
+		"search",
 		WithDescription("Search for things"),
 		WithInputSchema[SearchInput](),
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
@@ -621,7 +623,8 @@ func TestBuilder_WithStringHandler(t *testing.T) {
 		Message string `json:"message"`
 	}
 
-	tool, err := New("echo",
+	tool, err := New(
+		"echo",
 		WithDescription("Echo a message"),
 		WithInputSchema[EchoInput](),
 		WithStringHandler(func(ctx context.Context, input EchoInput) (string, error) {
@@ -642,7 +645,8 @@ func TestBuilder_WithStringHandler(t *testing.T) {
 }
 
 func TestBuilder_WithRawHandler(t *testing.T) {
-	tool, err := New("raw",
+	tool, err := New(
+		"raw",
 		WithDescription("Raw handler"),
 		WithRawHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 			return json.RawMessage(`{"raw":true}`), nil
@@ -663,7 +667,8 @@ func TestBuilder_WithRawHandler(t *testing.T) {
 
 func TestBuilder_WithRawSchema(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"x":{"type":"integer"}}}`)
-	tool, err := New("raw_schema",
+	tool, err := New(
+		"raw_schema",
 		WithDescription("Has raw schema"),
 		WithRawSchema(schema),
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
@@ -679,7 +684,8 @@ func TestBuilder_WithRawSchema(t *testing.T) {
 }
 
 func TestBuilder_WithNoArgsHandler(t *testing.T) {
-	tool, err := New("ping",
+	tool, err := New(
+		"ping",
 		WithDescription("Ping"),
 		WithNoArgsHandler(func(ctx context.Context) (string, error) {
 			return "pong", nil
@@ -699,7 +705,8 @@ func TestBuilder_WithNoArgsHandler(t *testing.T) {
 }
 
 func TestBuilder_NoHandler(t *testing.T) {
-	_, err := New("no_handler",
+	_, err := New(
+		"no_handler",
 		WithDescription("No handler"),
 	)
 	if err == nil {
@@ -708,7 +715,8 @@ func TestBuilder_NoHandler(t *testing.T) {
 }
 
 func TestBuilder_EmptyName(t *testing.T) {
-	_, err := New("",
+	_, err := New(
+		"",
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 			return nil, nil
 		}),
@@ -747,7 +755,8 @@ func TestBuilder_WithToolMiddleware(t *testing.T) {
 		}
 	}
 
-	tool, err := New("wrapped",
+	tool, err := New(
+		"wrapped",
 		WithDescription("Wrapped tool"),
 		WithToolMiddleware(innerMW),
 		WithToolMiddleware(outerMW),
@@ -800,7 +809,8 @@ func TestTypedBuilder_Basic(t *testing.T) {
 		Y int `json:"y"`
 	}
 
-	tool, err := NewTyped[Input]("add",
+	tool, err := NewTyped[Input](
+		"add",
 		WithTypedDescription[Input]("Add two numbers"),
 		WithTypedHandler[Input](func(ctx context.Context, input Input) (json.RawMessage, error) {
 			return json.Marshal(input.X + input.Y)
@@ -833,7 +843,8 @@ func TestTypedBuilder_WithStringHandler(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	tool, err := NewTyped[Input]("greet",
+	tool, err := NewTyped[Input](
+		"greet",
 		WithTypedDescription[Input]("Greet"),
 		WithTypedStringHandler(func(ctx context.Context, input Input) (string, error) {
 			return "Hello, " + input.Name, nil
@@ -858,7 +869,8 @@ func TestTypedBuilder_SchemaGeneration(t *testing.T) {
 		Limit int    `json:"limit" description:"Max results" default:"10"`
 	}
 
-	tool, err := NewTyped[Input]("search",
+	tool, err := NewTyped[Input](
+		"search",
 		WithTypedDescription[Input]("Search"),
 		WithTypedHandler[Input](func(ctx context.Context, input Input) (json.RawMessage, error) {
 			return json.Marshal("ok")
@@ -908,7 +920,8 @@ func TestMustTyped_Panic(t *testing.T) {
 	}()
 
 	// Empty name should cause MustTyped to panic
-	MustTyped[string]("",
+	MustTyped[string](
+		"",
 		WithTypedHandler[string](func(ctx context.Context, input string) (json.RawMessage, error) {
 			return nil, nil
 		}),
@@ -1830,7 +1843,8 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuilder_HandlerWithEmptyInput(t *testing.T) {
-	tool, err := New("empty_input",
+	tool, err := New(
+		"empty_input",
 		WithDescription("Handles empty input"),
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
 			if len(input) == 0 {
@@ -1858,7 +1872,8 @@ func TestBuilder_HandlerInputUnmarshalError(t *testing.T) {
 		X int `json:"x"`
 	}
 
-	tool, err := New("strict",
+	tool, err := New(
+		"strict",
 		WithDescription("Strict input"),
 		WithInputSchema[Strict](),
 		WithHandler(func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {

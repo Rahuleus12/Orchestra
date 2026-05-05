@@ -149,7 +149,8 @@ func setupTracerProvider(
 		return tp, func(context.Context) error { return nil }, nil
 	}
 
-	tp.logger.Info("tracing enabled",
+	tp.logger.Info(
+		"tracing enabled",
 		slog.String("endpoint", internalCfg.Endpoint),
 		slog.String("service_name", internalCfg.ServiceName),
 		slog.Float64("sampling_rate", internalCfg.SamplingRate),
@@ -236,7 +237,8 @@ func (t *Tracer) Start(ctx context.Context, spanName string, opts ...SpanStartOp
 	t.mu.Unlock()
 
 	// Also store in provider for retrieval
-	t.logger.Debug("span started",
+	t.logger.Debug(
+		"span started",
 		slog.String("span", spanName),
 		slog.String("trace_id", span.spanContext().TraceID),
 	)
@@ -291,7 +293,8 @@ func (s *recordingSpan) End(options ...SpanEndOption) {
 	s.ended = true
 
 	duration := s.endTime.Sub(s.startTime)
-	s.tracer.logger.Debug("span ended",
+	s.tracer.logger.Debug(
+		"span ended",
 		slog.String("span", s.name),
 		slog.Int64("duration_ms", duration.Milliseconds()),
 		slog.String("status", s.status.String()),
