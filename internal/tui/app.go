@@ -351,7 +351,7 @@ func (m *AppModel) setupSessionCallbacks() {
 			return nil
 		}
 		path := fmt.Sprintf("session_%s.%s", sessionID, format)
-		_ = os.WriteFile(path, data, 0644)
+		_ = os.WriteFile(path, data, 0o644)
 		m.Error = fmt.Sprintf("Exported to %s", path)
 		return nil
 	}

@@ -68,7 +68,7 @@ type SessionStore struct {
 
 // NewSessionStore creates a new SessionStore with the given directory.
 func NewSessionStore(dir string) (*SessionStore, error) {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create session directory: %w", err)
 	}
 
@@ -319,7 +319,7 @@ func (s *SessionStore) save(session *Session) error {
 	}
 
 	path := s.sessionPath(session.ID)
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write session: %w", err)
 	}
 
