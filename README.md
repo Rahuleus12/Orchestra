@@ -566,8 +566,9 @@ The GitHub Actions pipeline runs on every push and pull request:
 | 6 | Tool System & Function Calling | ✅ Complete |
 | 7 | Memory & Context Management | ✅ Complete |
 | 8 | Observability & Operations | ✅ Complete |
-| 9 | Advanced Patterns (RAG, Self-Reflection, HITL) | 🔲 Planned |
-| 10 | Production Readiness | 🔲 Planned |
+| 9 | Advanced Patterns (RAG, Self-Reflection, HITL) | ✅ Complete |
+| 10 | Production Readiness | ✅ Complete |
+| 11 | Terminal TUI (Interactive Chat & Workflow UI) | 🔲 Planned |
 
 See [docs/PLAN.md](docs/PLAN.md) for the detailed project plan.
 

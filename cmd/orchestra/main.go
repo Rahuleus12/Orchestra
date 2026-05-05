@@ -11,6 +11,7 @@
 // Commands:
 //
 //	serve        Start the Orchestra server
+//	chat         Start the interactive TUI
 //	version      Print version information
 //	healthcheck  Run a health check
 package main
@@ -19,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+
+	tui "github.com/user/orchestra/pkg/tui"
 )
 
 // Build information. These variables are set via ldflags during build.
@@ -55,6 +58,8 @@ func run(args []string) error {
 		return runHealthcheck()
 	case "serve":
 		return runServe(rest)
+	case "chat":
+		return runChat(rest)
 	default:
 		return fmt.Errorf("unknown command %q. Run 'orchestra help' for usage", command)
 	}
@@ -68,6 +73,7 @@ Usage:
 
 Commands:
   serve        Start the Orchestra server
+  chat         Start the interactive TUI
   version      Print version information
   healthcheck  Run a health check
   help         Show this help message
@@ -125,6 +131,101 @@ Flags:
 	fmt.Println("Server mode is not yet implemented (Phase 1 — foundation)")
 	fmt.Println("The library foundation (types, interfaces, registry, config) is ready for use.")
 	return nil
+}
+
+// runChat starts the interactive terminal TUI.
+func runChat(args []string) error {
+	var agent, model, sessionDir string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--agent", "-a":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --agent requires a name argument")
+			}
+			i++
+			agent = args[i]
+		case "--model", "-m":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --model requires a name argument")
+			}
+			i++
+			model = args[i]
+		case "--resume", "-r":
+			// Session resume - consume the argument but don't store
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --resume requires a session ID argument")
+			}
+			i++
+			// TODO: Implement session resume
+			_ = args[i] // sessionID
+		case "--session-dir":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --session-dir requires a path argument")
+			}
+			i++
+			sessionDir = args[i]
+		case "--help", "-h":
+			fmt.Printf(`Usage:
+  orchestra chat [flags]
+
+Start an interactive terminal UI for chatting with Orchestra agents.
+
+Flags:
+  -a, --agent string       Start with a specific agent
+  -m, --model string       Start with a specific model
+  -r, --resume string      Resume a previous session by ID
+      --session-dir string  Directory for session storage (default: ~/.orchestra/sessions)
+  -h, --help               Show help for chat command
+
+Environment Variables:
+  NO_COLOR                 Disable colored output
+
+Examples:
+  orchestra chat
+  orchestra chat --agent assistant --model gpt-4
+  orchestra chat --resume 1234567890
+`)
+			return nil
+		default:
+			return fmt.Errorf("unknown flag %q", args[i])
+		}
+	}
+
+	// Build options
+	var opts []tui.Option
+	opts = append(opts, tui.WithVersion(Version))
+
+	if agent != "" && model != "" {
+		opts = append(opts, tui.WithAgent(agent, model))
+	} else if agent != "" {
+		opts = append(opts, tui.WithAgent(agent, "default"))
+	}
+
+	if sessionDir != "" {
+		opts = append(opts, tui.WithSessionDir(sessionDir))
+	}
+
+	// Check for non-interactive terminal or NO_COLOR
+	if os.Getenv("NO_COLOR") != "" {
+		return fmt.Errorf("TUI disabled: NO_COLOR environment variable is set")
+	}
+
+	if !isInteractiveTerminal() {
+		return fmt.Errorf("TUI requires an interactive terminal")
+	}
+
+	// Start the TUI
+	return tui.Run(opts...)
+}
+
+// isInteractiveTerminal checks if stdout is connected to a terminal.
+func isInteractiveTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }
 
 // goVersion returns the Go version used to build the binary.

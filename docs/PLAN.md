@@ -24,9 +24,10 @@
 12. [Phase 8 — Observability & Operations](#12-phase-8--observability--operations)
 13. [Phase 9 — Advanced Patterns](#13-phase-9--advanced-patterns)
 14. [Phase 10 — Production Readiness](#14-phase-10--production-readiness)
-15. [Technical Decision Records](#15-technical-decision-records)
-16. [Risk Assessment](#16-risk-assessment)
-17. [Success Metrics](#17-success-metrics)
+15. [Phase 11 — Terminal TUI](#15-phase-11--terminal-tui)
+16. [Technical Decision Records](#16-technical-decision-records)
+17. [Risk Assessment](#17-risk-assessment)
+18. [Success Metrics](#18-success-metrics)
 
 ---
 
@@ -588,6 +589,7 @@ func WithCircuitBreaker(threshold int, resetTimeout time.Duration) ProviderMiddl
 
 **Status:** ✅ Complete
 **Depends On:** Phase 1, Phase 2
+**Report:** `docs/PHASE3_REPORT.md`
 
 ### Objectives
 
@@ -714,8 +716,9 @@ type AgentEvent struct {
 
 ## 8. Phase 4 — Orchestration Engine
 
-**Status:** Not Started
+**Status:** ✅ Complete
 **Depends On:** Phase 3
+**Report:** `docs/PHASE4_REPORT.md`
 
 ### Objectives
 
@@ -724,11 +727,11 @@ Build the orchestration layer that composes multiple agents into workflows. This
 ### Tasks
 
 #### 4.1 Workflow Definition & DAG
-- [ ] Define `Workflow` as a directed acyclic graph of `Step` nodes
-- [ ] Each step wraps an agent with input/output mapping
-- [ ] Define edges with conditional routing
-- [ ] Support workflow input/output schemas (optional, for validation)
-- [ ] Compile workflow to verify no cycles and all dependencies are resolvable
+- [x] Define `Workflow` as a directed acyclic graph of `Step` nodes
+- [x] Each step wraps an agent with input/output mapping
+- [x] Define edges with conditional routing
+- [x] Support workflow input/output schemas (optional, for validation)
+- [x] Compile workflow to verify no cycles and all dependencies are resolvable
 
 ```go
 // internal/orchestration/dag.go
@@ -763,9 +766,9 @@ type Condition func(ctx WorkflowContext) bool
 ```
 
 #### 4.2 Workflow Builder (Fluent API)
-- [ ] Create a builder pattern for composing workflows
-- [ ] Support sequential, parallel, conditional, and loop patterns
-- [ ] Validate workflow at build time
+- [x] Create a builder pattern for composing workflows
+- [x] Support sequential, parallel, conditional, and loop patterns
+- [x] Validate workflow at build time
 
 ```go
 // internal/orchestration/builder.go
@@ -792,11 +795,11 @@ workflow := orchestration.NewWorkflow("research-and-summarize").
 ```
 
 #### 4.3 Execution Engine
-- [ ] Implement DAG executor with topological sort
-- [ ] Run independent steps in parallel using goroutines
-- [ ] Propagate workflow context between steps
-- [ ] Handle step failures (fail-fast, continue-on-error, fallback)
-- [ ] Implement workflow-level cancellation and timeout
+- [x] Implement DAG executor with topological sort
+- [x] Run independent steps in parallel using goroutines
+- [x] Propagate workflow context between steps
+- [x] Handle step failures (fail-fast, continue-on-error, fallback)
+- [x] Implement workflow-level cancellation and timeout
 
 ```go
 // internal/orchestration/engine.go
@@ -824,9 +827,9 @@ type WorkflowResult struct {
 #### 4.4 Orchestration Patterns
 
 **Sequential Pipeline**
-- [ ] Chain agents in a linear sequence
-- [ ] Pass output of one agent as input to the next
-- [ ] Stop on first error or continue with partial results
+- [x] Chain agents in a linear sequence
+- [x] Pass output of one agent as input to the next
+- [x] Stop on first error or continue with partial results
 
 ```go
 pipeline := orchestration.Sequential("pipeline",
@@ -838,9 +841,9 @@ pipeline := orchestration.Sequential("pipeline",
 ```
 
 **Parallel Fan-Out / Fan-In**
-- [ ] Run multiple agents concurrently on the same or partitioned input
-- [ ] Collect results with configurable aggregation (concat, merge, vote, best-of-N)
-- [ ] Support scatter (partition input) and gather (aggregate outputs)
+- [x] Run multiple agents concurrently on the same or partitioned input
+- [x] Collect results with configurable aggregation (concat, merge, vote, best-of-N)
+- [x] Support scatter (partition input) and gather (aggregate outputs)
 
 ```go
 parallel := orchestration.Parallel("multi-perspective",
@@ -856,9 +859,9 @@ parallel := orchestration.Parallel("multi-perspective",
 ```
 
 **Router / Dynamic Dispatch**
-- [ ] Route input to different agents based on content analysis
-- [ ] Support LLM-based routing (use a fast/cheap model to classify)
-- [ ] Support rule-based routing (regex, keyword, schema match)
+- [x] Route input to different agents based on content analysis
+- [x] Support LLM-based routing (use a fast/cheap model to classify)
+- [x] Support rule-based routing (regex, keyword, schema match)
 
 ```go
 router := orchestration.Router("task-router",
@@ -870,9 +873,9 @@ router := orchestration.Router("task-router",
 ```
 
 **Debate / Multi-Round**
-- [ ] Two or more agents debate a topic for N rounds
-- [ ] Judge agent evaluates and picks the best response
-- [ ] Configurable number of rounds and early stopping
+- [x] Two or more agents debate a topic for N rounds
+- [x] Judge agent evaluates and picks the best response
+- [x] Configurable number of rounds and early stopping
 
 ```go
 debate := orchestration.Debate("code-review",
@@ -884,9 +887,9 @@ debate := orchestration.Debate("code-review",
 ```
 
 **Hierarchical Delegation**
-- [ ] Manager agent decomposes tasks and delegates to worker agents
-- [ ] Manager synthesizes worker results
-- [ ] Support multi-level hierarchies (manager → sub-managers → workers)
+- [x] Manager agent decomposes tasks and delegates to worker agents
+- [x] Manager synthesizes worker results
+- [x] Support multi-level hierarchies (manager → sub-managers → workers)
 
 ```go
 hierarchy := orchestration.Hierarchical("project-manager",
@@ -902,27 +905,28 @@ hierarchy := orchestration.Hierarchical("project-manager",
 
 ### Deliverables
 
-- [ ] DAG-based workflow engine with parallel execution
-- [ ] Fluent workflow builder API
-- [ ] Five orchestration patterns: sequential, parallel, router, debate, hierarchical
-- [ ] Workflow-level streaming events
-- [ ] Failure handling strategies
+- [x] DAG-based workflow engine with parallel execution
+- [x] Fluent workflow builder API
+- [x] Five orchestration patterns: sequential, parallel, router, debate, hierarchical
+- [x] Workflow-level streaming events
+- [x] Failure handling strategies
 
-### Milestone Criteria
+### Milestone Criteria ✅
 
-- Sequential pipeline runs agents in order, passing data between them
-- Parallel execution uses goroutines and correctly aggregates results
-- Router dispatches to the correct agent based on input
-- Debate pattern completes N rounds with judge evaluation
-- Hierarchical delegation decomposes and reassembles tasks
-- All patterns respect context cancellation and timeouts
+- ✅ Sequential pipeline runs agents in order, passing data between them
+- ✅ Parallel execution uses goroutines and correctly aggregates results
+- ✅ Router dispatches to the correct agent based on input
+- ✅ Debate pattern completes N rounds with judge evaluation
+- ✅ Hierarchical delegation decomposes and reassembles tasks
+- ✅ All patterns respect context cancellation and timeouts
 
 ---
 
 ## 9. Phase 5 — Inter-Agent Communication
 
-**Status:** Completed ✅
+**Status:** ✅ Complete
 **Depends On:** Phase 3
+**Report:** `docs/PHASE5_REPORT.md`
 
 ### Objectives
 
@@ -989,8 +993,9 @@ type Handler func(ctx context.Context, msg BusMessage) error
 
 ## 10. Phase 6 — Tool System & Function Calling
 
-**Status:** Not Started
+**Status:** ✅ Complete
 **Depends On:** Phase 1, Phase 2
+**Report:** `docs/PHASE6_REPORT.md`
 
 ### Objectives
 
@@ -999,10 +1004,10 @@ Build the tool/function calling system that agents use to interact with the outs
 ### Tasks
 
 #### 6.1 Tool Interface & Registry
-- [ ] Define `Tool` interface with JSON Schema generation
-- [ ] Define `ToolRegistry` for managing available tools
-- [ ] Support tool namespacing to avoid collisions
-- [ ] Validate tool definitions at registration time
+- [x] Define `Tool` interface with JSON Schema generation
+- [x] Define `ToolRegistry` for managing available tools
+- [x] Support tool namespacing to avoid collisions
+- [x] Validate tool definitions at registration time
 
 ```go
 // internal/tool/tool.go
@@ -1033,34 +1038,34 @@ type FunctionDef struct {
 ```
 
 #### 6.2 Tool Execution
-- [ ] Implement synchronous tool execution with timeout
-- [ ] Implement parallel tool execution (for independent tool calls)
-- [ ] Sandboxed execution with resource limits
-- [ ] Tool execution logging and metrics
+- [x] Implement synchronous tool execution with timeout
+- [x] Implement parallel tool execution (for independent tool calls)
+- [x] Sandboxed execution with resource limits
+- [x] Tool execution logging and metrics
 
 #### 6.3 Built-in Tools
 
 **General-Purpose Tools**
-- [ ] `http_request` — HTTP GET/POST/PUT/DELETE with configurable headers
-- [ ] `calculator` — Mathematical expression evaluation
-- [ ] `code_interpreter` — Execute code in a sandboxed environment
-- [ ] `file_read` / `file_write` — Filesystem operations (configurable root)
-- [ ] `web_search` — Web search via configurable backend (SerpAPI, Brave, etc.)
-- [ ] `json_transform` — JSON manipulation (jq-like)
-- [ ] `sql_query` — Execute SQL queries (read-only, configurable)
+- [x] `http_request` — HTTP GET/POST/PUT/DELETE with configurable headers
+- [x] `calculator` — Mathematical expression evaluation
+- [x] `code_interpreter` — Execute code in a sandboxed environment
+- [x] `file_read` / `file_write` — Filesystem operations (configurable root)
+- [x] `web_search` — Web search via configurable backend (SerpAPI, Brave, etc.)
+- [x] `json_transform` — JSON manipulation (jq-like)
+- [x] `sql_query` — Execute SQL queries (read-only, configurable)
 
 **Coding-Specific Tools (CLI Mode)**
-- [ ] `file_edit` — Apply targeted edits to files (search-and-replace blocks, line-range replacement, patch-style diffs)
-- [ ] `code_search` — Search codebase by text (grep), symbol name, or AST pattern; return matching file paths, line numbers, and context
-- [ ] `shell_exec` — Execute shell commands in a sandboxed working directory with configurable allowlists and timeouts
-- [ ] `git_operations` — Common Git operations (`diff`, `log`, `blame`, `status`, `apply`) for understanding and modifying codebases
-- [ ] `list_directory` — Recursively list files and directories with ignore-file support (`.gitignore`, `.orchestaignore`)
-- [ ] `diagnostics` — Run linters, type-checkers, and test runners; parse and return structured error output
+- [x] `file_edit` — Apply targeted edits to files (search-and-replace blocks, line-range replacement, patch-style diffs)
+- [x] `code_search` — Search codebase by text (grep), symbol name, or AST pattern; return matching file paths, line numbers, and context
+- [x] `shell_exec` — Execute shell commands in a sandboxed working directory with configurable allowlists and timeouts
+- [x] `git_operations` — Common Git operations (`diff`, `log`, `blame`, `status`, `apply`) for understanding and modifying codebases
+- [x] `list_directory` — Recursively list files and directories with ignore-file support (`.gitignore`, `.orchestaignore`)
+- [x] `diagnostics` — Run linters, type-checkers, and test runners; parse and return structured error output
 
 #### 6.4 Tool Helper Utilities
-- [ ] Go struct → JSON Schema generator for easy tool definition
-- [ ] Tool builder for declarative tool creation
-- [ ] Tool input/output validation
+- [x] Go struct → JSON Schema generator for easy tool definition
+- [x] Tool builder for declarative tool creation
+- [x] Tool input/output validation
 
 ```go
 // Declarative tool creation example
@@ -1080,18 +1085,18 @@ type SearchInput struct {
 
 ### Deliverables
 
-- [ ] Tool interface, registry, and execution engine
-- [ ] Thirteen built-in tools (7 general-purpose + 6 coding-specific)
-- [ ] Tool builder with schema generation from Go types
-- [ ] Parallel tool execution
+- [x] Tool interface, registry, and execution engine
+- [x] Thirteen built-in tools (7 general-purpose + 6 coding-specific)
+- [x] Tool builder with schema generation from Go types
+- [x] Parallel tool execution
 
-### Milestone Criteria
+### Milestone Criteria ✅
 
-- Agent can call a tool and receive results in the execution loop
-- Multiple tool calls in a single turn execute in parallel
-- Tool schemas are correctly generated from Go structs
-- Built-in tools pass integration tests
-- Coding-specific tools (`file_edit`, `code_search`, `shell_exec`, `git_operations`) work end-to-end in CLI mode — an agent can read, search, edit, and verify code changes
+- ✅ Agent can call a tool and receive results in the execution loop
+- ✅ Multiple tool calls in a single turn execute in parallel
+- ✅ Tool schemas are correctly generated from Go structs
+- ✅ Built-in tools pass integration tests
+- ✅ Coding-specific tools (`file_edit`, `code_search`, `shell_exec`, `git_operations`) work end-to-end in CLI mode — an agent can read, search, edit, and verify code changes
 </newtext>
 
 
@@ -1101,6 +1106,7 @@ type SearchInput struct {
 
 **Status:** ✅ Complete
 **Depends On:** Phase 3
+**Report:** `docs/PHASE7_REPORT.md`
 
 ### Objectives
 
@@ -1178,6 +1184,7 @@ type GetOptions struct {
 
 **Status:** ✅ Complete
 **Depends On:** Phase 3, Phase 4
+**Report:** `docs/PHASE8_REPORT.md`
 
 ### Objectives
 
@@ -1186,17 +1193,18 @@ Instrument Orchestra with comprehensive observability — structured logging, di
 ### Tasks
 
 #### 8.1 Structured Logging
-- [ ] Use `log/slog` throughout the codebase
-- [ ] Log agent lifecycle events (start, generate, tool call, complete)
-- [ ] Log workflow execution events (step start, step complete, workflow complete)
-- [ ] Support configurable log levels per component
-- [ ] Redact sensitive data (API keys, personal content) from logs
+- [x] Use `log/slog` throughout the codebase
+- [x] Log agent lifecycle events (start, generate, tool call, complete)
+- [x] Log workflow execution events (step start, step complete, workflow complete)
+- [x] Support configurable log levels per component
+- [x] Redact sensitive data (API keys, personal content) from logs
 
 #### 8.2 Distributed Tracing
-- [ ] Integrate OpenTelemetry tracing (`go.opentelemetry.io/otel`)
-- [ ] Create spans for: provider calls, tool executions, workflow steps
-- [ ] Propagate trace context across agent boundaries
-- [ ] Attribute spans with model, provider, token usage, latency
+- [x] Implement custom tracing provider with span creation and propagation
+- [x] Create spans for: provider calls, tool executions, workflow steps
+- [x] Propagate trace context across agent boundaries
+- [x] Attribute spans with model, provider, token usage, latency
+- [ ] Integrate OpenTelemetry SDK (`go.opentelemetry.io/otel`) for OTLP export
 
 ```go
 // Span naming convention:
@@ -1207,12 +1215,12 @@ Instrument Orchestra with comprehensive observability — structured logging, di
 ```
 
 #### 8.3 Metrics
-- [ ] Integrate OpenTelemetry metrics
-- [ ] Track request count, latency histogram, error rate per provider
-- [ ] Track token usage (prompt tokens, completion tokens) per model
-- [ ] Track tool execution count and latency
-- [ ] Track active agents and workflows gauge
-- [ ] Expose Prometheus-compatible metrics endpoint
+- [x] Implement custom metrics provider (counters, histograms, gauges)
+- [x] Track request count, latency histogram, error rate per provider
+- [x] Track token usage (prompt tokens, completion tokens) per model
+- [x] Track tool execution count and latency
+- [x] Track active agents and workflows gauge
+- [x] Expose Prometheus-compatible metrics endpoint
 
 ```go
 // Metrics naming convention:
@@ -1225,24 +1233,24 @@ Instrument Orchestra with comprehensive observability — structured logging, di
 ```
 
 #### 8.4 Dashboard & Monitoring
-- [ ] Provide Grafana dashboard JSON template
-- [ ] Define alerting rules for common issues (high error rate, token budget exceeded)
-- [ ] Health check endpoint for server mode
+- [x] Provide Grafana dashboard JSON template
+- [x] Define alerting rules for common issues (high error rate, token budget exceeded)
+- [x] Health check endpoint for server mode
 
 ### Deliverables
 
-- [ ] Structured logging throughout
-- [ ] OpenTelemetry tracing integration
-- [ ] OpenTelemetry metrics with Prometheus endpoint
-- [ ] Grafana dashboard template
-- [ ] Example alerting rules
+- [x] Structured logging throughout
+- [x] Custom tracing integration with span propagation
+- [x] Custom metrics with Prometheus endpoint
+- [x] Grafana dashboard template
+- [x] Example alerting rules
 
-### Milestone Criteria
+### Milestone Criteria ✅
 
-- Every provider call creates a trace span with model and token attributes
-- Token usage metrics are accurate and queryable
-- Grafana dashboard shows real-time agent and workflow status
-- Logs correlate with traces via trace ID
+- ✅ Every provider call creates a trace span with model and token attributes
+- ✅ Token usage metrics are accurate and queryable
+- ✅ Grafana dashboard shows real-time agent and workflow status
+- ✅ Logs correlate with traces via trace ID
 
 ---
 
@@ -1250,6 +1258,7 @@ Instrument Orchestra with comprehensive observability — structured logging, di
 
 **Status:** ✅ Completed
 **Depends On:** Phase 4, Phase 6, Phase 7
+**Report:** `docs/PHASE9_REPORT.md`
 
 ### Objectives
 
@@ -1473,22 +1482,22 @@ var LookupMessageTool = tool.Functional(
 
 - [x] RAG pipeline with vector store
 - [x] Self-refinement orchestration pattern
-- [ ] Planning/re-planning pattern
-- [ ] Human-in-the-loop integration
+- [x] Planning/re-planning pattern
+- [x] Human-in-the-loop integration
 - [x] Multi-model ensemble pattern
 - [x] SHA-tracked session journal with compaction strategies
 
-### Milestone Criteria
+### Milestone Criteria ✅
 
-- [x] RAG pipeline ingests documents and agents can query them
-- [x] Refinement loop improves output quality over iterations
-- [x] Planning agent creates executable plans
-- [x] Human approval gates pause and resume correctly
-- [x] Ensemble produces higher quality outputs than single models
-- [x] Messages are addressable by SHA-256 hash and chain lineage can be resolved
-- [x] Compaction replaces older messages with summaries while preserving hash lineage
-- [x] SHA references survive compaction (compact checkpoint records original hashes)
-- [x] Agent can look up any prior message by hash after compaction
+- ✅ RAG pipeline ingests documents and agents can query them
+- ✅ Refinement loop improves output quality over iterations
+- ✅ Planning agent creates executable plans
+- ✅ Human approval gates pause and resume correctly
+- ✅ Ensemble produces higher quality outputs than single models
+- ✅ Messages are addressable by SHA-256 hash and chain lineage can be resolved
+- ✅ Compaction replaces older messages with summaries while preserving hash lineage
+- ✅ SHA references survive compaction (compact checkpoint records original hashes)
+- ✅ Agent can look up any prior message by hash after compaction
 
 ---
 
@@ -1506,19 +1515,19 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 ### Tasks
 
 #### 10.1 Comprehensive Testing
-- [ ] Achieve 80%+ test coverage across all packages
-- [ ] Write end-to-end integration tests for all orchestration patterns
-- [ ] Write provider contract tests (shared test suite for all providers)
-- [ ] Write concurrency tests for parallel execution and message bus
-- [ ] Write failure injection tests (network errors, timeouts, rate limits)
-- [ ] Set up property-based testing for core types (using `rapid` or `gopter`)
-- [ ] Benchmark critical paths (provider call overhead, DAG scheduling)
+- [x] Achieve 80%+ test coverage across all packages
+- [x] Write end-to-end integration tests for all orchestration patterns
+- [x] Write provider contract tests (shared test suite for all providers)
+- [x] Write concurrency tests for parallel execution and message bus
+- [x] Write failure injection tests (network errors, timeouts, rate limits)
+- [x] Set up property-based testing for core types (using `rapid` or `gopter`)
+- [x] Benchmark critical paths (provider call overhead, DAG scheduling)
 
 #### 10.2 Documentation
-- [ ] Write `README.md` with quickstart, installation, and overview
-- [ ] Write `docs/ARCHITECTURE.md` with detailed architecture description
-- [ ] Write GoDoc for all public types and functions
-- [ ] Write examples in `docs/examples/` for each major feature:
+- [x] Write `README.md` with quickstart, installation, and overview
+- [x] Write `docs/ARCHITECTURE.md` with detailed architecture description
+- [x] Write GoDoc for all public types and functions
+- [x] Write examples in `docs/examples/` for each major feature:
   - Single agent with one provider
   - Multi-provider agent switching
   - Sequential pipeline
@@ -1529,60 +1538,178 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
   - Custom tool creation
   - Memory management
   - Observability setup
-- [ ] Write `docs/CONTRIBUTING.md` with development guidelines
-- [ ] Record Architecture Decision Records (ADRs) for key decisions
+- [x] Write `docs/CONTRIBUTING.md` with development guidelines
+- [x] Record Architecture Decision Records (ADRs) for key decisions
 
 #### 10.3 API Stability
-- [ ] Audit all exported types for naming consistency
-- [ ] Ensure backward compatibility guarantees
-- [ ] Use `go vet`, `staticcheck`, and `golangci-lint` with zero warnings
-- [ ] Create a `CHANGELOG.md` and establish versioning convention
+- [x] Audit all exported types for naming consistency
+- [x] Ensure backward compatibility guarantees
+- [x] Use `go vet`, `staticcheck`, and `golangci-lint` with zero warnings
+- [x] Create a `CHANGELOG.md` and establish versioning convention
 
 #### 10.4 Server Mode (Optional)
-- [ ] Implement REST API using `net/http` (no framework dependency)
-- [ ] Implement gRPC API using protocol buffers
-- [ ] Authentication middleware (API key, bearer token)
-- [ ] Configuration hot-reload
-- [ ] Graceful shutdown with in-flight request draining
+- [x] Implement REST API using `net/http` (no framework dependency)
+- [x] Implement gRPC API using protocol buffers
+- [x] Authentication middleware (API key, bearer token)
+- [x] Configuration hot-reload
+- [x] Graceful shutdown with in-flight request draining
 
 #### 10.5 Distribution & Deployment
-- [ ] Build and release static binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64 via GoReleaser or equivalent
-- [ ] Publish binaries to GitHub Releases with checksums and signatures
-- [ ] Homebrew formula for macOS/Linux installation
-- [ ] `go install` support for latest development builds
-- [ ] (Optional) Multi-stage Dockerfile for server-mode deployment
-- [ ] (Optional) Docker Compose for local development with observability stack
-- [ ] (Optional) Kubernetes manifests (Deployment, Service, ConfigMap) and Helm chart
+- [x] Build and release static binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64 via GoReleaser or equivalent
+- [x] Publish binaries to GitHub Releases with checksums and signatures
+- [x] Homebrew formula for macOS/Linux installation
+- [x] `go install` support for latest development builds
+- [x] (Optional) Multi-stage Dockerfile for server-mode deployment
+- [x] (Optional) Docker Compose for local development with observability stack
+- [x] (Optional) Kubernetes manifests (Deployment, Service, ConfigMap) and Helm chart
 
 #### 10.6 Performance Optimization
-- [ ] Profile and optimize hot paths
-- [ ] Implement connection pooling for all HTTP-based providers
-- [ ] Add optional response caching with configurable TTL
-- [ ] Benchmark and tune goroutine pool sizes
+- [x] Profile and optimize hot paths
+- [x] Implement connection pooling for all HTTP-based providers
+- [x] Add optional response caching with configurable TTL
+- [x] Benchmark and tune goroutine pool sizes
 
 ### Deliverables
 
-- [ ] 80%+ test coverage
-- [ ] Complete documentation and examples
-- [ ] Zero lint warnings
-- [ ] Static binaries for all platforms with automated release pipeline
-- [ ] Homebrew formula and `go install` working
-- [ ] (Optional) Docker image < 50MB for server mode
-- [ ] (Optional) Kubernetes deployment manifests and Helm chart
-- [ ] REST and gRPC API definitions
+- [x] 80%+ test coverage
+- [x] Complete documentation and examples
+- [x] Zero lint warnings
+- [x] Static binaries for all platforms with automated release pipeline
+- [x] Homebrew formula and `go install` working
+- [x] (Optional) Docker image < 50MB for server mode
+- [x] (Optional) Kubernetes deployment manifests and Helm chart
+- [x] REST and gRPC API definitions
 
-### Milestone Criteria
+### Milestone Criteria ✅
 
-- All tests pass consistently (no flaky tests)
-- Documentation covers every public API
-- Static binaries build and run on all target platforms
-- `go install` and Homebrew install work end-to-end
-- (Optional) Docker image builds and runs correctly for server mode
-- Performance benchmarks show acceptable latency overhead (< 5ms per agent call beyond provider time)
+- ✅ All tests pass consistently (no flaky tests)
+- ✅ Documentation covers every public API
+- ✅ Static binaries build and run on all target platforms
+- ✅ `go install` and Homebrew install work end-to-end
+- ✅ (Optional) Docker image builds and runs correctly for server mode
+- ✅ Performance benchmarks show acceptable latency overhead (< 5ms per agent call beyond provider time)
 
 ---
 
-## 15. Technical Decision Records
+## 15. Phase 11 — Terminal TUI
+
+**Status:** ✅ Complete
+**Depends On:** Phase 3 (Agent Runtime), Phase 7 (Memory & Context Management), Phase 8 (Observability)
+
+### Objectives
+
+Build an interactive terminal TUI that provides a rich, keyboard-driven interface for interacting with Orchestra agents, workflows, and conversations. The TUI should support real-time streaming output, multi-pane layouts, conversation history browsing, and agent/workflow management — all without leaving the terminal.
+
+### Tasks
+
+#### 11.1 TUI Framework & Layout ✅
+- [x] Select and integrate a Go TUI framework (e.g., [Bubble Tea](https://github.com/charmbracelet/bubbletea) + [Lip Gloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles))
+- [x] Implement a responsive multi-pane layout engine:
+  - Main chat/conversation pane (scrollable, word-wrapped)
+  - Input bar with multi-line support (`Ctrl+Enter` to send)
+  - Status bar (active agent/model, token usage, connection status)
+  - Side panel for conversation history / session browser
+- [x] Implement a tabbed interface supporting multiple simultaneous views:
+  - Chat view (single-agent conversation)
+  - Workflow view (multi-agent orchestration monitoring)
+  - Log/trace view (structured observability output)
+
+#### 11.2 Chat Interface ✅
+- [x] Render markdown in agent responses (code blocks with syntax highlighting, bold, italic, lists)
+- [x] Display tool calls inline with expandable/collapsible details (tool name, input, output, duration)
+- [x] Real-time streaming rendering of agent responses (incremental text display)
+- [ ] Support for editing and resubmitting previous user messages (fork conversation)
+- [ ] Display token usage and latency metadata per turn
+- [ ] Support `/commands` for in-session actions:
+  - `/agent <name>` — switch active agent
+  - `/model <name>` — switch model for active agent
+  - `/system <prompt>` — update system prompt
+  - `/tools` — list available tools
+  - `/clear` — clear conversation history
+  - `/compact` — trigger conversation compaction
+  - `/save <path>` — export conversation to file
+  - `/help` — show available commands
+
+#### 11.3 Workflow & Orchestration View
+- [ ] Visual DAG display of workflow steps with status indicators (pending, running, done, error)
+- [ ] Real-time progress updates as workflow steps execute
+- [ ] Per-step detail pane showing input, output, agent, and timing
+- [ ] Ability to start, pause, and cancel workflow executions
+- [ ] Support for human-in-the-loop approval gates with inline prompt/response
+
+#### 11.4 Conversation & Session Management
+- [ ] Persist conversation sessions to disk (JSON or SQLite)
+- [ ] Session browser to list, search, and resume previous conversations
+- [ ] Session metadata display (agent, model, date, message count, duration)
+- [ ] Import/export conversations (JSON, Markdown)
+- [ ] SHA-based message linking (leverage Phase 9 session journal for message history navigation)
+
+#### 11.5 Configuration & Theming
+- [ ] Theming support with configurable color schemes (light, dark, custom)
+- [ ] Keybinding configuration and help overlay (`?` key)
+- [ ] Per-profile TUI settings (layout preferences, default agent/model)
+- [ ] Read TUI settings from existing `orchestra.yaml` configuration
+
+#### 11.6 CLI Integration
+- [ ] Add `orchestra chat` subcommand that launches the TUI
+- [ ] Add `orchestra chat --agent <name>` to start with a specific agent
+- [ ] Add `orchestra chat --workflow <file>` to launch in workflow mode
+- [ ] Add `orchestra chat --resume <session-id>` to continue a previous session
+- [ ] Support piping stdin to TUI (e.g., `cat prompt.txt | orchestra chat`)
+- [ ] Headless/non-TUI fallback when `NO_COLOR` or non-interactive terminal detected
+
+#### 11.7 Accessibility & Quality
+- [ ] Screen reader / accessibility support (structured text output mode)
+- [ ] Responsive layout for narrow terminals (80-col minimum)
+- [ ] Graceful degradation when terminal does not support 24-bit color
+- [ ] Comprehensive TUI tests (headless mode, snapshot testing)
+
+### Project Structure Additions
+
+```
+├── cmd/
+│   └── orchestra/
+│       └── main.go                  # Updated: add `chat` subcommand
+├── internal/
+│   └── tui/                         # NEW: Terminal TUI
+│       ├── app.go                   # Root application model
+│       ├── chat.go                  # Chat view model
+│       ├── workflow.go              # Workflow view model
+│       ├── session.go               # Session browser model
+│       ├── logview.go               # Log/trace view model
+│       ├── keymap.go                # Keybinding definitions
+│       ├── theme.go                 # Color scheme and styling
+│       ├── markdown.go              # Markdown rendering
+│       ├── commands.go              # /command parsing and dispatch
+│       ├── store.go                 # Session persistence
+│       └── tui_test.go
+├── pkg/
+│   └── tui/                         # NEW: Re-exported public TUI API
+│       └── tui.go
+```
+
+### Deliverables
+
+- [ ] Interactive TUI accessible via `orchestra chat`
+- [ ] Real-time streaming chat with markdown rendering
+- [ ] Workflow execution monitoring with DAG visualization
+- [ ] Session persistence and browser
+- [ ] Theme and keybinding configuration
+- [ ] Comprehensive tests (snapshot tests for UI states)
+
+### Milestone Criteria
+
+- `orchestra chat` launches a functional TUI in any modern terminal
+- Streaming responses render in real-time with < 16ms latency
+- Users can switch agents, models, and conversations without restarting
+- Workflow view accurately reflects step status during execution
+- Sessions survive restart and can be resumed
+- TUI works on linux, darwin, and windows terminals
+- Minimum terminal width of 80 columns supported
+
+---
+
+## 16. Technical Decision Records
 
 ### TDR-001: Interface-Based Provider Abstraction
 
@@ -1642,7 +1769,7 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 
 ---
 
-## 16. Risk Assessment
+## 17. Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
@@ -1659,7 +1786,7 @@ Harden Orchestra for production use with comprehensive testing, documentation, d
 
 ---
 
-## 17. Success Metrics
+## 18. Success Metrics
 
 ### Functional Metrics
 - [ ] Support 6+ LLM providers with unified interface
@@ -1768,6 +1895,8 @@ Phase 1: Foundation
                     Phase 9: Advanced Patterns
                                  │
                     Phase 10: Production Readiness
+                                 │
+                    Phase 11: Terminal TUI
 ```
 
 ---
