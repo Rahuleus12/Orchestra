@@ -761,7 +761,7 @@ jobs:
           docker run --rm orchestra:ci-test version || echo "Binary executed successfully"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.70.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: orchestra:ci-test
           format: sarif
