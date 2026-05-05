@@ -41,9 +41,9 @@ type Session struct {
 
 // SessionMessage is a simplified message format for storage.
 type SessionMessage struct {
-	Role      string    `json:"role"`
-	Content   string    `json:"content"`
-	Timestamp time.Time `json:"timestamp"`
+	Role       string          `json:"role"`
+	Content    string          `json:"content"`
+	Timestamp  time.Time       `json:"timestamp"`
 	TokenUsage *TokenUsageInfo `json:"token_usage,omitempty"`
 }
 
@@ -138,9 +138,9 @@ func (s *SessionStore) AddMessage(role, content string, usage *TokenUsageInfo) e
 	}
 
 	msg := SessionMessage{
-		Role:      role,
-		Content:   content,
-		Timestamp: time.Now(),
+		Role:       role,
+		Content:    content,
+		Timestamp:  time.Now(),
 		TokenUsage: usage,
 	}
 

@@ -62,15 +62,15 @@ func NewSessionModel(theme *Theme, keyMap *KeyMap, store *SessionStore) *Session
 	si.CharLimit = 100
 
 	return &SessionModel{
-		Theme:        theme,
-		KeyMap:       keyMap,
-		Store:        store,
-		Sessions:     store.ListSessions(),
+		Theme:         theme,
+		KeyMap:        keyMap,
+		Store:         store,
+		Sessions:      store.ListSessions(),
 		SelectedIndex: -1,
-		SearchInput:  si,
-		IsSearching:  false,
-		Width:        80,
-		Height:       24,
+		SearchInput:   si,
+		IsSearching:   false,
+		Width:         80,
+		Height:        24,
 	}
 }
 
@@ -330,7 +330,7 @@ func (m *SessionModel) renderSessionItem(session *Session, selected bool, active
 
 func (m *SessionModel) renderFooter() string {
 	keys := []struct {
-		key string
+		key  string
 		help string
 	}{
 		{"n", "new"},

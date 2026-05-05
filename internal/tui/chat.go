@@ -127,15 +127,15 @@ func NewChatModel(theme *Theme, keyMap *KeyMap) *ChatModel {
 	s.Style = theme.Styles.Spinner
 
 	return &ChatModel{
-		Theme:            theme,
-		KeyMap:           keyMap,
-		Input:            ta,
-		Spinner:          s,
-		Messages:         []ChatMessage{},
-		ShowToolDetails:  false,
-		Width:            80,
-		Height:           24,
-		ScrollOffset:     0,
+		Theme:           theme,
+		KeyMap:          keyMap,
+		Input:           ta,
+		Spinner:         s,
+		Messages:        []ChatMessage{},
+		ShowToolDetails: false,
+		Width:           80,
+		Height:          24,
+		ScrollOffset:    0,
 	}
 }
 

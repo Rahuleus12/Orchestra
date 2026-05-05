@@ -312,7 +312,7 @@ func (m *LogModel) renderLevel(level LogLevel) string {
 
 func (m *LogModel) renderFooter() string {
 	keys := []struct {
-		key string
+		key  string
 		help string
 	}{
 		{"↑/↓", "scroll"},
