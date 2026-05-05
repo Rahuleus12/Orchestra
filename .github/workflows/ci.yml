@@ -181,16 +181,18 @@ jobs:
 
       - name: Run go vet (standard)
         run: |
-          go vet ./... 2>&1 | tee vet-output.txt
+          go vet ./... 2>&1 | grep -v '^go: downloading' | grep -v '^go: ' | tee vet-output.txt || true
           if [ -s vet-output.txt ]; then
             echo "::error::go vet found issues"
+            cat vet-output.txt
             exit 1
           fi
+          echo "All packages pass go vet."
 
       - name: Run go vet with shadow analyzer
         run: |
           go install golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest
-          go vet -vettool=$(which shadow) ./... 2>&1 | tee vet-shadow.txt || true
+          go vet -vettool=$(which shadow) ./... 2>&1 | grep -v '^go: downloading' | grep -v '^go: ' | tee vet-shadow.txt || true
           if [ -s vet-shadow.txt ]; then
             echo "::warning::go vet shadow analyzer found potential variable shadowing issues"
             cat vet-shadow.txt
@@ -199,7 +201,7 @@ jobs:
       - name: Run fieldalignment checker
         run: |
           go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest
-          go vet -vettool=$(which fieldalignment) ./... 2>&1 | tee vet-fieldalignment.txt || true
+          go vet -vettool=$(which fieldalignment) ./... 2>&1 | grep -v '^go: downloading' | grep -v '^go: ' | tee vet-fieldalignment.txt || true
           if [ -s vet-fieldalignment.txt ]; then
             echo "::warning::fieldalignment found structs that could be optimized for size"
             cat vet-fieldalignment.txt

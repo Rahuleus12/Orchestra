@@ -186,6 +186,7 @@ linters:
       disabled-checks:
         - hugeParam # Large structs are often passed by pointer already
         - rangeValCopy # Sometimes copying is intentional
+        - evalOrder # Panics in go-critic@v0.13.0 (nil pointer dereference in hasPtrRecv); remove when upstream is fixed
 
     # Error lint
     errorlint:
