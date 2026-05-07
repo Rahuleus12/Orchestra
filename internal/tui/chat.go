@@ -292,7 +292,9 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Handle textarea keys
+		// Handle special key bindings when the textarea is focused.
+		// Any key that is NOT handled here MUST fall through to the
+		// textarea.Update() call below so that regular typing works.
 		if m.Input.Focused() {
 			switch {
 			case key.Matches(msg, m.KeyMap.Chat.Send):
@@ -361,8 +363,17 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			}
 		}
 
+		// Pass all unmatched key events to the textarea so typing works.
+		// This is critical: without this fallthrough, regular text input
+		// (letters, numbers, backspace, etc.) is silently dropped because
+		// tea.KeyMsg is handled in its own case branch and would never
+		// reach the default branch below.
+		var cmd tea.Cmd
+		m.Input, cmd = m.Input.Update(msg)
+		cmds = append(cmds, cmd)
+
 	default:
-		// Update sub-components
+		// Update sub-components for non-key messages (e.g. cursor blink).
 		var cmd tea.Cmd
 		m.Input, cmd = m.Input.Update(msg)
 		cmds = append(cmds, cmd)

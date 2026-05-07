@@ -45,9 +45,6 @@ type GlobalKeyMap struct {
 
 	// Logs switches to the log view.
 	Logs key.Binding
-
-	// QuitConfirm is shown when Quit is pressed.
-	QuitConfirm key.Binding
 }
 
 // ChatKeyMap defines keybindings for the chat view.
@@ -184,10 +181,6 @@ func NewKeyMap() *KeyMap {
 			Logs: key.NewBinding(
 				key.WithKeys("ctrl+4"),
 				key.WithHelp("ctrl+4", "logs"),
-			),
-			QuitConfirm: key.NewBinding(
-				key.WithKeys("y", "Y"),
-				key.WithHelp("y", "confirm quit"),
 			),
 		},
 		Chat: ChatKeyMap{

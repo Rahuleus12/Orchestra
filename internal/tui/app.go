@@ -78,9 +78,6 @@ type AppModel struct {
 	// Quitting indicates if the app is shutting down.
 	Quitting bool
 
-	// PendingQuit indicates if we're waiting for quit confirmation.
-	PendingQuit bool
-
 	// Width is the terminal width.
 	Width int
 
@@ -383,12 +380,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Handle global keys first
 		if key.Matches(msg, m.KeyMap.Global.Quit) {
-			if m.PendingQuit {
-				m.Quitting = true
-				return m, tea.Quit
-			}
-			m.PendingQuit = true
-			return m, nil
+			m.Quitting = true
+			return m, tea.Quit
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Help) {
@@ -430,9 +423,6 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-
-		// Cancel pending quit on any other key
-		m.PendingQuit = false
 	}
 
 	// Update active view
@@ -483,11 +473,6 @@ func (m *AppModel) View() string {
 	// Render help overlay if shown
 	if m.ShowHelp {
 		b.WriteString(m.renderHelpOverlay())
-	}
-
-	// Render quit confirmation
-	if m.PendingQuit {
-		b.WriteString(m.renderQuitConfirmation())
 	}
 
 	return b.String()
@@ -606,18 +591,6 @@ func (m *AppModel) renderHelpOverlay() string {
 	b.WriteString(m.Theme.Styles.Muted.Render("Press ? or esc to close"))
 
 	return lipgloss.Place(m.Width, m.Height, lipgloss.Center, lipgloss.Center, box.Render(b.String()))
-}
-
-func (m *AppModel) renderQuitConfirmation() string {
-	box := lipgloss.NewStyle().
-		Border(m.Theme.Styles.Border).
-		BorderForeground(m.Theme.Colors.Warning).
-		Padding(1, 2)
-
-	content := m.Theme.Styles.Warning.Render("Quit?") + " Press " +
-		m.Theme.Styles.HelpKey.Render("y") + " to confirm, any other key to cancel"
-
-	return lipgloss.Place(m.Width, 1, lipgloss.Center, lipgloss.Center, box.Render(content))
 }
 
 // Helper functions
