@@ -229,8 +229,8 @@ func NewKeyMap() *KeyMap {
 				key.WithHelp("end/G", "scroll bottom"),
 			),
 			ToggleToolDetails: key.NewBinding(
-				key.WithKeys("t"),
-				key.WithHelp("t", "toggle tool details"),
+				key.WithKeys("ctrl+d"),
+				key.WithHelp("ctrl+d", "toggle tool details"),
 			),
 			CopyMessage: key.NewBinding(
 				key.WithKeys("ctrl+c"),

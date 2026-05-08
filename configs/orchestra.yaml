@@ -27,6 +27,31 @@ providers:
     base_url: http://localhost:11434
     default_model: llama3
 
+  openrouter:
+    api_key: ${OPENROUTER_API_KEY}
+    base_url: https://openrouter.ai/api/v1
+    default_model: openai/gpt-4o
+    # Optional: app identification for OpenRouter rankings
+    # app_name: orchestra
+    # site_url: https://github.com/user/orchestra
+    rate_limit:
+      requests_per_minute: 60
+      tokens_per_minute: 500000
+    retry:
+      max_attempts: 3
+      initial_backoff: 1s
+    # Optional: model catalog caching (default: 5m)
+    # model_cache_ttl: 5m
+    # Optional: cost budget enforcement
+    # cost_budget:
+    #   max_cost_per_request: 0.10    # USD
+    #   max_cost_per_session: 5.00     # USD
+    # Optional: provider routing preferences
+    # routing:
+    #   provider_order: ["anthropic", "openai"]
+    #   fallback: true
+    #   data_collection: "deny"
+
 logging:
   level: info
   format: json

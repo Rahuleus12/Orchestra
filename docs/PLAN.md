@@ -25,9 +25,10 @@
 13. [Phase 9 — Advanced Patterns](#13-phase-9--advanced-patterns)
 14. [Phase 10 — Production Readiness](#14-phase-10--production-readiness)
 15. [Phase 11 — Terminal TUI](#15-phase-11--terminal-tui)
-16. [Technical Decision Records](#16-technical-decision-records)
-17. [Risk Assessment](#17-risk-assessment)
-18. [Success Metrics](#18-success-metrics)
+16. [Phase 12 — OpenRouter Provider & Model Discovery](#16-phase-12--openrouter-provider--model-discovery)
+17. [Technical Decision Records](#17-technical-decision-records)
+18. [Risk Assessment](#18-risk-assessment)
+19. [Success Metrics](#19-success-metrics)
 
 ---
 
@@ -1709,7 +1710,253 @@ Build an interactive terminal TUI that provides a rich, keyboard-driven interfac
 
 ---
 
-## 16. Technical Decision Records
+## 16. Phase 12 — OpenRouter Provider & Model Discovery
+
+**Status:** 📋 PLANNED
+**Depends On:** Phase 1 (Foundation), Phase 2 (Provider Integrations)
+
+### Objectives
+
+Implement a first-class OpenRouter provider that gives Orchestra users access to 100+ LLM models through a single API key. OpenRouter acts as a unified gateway to models from OpenAI, Anthropic, Google, Meta, Mistral, and many others — all accessible through an OpenAI-compatible API surface. This phase covers the provider implementation, dynamic model discovery with rich metadata, cost-aware routing, and configuration integration.
+
+### Background
+
+[OpenRouter](https://openrouter.ai/) is an LLM API aggregator that provides:
+- A single API key for 100+ models from diverse providers
+- An OpenAI-compatible `/chat/completions` endpoint (drop-in base URL swap)
+- A `/models` endpoint that returns real-time model metadata including pricing, context windows, capabilities, and availability
+- Cost optimization through model routing and fallback
+- Provider-specific routing options (e.g., prefer a specific provider for a given model)
+
+Since OpenRouter uses an OpenAI-compatible API, the core chat/stream implementation can largely reuse the OpenAI provider's request/response mapping. The key differentiators are:
+1. **Dynamic model discovery** — fetch the full model catalog from the `/api/v1/models` endpoint
+2. **Rich model metadata** — pricing, context windows, capabilities, moderation policies
+3. **Cost-aware configuration** — per-model cost limits and budget tracking
+4. **Provider routing hints** — OpenRouter-specific headers for routing preferences
+
+### Tasks
+
+#### 12.1 OpenRouter Provider Implementation
+- [ ] Create `internal/provider/openrouter/openrouter.go` implementing the `Provider` interface
+- [ ] Implement `Generate` using OpenRouter's OpenAI-compatible chat completions endpoint
+  - OpenRouter base URL: `https://openrouter.ai/api/v1`
+  - Chat completions path: `/chat/completions` (same as OpenAI)
+  - Streaming path: `/chat/completions` with `"stream": true`
+- [ ] Implement `Stream` using SSE streaming (identical wire format to OpenAI)
+- [ ] Add OpenRouter-specific HTTP headers:
+  - `Authorization: Bearer <OPENROUTER_API_KEY>`
+  - `HTTP-Referer: <site_url>` (optional, for rankings on openrouter.ai)
+  - `X-Title: <app_name>` (optional, for rankings on openrouter.ai)
+- [ ] Handle OpenRouter-specific response fields:
+  - `usage` with normalized token counts
+  - Model ID mapping (OpenRouter model IDs are like `openai/gpt-4o`, `anthropic/claude-sonnet-4-20250514`)
+- [ ] Reuse OpenAI message/tool conversion functions where possible (extract shared helpers if needed)
+- [ ] Handle error responses with OpenRouter's error format
+- [ ] Implement `Capabilities()` that returns per-model capabilities based on fetched model metadata
+
+#### 12.2 Dynamic Model Discovery & Catalog
+- [ ] Implement `Models()` method that fetches from OpenRouter's `/api/v1/models` endpoint
+- [ ] Define OpenRouter model list response types:
+  ```go
+  // orModelResponse represents the response from GET /api/v1/models
+  type orModelResponse struct {
+      Data []orModel `json:"data"`
+  }
+
+  // orModel represents a single model in the OpenRouter catalog
+  type orModel struct {
+      ID               string         `json:"id"`               // e.g., "openai/gpt-4o"
+      Name             string         `json:"name"`
+      Description      string         `json:"description,omitempty"`
+      ContextLength    int            `json:"context_length"`
+      Pricing          orModelPricing `json:"pricing"`
+      TopProvider      orProviderInfo `json:"top_provider,omitempty"`
+      PerRequestLimits *orLimits      `json:"per_request_limits,omitempty"`
+      Architecture     orArchitecture `json:"architecture,omitempty"`
+      Moderated        bool           `json:"moderated"`
+      Created          int64          `json:"created"`
+  }
+
+  type orModelPricing struct {
+      Prompt     string `json:"prompt"`      // cost per token (USD string)
+      Completion string `json:"completion"` // cost per token (USD string)
+      Request    string `json:"request"`    // cost per request (USD string)
+      Image      string `json:"image"`      // cost per image (USD string)
+  }
+
+  type orProviderInfo struct {
+      MaxCompletionTokens int    `json:"max_completion_tokens,omitempty"`
+      IsModerated         bool   `json:"is_moderated"`
+  }
+
+  type orArchitecture struct {
+      Modality    string `json:"modality"`     // e.g., "text->text"
+      InputModalities  []string `json:"input_modalities,omitempty"`
+      OutputModalities []string `json:"output_modalities,omitempty"`
+      Tokenizer   string `json:"tokenizer"`
+  }
+
+  type orLimits struct {
+      MaxTokens int `json:"max_tokens,omitempty"`
+  }
+  ```
+- [ ] Map OpenRouter model data → Orchestra `ModelInfo`:
+  ```go
+  ModelInfo {
+      ID:           model.ID,                              // "openai/gpt-4o"
+      Name:         model.Name,                             // "OpenAI: GPT-4o"
+      Description:  model.Description,
+      Capabilities: ModelCapabilities{
+          Streaming:       true,                              // OpenRouter streams all models
+          ToolCalling:     inferToolSupport(model),           // heuristic from name/arch
+          Vision:          hasModality(model, "image"),
+          ContextWindow:   model.ContextLength,
+          MaxTokens:       model.TopProvider.MaxCompletionTokens,
+      },
+      Metadata: map[string]any{
+          "pricing_prompt":     model.Pricing.Prompt,
+          "pricing_completion": model.Pricing.Completion,
+          "pricing_request":    model.Pricing.Request,
+          "pricing_image":      model.Pricing.Image,
+          "modality":           model.Architecture.Modality,
+          "input_modalities":   model.Architecture.InputModalities,
+          "output_modalities":  model.Architecture.OutputModalities,
+          "tokenizer":          model.Architecture.Tokenizer,
+          "moderated":          model.Moderated,
+          "created":            model.Created,
+      },
+  }
+  ```
+- [ ] Implement model catalog caching (TTL-based, default 5 minutes)
+    - Cache fetched models in memory with a `sync.RWMutex`
+    - Refresh on TTL expiry or explicit `refresh` call
+    - Avoid hitting the models endpoint on every `Models()` call
+- [ ] Add helper function to look up capabilities for a specific model ID from the cached catalog
+
+#### 12.3 Model Information CLI Command
+- [ ] Add `orchestra models` CLI subcommand to list available models
+  - `orchestra models --provider openrouter` — list all OpenRouter models
+  - `orchestra models --provider openrouter --query gpt` — filter models by name/ID
+  - `orchestra models --provider openrouter --sort cost` — sort by cost
+  - `orchestra models --provider openrouter --json` — output raw JSON
+- [ ] Add `orchella models --provider openrouter --details <model-id>` — show detailed model info
+  - Context window, pricing, supported modalities, tokenizer
+  - Formatted table output with human-readable descriptions
+- [ ] Integrate with the TUI: add model browser panel in the TUI for exploring available models
+
+#### 12.4 Configuration Integration
+- [ ] Add `openrouter` section to `configs/orchestra.yaml`:
+  ```yaml
+  providers:
+    openrouter:
+      api_key: ${OPENROUTER_API_KEY}
+      base_url: https://openrouter.ai/api/v1
+      default_model: openai/gpt-4o
+      # Optional: app identification for OpenRouter rankings
+      app_name: orchestra
+      site_url: https://github.com/user/orchestra
+      rate_limit:
+        requests_per_minute: 60
+        tokens_per_minute: 500000
+      retry:
+        max_attempts: 3
+        initial_backoff: 1s
+      # Optional: model catalog caching
+      model_cache_ttl: 5m
+      # Optional: cost budget
+      cost_budget:
+        max_cost_per_request: 0.10    # USD
+        max_cost_per_session: 5.00     # USD
+  ```
+- [ ] Register OpenRouter provider factory in the provider registry at startup
+- [ ] Add `OPENROUTER_API_KEY` environment variable support
+
+#### 12.5 Cost Tracking & Budget Enforcement
+- [ ] Parse pricing information from model metadata (prompt/completion per-token costs)
+- [ ] Track cumulative cost per request and per session
+- [ ] Implement budget enforcement middleware:
+  - Check estimated cost before sending request
+  - Track actual cost from response `usage` + model pricing
+  - Block requests that would exceed configured budget
+- [ ] Expose cost metrics via the observability stack (prometheus metrics)
+
+#### 12.6 Provider Routing & Fallback
+- [ ] Support OpenRouter provider routing hints via `provider.order` in extra config:
+  ```yaml
+  providers:
+    openrouter:
+      # ...
+      routing:
+        provider_order: ["anthropic", "openai"]  # preferred providers
+        fallback: true                            # allow fallback to other providers
+        data_collection: "deny"                   # opt out of training data collection
+  ```
+- [ ] Map routing preferences to OpenRouter-specific request parameters / headers
+- [ ] Implement model fallback chains (try model A, fall back to model B if rate-limited)
+
+#### 12.7 Contract Tests & Integration Tests
+- [ ] Pass the shared `ProviderContract` test suite
+- [ ] Add OpenRouter-specific tests:
+  - Model catalog fetching and parsing
+  - Model caching behavior (TTL expiry, refresh)
+  - Cost estimation and budget enforcement
+  - Routing hint propagation in request headers
+  - Error handling for OpenRouter-specific errors (insufficient credits, model not found, etc.)
+- [ ] Add integration tests (skipped without `OPENROUTER_API_KEY`)
+
+### Project Structure Additions
+
+```
+├── internal/
+│   └── provider/
+│       └── openrouter/              # NEW: OpenRouter provider
+│           ├── openrouter.go        # Provider implementation (Generate, Stream, Models)
+│           ├── models.go            # Model catalog types, fetching, caching
+│           ├── cost.go              # Cost tracking, budget enforcement
+│           ├── routing.go           # Provider routing hints & fallback logic
+│           └── openrouter_test.go   # Unit & integration tests
+├── configs/
+│   └── orchestra.yaml               # Updated: add openrouter provider section
+```
+
+### Deliverables
+
+- [ ] OpenRouter provider implementing the full `Provider` interface
+- [ ] Dynamic model catalog with caching and rich metadata
+- [ ] `orchestra models` CLI command for model discovery
+- [ ] Cost tracking with budget enforcement middleware
+- [ ] Provider routing and fallback configuration
+- [ ] Full contract test compliance + OpenRouter-specific tests
+- [ ] Configuration documentation in `orchestra.yaml`
+
+### Milestone Criteria
+
+- `registry.Register("openrouter", openrouter.Factory, cfg)` works out of the box
+- `Generate` and `Stream` produce correct results for at least 5 different model families
+- `Models()` returns the full OpenRouter catalog with pricing, context windows, and capabilities
+- Model catalog caching reduces API calls (max 1 fetch per TTL window)
+- Cost tracking accurately estimates and records per-request and per-session spend
+- Budget enforcement blocks requests that would exceed configured limits
+- Provider routing hints are correctly propagated in request headers
+- All contract tests pass
+- Integration tests pass with a valid `OPENROUTER_API_KEY`
+
+### Key Design Decisions
+
+**TDR-007: OpenRouter as First-Class Provider (not OpenAI subclass)**
+
+While OpenRouter uses an OpenAI-compatible API, it should be implemented as a standalone provider rather than wrapping the OpenAI provider. Rationale:
+
+1. **Model catalog is fundamentally different** — OpenRouter provides a dynamic, fetchable catalog with pricing and capability metadata. The OpenAI provider uses a static hardcoded model list.
+2. **Unique features** — Cost tracking, provider routing, budget enforcement, and moderation policies are OpenRouter-specific and don't map to the OpenAI provider.
+3. **Error handling differs** — OpenRouter has its own error codes (e.g., insufficient credits, model not found in catalog) that differ from raw OpenAI errors.
+4. **Request headers differ** — OpenRouter requires `HTTP-Referer` and `X-Title` headers that OpenAI does not use.
+
+Shared code (SSE parsing, message conversion) can be extracted into internal helpers if duplication becomes a concern, but the provider itself should be independent.
+
+---
+
+## 17. Technical Decision Records
 
 ### TDR-001: Interface-Based Provider Abstraction
 
@@ -1769,7 +2016,7 @@ Build an interactive terminal TUI that provides a rich, keyboard-driven interfac
 
 ---
 
-## 17. Risk Assessment
+## 18. Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
@@ -1786,7 +2033,7 @@ Build an interactive terminal TUI that provides a rich, keyboard-driven interfac
 
 ---
 
-## 18. Success Metrics
+## 19. Success Metrics
 
 ### Functional Metrics
 - [ ] Support 6+ LLM providers with unified interface
@@ -1897,6 +2144,9 @@ Phase 1: Foundation
                     Phase 10: Production Readiness
                                  │
                     Phase 11: Terminal TUI
+
+     Phase 12: OpenRouter Provider & Model Discovery
+      (depends on Phase 1 & Phase 2, can run in parallel)
 ```
 
 ---

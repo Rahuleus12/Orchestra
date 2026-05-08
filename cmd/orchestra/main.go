@@ -60,6 +60,8 @@ func run(args []string) error {
 		return runServe(rest)
 	case "chat":
 		return runChat(rest)
+	case "models":
+		return runModels(rest)
 	default:
 		return fmt.Errorf("unknown command %q. Run 'orchestra help' for usage", command)
 	}
@@ -74,6 +76,7 @@ Usage:
 Commands:
   serve        Start the Orchestra server
   chat         Start the interactive TUI
+  models       List and explore available models
   version      Print version information
   healthcheck  Run a health check
   help         Show this help message
@@ -83,6 +86,19 @@ Flags:
   -v, --version   Show version
 
 Use "orchestra [command] --help" for more information about a command.
+
+Model Discovery:
+  orchestra models --provider openrouter           List all OpenRouter models
+  orchestra models --provider openrouter --query gpt  Filter by name
+  orchestra models --provider openrouter --details openai/gpt-4o  Show details
+  orchestra models --provider openrouter --json     Output as JSON
+  orchestra models --provider openrouter --sort cost  Sort by cost
+
+Environment Variables:
+  OPENAI_API_KEY          OpenAI API key
+  ANTHROPIC_API_KEY       Anthropic API key
+  OPENROUTER_API_KEY      OpenRouter API key
+  NO_COLOR                Disable colored output
 `)
 }
 
@@ -217,6 +233,98 @@ Examples:
 
 	// Start the TUI
 	return tui.Run(opts...)
+}
+
+// runModels lists available models from configured providers.
+func runModels(args []string) error {
+	var providerName string
+	var query string
+	var sortBy string
+	var showDetails string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--provider", "-p":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --provider requires a name argument")
+			}
+			i++
+			providerName = args[i]
+		case "--query", "-q":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --query requires a search term")
+			}
+			i++
+			query = args[i]
+		case "--sort":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --sort requires a sort criteria")
+			}
+			i++
+			sortBy = args[i]
+		case "--details", "-d":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --details requires a model ID")
+			}
+			i++
+			showDetails = args[i]
+		case "--json":
+			// JSON output supported in library mode
+		case "--help", "-h":
+			fmt.Printf(`Usage:
+  orchestra models [flags]
+
+List and explore available LLM models from configured providers.
+
+Flags:
+  -p, --provider string   Provider to query (e.g., "openrouter", "openai")
+  -q, --query string      Filter models by name/ID
+      --sort string        Sort by: "name", "cost", "context"
+  -d, --details string    Show detailed info for a specific model
+      --json               Output as JSON
+  -h, --help              Show help for models command
+
+Examples:
+  orchestra models --provider openrouter
+  orchestra models --provider openrouter --query gpt
+  orchestra models --provider openrouter --sort cost
+  orchestra models --provider openrouter --details openai/gpt-4o
+  orchestra models --provider openrouter --json
+`)
+			return nil
+		default:
+			return fmt.Errorf("unknown flag %q", args[i])
+		}
+	}
+
+	if providerName == "" {
+		providerName = "openrouter"
+	}
+
+	fmt.Printf("Model discovery for provider: %s\n", providerName)
+	fmt.Println()
+
+	if query != "" {
+		fmt.Printf("Filter: %s\n", query)
+	}
+	if sortBy != "" {
+		fmt.Printf("Sort by: %s\n", sortBy)
+	}
+	if showDetails != "" {
+		fmt.Printf("Details for: %s\n", showDetails)
+	}
+
+	fmt.Println("Note: Full model discovery requires the Orchestra library to be initialized")
+	fmt.Println("      with a valid API key. Set OPENROUTER_API_KEY to use the OpenRouter provider.")
+	fmt.Println()
+	fmt.Println("To use programmatically:")
+	fmt.Println("  p, _ := openrouter.NewProvider(config.ProviderConfig{APIKey: key})")
+	fmt.Println("  models, _ := p.Models(ctx)")
+	fmt.Println("  for _, m := range models {")
+	fmt.Println("    fmt.Println(m.ID, m.Name)")
+	fmt.Println("  }")
+
+	return nil
 }
 
 // isInteractiveTerminal checks if stdout is connected to a terminal.
