@@ -58,7 +58,7 @@ func run(args []string) error {
 		return runHealthcheck()
 	case "serve":
 		return runServe(rest)
-	case "chat":
+	case "cli":
 		return runChat(rest)
 	case "models":
 		return runModels(rest)
@@ -75,7 +75,7 @@ Usage:
 
 Commands:
   serve        Start the Orchestra server
-  chat         Start the interactive TUI
+  cli          Start the interactive TUI
   models       List and explore available models
   version      Print version information
   healthcheck  Run a health check
@@ -198,9 +198,9 @@ Environment Variables:
   NO_COLOR                 Disable colored output
 
 Examples:
-  orchestra chat
-  orchestra chat --agent assistant --model gpt-4
-  orchestra chat --resume 1234567890
+  orchestra cli
+  orchestra cli --agent assistant --model gpt-4
+  orchestra cli --resume 1234567890
 `)
 			return nil
 		default:
