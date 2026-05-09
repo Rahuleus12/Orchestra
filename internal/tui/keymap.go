@@ -18,6 +18,9 @@ type KeyMap struct {
 
 	// Help keys control the help overlay.
 	Help HelpKeyMap
+
+	// Models keys work in the API keys & models view.
+	Models ModelsKeyMap
 }
 
 // GlobalKeyMap defines keybindings that work in all views.
@@ -45,6 +48,9 @@ type GlobalKeyMap struct {
 
 	// Logs switches to the log view.
 	Logs key.Binding
+
+	// Models switches to the API keys & models view.
+	Models key.Binding
 }
 
 // ChatKeyMap defines keybindings for the chat view.
@@ -146,6 +152,30 @@ type HelpKeyMap struct {
 	ScrollDown key.Binding
 }
 
+// ModelsKeyMap defines keybindings for the API keys & models view.
+type ModelsKeyMap struct {
+	// SelectNext selects the next item (provider or model).
+	SelectNext key.Binding
+
+	// SelectPrev selects the previous item.
+	SelectPrev key.Binding
+
+	// Search opens the filter input.
+	Search key.Binding
+
+	// AddKey opens the add-key dialog.
+	AddKey key.Binding
+
+	// RemoveKey removes the key for the selected provider.
+	RemoveKey key.Binding
+
+	// CheckModels fetches models for the selected provider.
+	CheckModels key.Binding
+
+	// UseModel switches to the selected model.
+	UseModel key.Binding
+}
+
 // NewKeyMap creates a new KeyMap with default bindings.
 func NewKeyMap() *KeyMap {
 	return &KeyMap{
@@ -181,6 +211,10 @@ func NewKeyMap() *KeyMap {
 			Logs: key.NewBinding(
 				key.WithKeys("ctrl+4"),
 				key.WithHelp("ctrl+4", "logs"),
+			),
+			Models: key.NewBinding(
+				key.WithKeys("ctrl+5"),
+				key.WithHelp("ctrl+5", "keys"),
 			),
 		},
 		Chat: ChatKeyMap{
@@ -307,6 +341,36 @@ func NewKeyMap() *KeyMap {
 				key.WithHelp("↓/pgdown", "scroll down"),
 			),
 		},
+		Models: ModelsKeyMap{
+			SelectNext: key.NewBinding(
+				key.WithKeys("down", "j"),
+				key.WithHelp("↓/j", "next"),
+			),
+			SelectPrev: key.NewBinding(
+				key.WithKeys("up", "k"),
+				key.WithHelp("↑/k", "prev"),
+			),
+			Search: key.NewBinding(
+				key.WithKeys("/"),
+				key.WithHelp("/", "filter"),
+			),
+			AddKey: key.NewBinding(
+				key.WithKeys("a"),
+				key.WithHelp("a", "add key"),
+			),
+			RemoveKey: key.NewBinding(
+				key.WithKeys("d"),
+				key.WithHelp("d", "remove key"),
+			),
+			CheckModels: key.NewBinding(
+				key.WithKeys("enter", "r"),
+				key.WithHelp("enter/r", "fetch models"),
+			),
+			UseModel: key.NewBinding(
+				key.WithKeys("u"),
+				key.WithHelp("u", "use model"),
+			),
+		},
 	}
 }
 
@@ -321,6 +385,7 @@ func (k *KeyMap) Enabled() []key.Binding {
 		k.Global.Workflow,
 		k.Global.Sessions,
 		k.Global.Logs,
+		k.Global.Models,
 	}
 }
 

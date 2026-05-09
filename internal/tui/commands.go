@@ -40,6 +40,12 @@ const (
 
 	// CommandWorkflow loads a workflow definition.
 	CommandWorkflow CommandType = "workflow"
+
+	// CommandKey manages API keys for providers.
+	CommandKey CommandType = "key"
+
+	// CommandModels lists available models for configured providers.
+	CommandModels CommandType = "models"
 )
 
 // Command represents a parsed slash command.
@@ -82,6 +88,8 @@ func NewCommandRegistry() *CommandRegistry {
 	r.aliases["q"] = CommandQuit
 	r.aliases["th"] = CommandTheme
 	r.aliases["wf"] = CommandWorkflow
+	r.aliases["k"] = CommandKey
+	r.aliases["ml"] = CommandModels
 
 	return r
 }
@@ -160,7 +168,7 @@ func isKnownCommand(cmdType CommandType) bool {
 	switch cmdType {
 	case CommandAgent, CommandModel, CommandSystem, CommandTools,
 		CommandClear, CommandCompact, CommandSave, CommandHelpFn,
-		CommandQuit, CommandTheme, CommandWorkflow:
+		CommandQuit, CommandTheme, CommandWorkflow, CommandKey, CommandModels:
 		return true
 	default:
 		return false
@@ -180,10 +188,14 @@ func GetCommandHelp() string {
   /save [path]       Export conversation to file
   /theme [light|dark] Switch color theme
   /workflow <file>   Load a workflow definition
+  /key <provider> <api_key>  Add API key for provider
+  /key <provider>           Show key status for provider
+  /key                      List all configured keys
+  /models [provider]        List available models
   /help              Show this help
   /quit              Exit the TUI
 
-Short aliases: /a, /m, /s, /t, /c, /cp, /w, /th, /wf, /h, /q`
+Short aliases: /a, /m, /s, /t, /c, /cp, /w, /th, /wf, /k, /ml, /h, /q`
 }
 
 // UnknownCommandError is returned when an unknown command is executed.

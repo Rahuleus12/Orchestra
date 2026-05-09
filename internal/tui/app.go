@@ -25,6 +25,9 @@ const (
 
 	// ViewLogs is the log/trace view.
 	ViewLogs
+
+	// ViewModels is the API keys & models view.
+	ViewModels
 )
 
 // String returns a human-readable name for the view.
@@ -38,6 +41,8 @@ func (v ViewID) String() string {
 		return "Sessions"
 	case ViewLogs:
 		return "Logs"
+	case ViewModels:
+		return "Keys"
 	default:
 		return "Unknown"
 	}
@@ -68,6 +73,12 @@ type AppModel struct {
 
 	// Logs is the log view model.
 	Logs *LogModel
+
+	// Models is the API keys & models view model.
+	Models *ModelsModel
+
+	// KeyManager manages API keys for providers.
+	KeyManager *KeyManager
 
 	// ActiveView is the currently active view.
 	ActiveView ViewID
@@ -143,6 +154,13 @@ func WithOnSubmitMessage(handler func(content string) tea.Cmd) AppOption {
 	}
 }
 
+// WithKeyManager sets the key manager.
+func WithKeyManager(km *KeyManager) AppOption {
+	return func(m *AppModel) {
+		m.KeyManager = km
+	}
+}
+
 // NewAppModel creates a new AppModel with the given options.
 func NewAppModel(opts ...AppOption) (*AppModel, error) {
 	theme := DefaultTheme()
@@ -167,11 +185,27 @@ func NewAppModel(opts ...AppOption) (*AppModel, error) {
 		ActiveView:      ViewChat,
 	}
 
+	// Create key manager
+	if homeDir == "" {
+		homeDir = "."
+	}
+	keyDir := homeDir + "/.orchestra/keys"
+	keyManager, keyErr := NewKeyManager(keyDir)
+	if keyErr != nil {
+		// Non-fatal: continue without key persistence
+		keyManager = &KeyManager{keys: make(map[string]*ProviderKey), dir: keyDir}
+	}
+
+	// Create model fetcher
+	modelFetcher := NewDefaultModelFetcher()
+
 	// Create sub-models
 	model.Chat = NewChatModel(theme, keyMap)
 	model.Workflow = NewWorkflowModel(theme, keyMap)
 	model.Sessions = NewSessionModel(theme, keyMap, store)
 	model.Logs = NewLogModel(theme, keyMap)
+	model.Models = NewModelsModel(theme, keyMap, keyManager, modelFetcher)
+	model.KeyManager = keyManager
 
 	// Apply options
 	for _, opt := range opts {
@@ -267,6 +301,65 @@ func (m *AppModel) setupCommandHandlers() {
 		m.Quitting = true
 		return "", nil
 	})
+
+	// /key command
+	m.CommandRegistry.Register(CommandKey, func(cmd Command) (string, error) {
+		args := strings.TrimSpace(cmd.Args)
+
+		// No args: list all keys
+		if args == "" {
+			keys := m.KeyManager.ListKeys()
+			if len(keys) == 0 {
+				return "No API keys configured. Use /key <provider> <api_key> to add one, or press ctrl+5 for the Keys view.", nil
+			}
+			var b strings.Builder
+			b.WriteString("Configured API keys:\n\n")
+			for _, k := range keys {
+				b.WriteString(fmt.Sprintf("  %s  %s  (added: %s)\n", ProviderDisplayName(k.Provider), MaskKey(k.APIKey), k.AddedAt))
+			}
+			b.WriteString("\nUse /key <provider> to see details or /key <provider> <api_key> to add.")
+			return b.String(), nil
+		}
+
+		// Parse args: could be "provider" or "provider api_key"
+		parts := strings.SplitN(args, " ", 2)
+		provider := parts[0]
+
+		if len(parts) == 1 {
+			// Show key status for provider
+			key, ok := m.KeyManager.GetKey(provider)
+			if !ok {
+				return fmt.Sprintf("No key configured for %s. Use /key %s <api_key> to add one.", ProviderDisplayName(provider), provider), nil
+			}
+			return fmt.Sprintf("Key for %s: %s\nBase URL: %s\nAdded: %s", ProviderDisplayName(provider), MaskKey(key.APIKey), key.BaseURL, key.AddedAt), nil
+		}
+
+		// Add/update key
+		apiKey := strings.TrimSpace(parts[1])
+		if err := m.KeyManager.AddKey(provider, apiKey, "", ""); err != nil {
+			return "", fmt.Errorf("failed to save key: %w", err)
+		}
+		return fmt.Sprintf("Key added for %s. Use /models %s to check available models.", ProviderDisplayName(provider), provider), nil
+	})
+
+	// /models command
+	m.CommandRegistry.Register(CommandModels, func(cmd Command) (string, error) {
+		// Switch to the models view
+		m.ActiveView = ViewModels
+		m.Models.RefreshProviders()
+
+		provider := strings.TrimSpace(cmd.Args)
+		if provider != "" {
+			// Try to select the provider
+			for i, p := range m.Models.Providers {
+				if p.Name == provider {
+					m.Models.SelectedProvider = i
+					break
+				}
+			}
+		}
+		return "Switched to Keys & Models view. Press 'r' to fetch models for the selected provider.", nil
+	})
 }
 
 func (m *AppModel) setupChatCallbacks() {
@@ -361,6 +454,7 @@ func (m *AppModel) Init() tea.Cmd {
 		m.Workflow.Init(),
 		m.Sessions.Init(),
 		m.Logs.Init(),
+		m.Models.Init(),
 	)
 }
 
@@ -376,6 +470,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Workflow.SetSize(m.Width, m.Height-3)
 		m.Sessions.SetSize(m.Width, m.Height-3)
 		m.Logs.SetSize(m.Width, m.Height-3)
+		m.Models.SetSize(m.Width, m.Height-3)
 
 	case tea.KeyMsg:
 		// Handle global keys first
@@ -416,10 +511,19 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if key.Matches(msg, m.KeyMap.Global.Models) {
+			m.ActiveView = ViewModels
+			m.Models.RefreshProviders()
+			return m, nil
+		}
+
 		if key.Matches(msg, m.KeyMap.Global.SwitchView) {
-			m.ActiveView = (m.ActiveView + 1) % 4
+			m.ActiveView = (m.ActiveView + 1) % 5
 			if m.ActiveView == ViewSessions {
 				m.Sessions.Refresh()
+			}
+			if m.ActiveView == ViewModels {
+				m.Models.RefreshProviders()
 			}
 			return m, nil
 		}
@@ -436,6 +540,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Sessions, cmd = m.Sessions.Update(msg)
 	case ViewLogs:
 		m.Logs, cmd = m.Logs.Update(msg)
+	case ViewModels:
+		m.Models, cmd = m.Models.Update(msg)
 	}
 	cmds = append(cmds, cmd)
 
@@ -487,6 +593,7 @@ func (m *AppModel) renderTabBar() string {
 		{ViewWorkflow, "🔄 Workflow"},
 		{ViewSessions, "📋 Sessions"},
 		{ViewLogs, "📊 Logs"},
+		{ViewModels, "🔑 Keys"},
 	}
 
 	var parts []string
@@ -516,6 +623,8 @@ func (m *AppModel) renderActiveView() string {
 		return m.Sessions.View()
 	case ViewLogs:
 		return m.Logs.View()
+	case ViewModels:
+		return m.Models.View()
 	default:
 		return "Unknown view"
 	}
