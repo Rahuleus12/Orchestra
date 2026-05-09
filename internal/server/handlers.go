@@ -568,6 +568,91 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusNoContent, nil)
 }
 
+// handleRunAgentStream streams an agent run via Server-Sent Events.
+func (s *Server) handleRunAgentStream(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "agent id is required")
+		return
+	}
+
+	val, ok := s.agentStore.Load(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("agent %q not found", id))
+		return
+	}
+	entry := val.(*agentEntry)
+
+	body, err := readBody(r, 10<<20)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
+		return
+	}
+
+	var req runAgentRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON: %v", err))
+		return
+	}
+
+	if req.Input == "" {
+		writeError(w, http.StatusBadRequest, "input is required")
+		return
+	}
+
+	p, modelID, err := s.resolveProvider(entry.Model)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to resolve provider: %v", err))
+		return
+	}
+
+	agentOpts := []agent.Option{
+		agent.WithProvider(p, modelID),
+	}
+	if entry.System != "" {
+		agentOpts = append(agentOpts, agent.WithSystemPrompt(entry.System))
+	}
+	if entry.MaxTurns > 0 {
+		agentOpts = append(agentOpts, agent.WithMaxTurns(entry.MaxTurns))
+	}
+
+	a, err := agent.New(entry.Name, agentOpts...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create agent: %v", err))
+		return
+	}
+
+	eventCh, err := a.Stream(r.Context(), req.Input)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("agent stream failed: %v", err))
+		return
+	}
+
+	// SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, canFlush := w.(http.Flusher)
+
+	for event := range eventCh {
+		data, err := json.Marshal(event)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	if canFlush {
+		flusher.Flush()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Workflows
 // ---------------------------------------------------------------------------

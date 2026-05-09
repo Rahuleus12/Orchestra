@@ -760,6 +760,45 @@ func TestExtractAPIKey(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Web UI Tests
+// ---------------------------------------------------------------------------
+
+func TestHandleUI(t *testing.T) {
+	mp := &mockProvider{name: "test", models: []provider.ModelInfo{}}
+	srv := newTestServer(t, mp, nil)
+
+	resp := makeRequest(t, srv, http.MethodGet, "/", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 for /, got %d", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Errorf("expected text/html content type, got %q", ct)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	if !strings.Contains(string(data), "Orchestra") {
+		t.Error("expected HTML to contain 'Orchestra'")
+	}
+	if !strings.Contains(string(data), "agentList") {
+		t.Error("expected HTML to contain 'agentList' element")
+	}
+}
+
+func TestHandleUIAltPath(t *testing.T) {
+	mp := &mockProvider{name: "test", models: []provider.ModelInfo{}}
+	srv := newTestServer(t, mp, nil)
+
+	resp := makeRequest(t, srv, http.MethodGet, "/ui", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 for /ui, got %d", resp.StatusCode)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Integration: Generate with provider error
 // ---------------------------------------------------------------------------
 

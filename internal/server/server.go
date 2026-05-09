@@ -212,8 +212,19 @@ func (s *Server) Handler() http.Handler {
 	return s.handler
 }
 
+// handleUI serves the embedded web UI for agent interactions.
+func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(uiHTML))
+}
+
 // registerRoutes registers all API routes on the given mux.
 func (s *Server) registerRoutes(mux *http.ServeMux) {
+	// Web UI
+	mux.HandleFunc("GET /", s.handleUI)
+	mux.HandleFunc("GET /ui", s.handleUI)
+
 	// Health & Info
 	mux.HandleFunc("GET /v1/health", s.handleHealth)
 	mux.HandleFunc("GET /v1/info", s.handleInfo)
@@ -233,6 +244,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/agents", s.handleCreateAgent)
 	mux.HandleFunc("GET /v1/agents", s.handleListAgents)
 	mux.HandleFunc("POST /v1/agents/{id}/run", s.handleRunAgent)
+	mux.HandleFunc("POST /v1/agents/{id}/stream", s.handleRunAgentStream)
 	mux.HandleFunc("DELETE /v1/agents/{id}", s.handleDeleteAgent)
 
 	// Workflows
