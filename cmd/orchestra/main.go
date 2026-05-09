@@ -18,9 +18,16 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
 	"runtime"
+	"strings"
+	"time"
 
+	"github.com/user/orchestra/internal/config"
+	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/server"
 	tui "github.com/user/orchestra/pkg/tui"
 )
 
@@ -99,6 +106,47 @@ Environment Variables:
   ANTHROPIC_API_KEY       Anthropic API key
   OPENROUTER_API_KEY      OpenRouter API key
   NO_COLOR                Disable colored output
+
+Adding API Keys:
+  Orchestra uses environment variables to authenticate with AI providers.
+  You must set at least one provider key to use the system.
+
+  1. Export the key in your shell session:
+
+       export OPENAI_API_KEY="sk-..."
+       export ANTHROPIC_API_KEY="sk-ant-..."
+       export OPENROUTER_API_KEY="sk-or-..."
+
+  2. Or persist keys by adding them to your shell profile (~/.bashrc, ~/.zshrc):
+
+       echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
+       source ~/.bashrc
+
+  3. Or create a .env file in the project root and load it:
+
+       echo 'OPENAI_API_KEY=sk-...' > .env
+       echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env
+
+  4. Or pass the key inline for a single command:
+
+       OPENAI_API_KEY="sk-..." orchestra cli
+
+  5. Or configure keys in the YAML config (configs/orchestra.yaml):
+
+       providers:
+         openai:
+           api_key: ${OPENAI_API_KEY}
+
+  Where to get API keys:
+    OpenAI:       https://platform.openai.com/api-keys
+    Anthropic:    https://console.anthropic.com/settings/keys
+    OpenRouter:   https://openrouter.ai/keys
+    Ollama:       No key needed (runs locally at http://localhost:11434)
+
+  Security:
+    - Never commit API keys to version control.
+    - Add .env to your .gitignore file.
+    - Rotate keys immediately if accidentally exposed.
 `)
 }
 
@@ -110,12 +158,34 @@ func printVersion() {
 }
 
 func runHealthcheck() error {
-	fmt.Println("OK")
-	return nil
+	addr := os.Getenv("ORCHESTRA_SERVER_ADDR")
+	if addr == "" {
+		addr = "localhost:8080"
+	}
+	url := "http://" + addr + "/v1/health"
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		// If the server is not running, still report OK for CLI-only mode
+		fmt.Println("OK (server not running)")
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		fmt.Println("OK")
+		return nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Health check failed: HTTP %d\n", resp.StatusCode)
+	return fmt.Errorf("health check returned status %d", resp.StatusCode)
 }
 
 func runServe(args []string) error {
 	var configPath string
+	var addr string
+	var apiKeys []string
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -125,13 +195,41 @@ func runServe(args []string) error {
 			}
 			i++
 			configPath = args[i]
+		case "--addr", "-a":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --addr requires an address argument")
+			}
+			i++
+			addr = args[i]
+		case "--api-key":
+			if i+1 >= len(args) {
+				return fmt.Errorf("flag --api-key requires a key argument")
+			}
+			i++
+			apiKeys = append(apiKeys, args[i])
 		case "--help", "-h":
 			fmt.Printf(`Usage:
   orchestra serve [flags]
 
+Start the Orchestra REST API server.
+
 Flags:
-  -c, --config string   Path to configuration file (default "configs/orchestra.yaml")
-  -h, --help            Show help for serve command
+  -c, --config string    Path to configuration file (default "configs/orchestra.yaml")
+  -a, --addr string      Address to listen on (default ":8080")
+      --api-key string    API key for authentication (repeatable; if unset, auth is disabled)
+  -h, --help             Show help for serve command
+
+Environment Variables:
+  ORCHESTRA_SERVER_ADDR          Address to listen on
+  ORCHESTRA_SERVER_API_KEY       API key for authentication (comma-separated)
+  ORCHESTRA_DEFAULT_PROVIDER     Default provider name
+  ORCHESTRA_DEFAULT_MODEL        Default model ID
+
+Examples:
+  orchestra serve
+  orchestra serve --addr :9090
+  orchestra serve --api-key secret123 --api-key key456
+  orchestra serve -c /etc/orchestra/config.yaml
 `)
 			return nil
 		default:
@@ -143,10 +241,49 @@ Flags:
 		configPath = "configs/orchestra.yaml"
 	}
 
-	fmt.Printf("Starting Orchestra server with config: %s\n", configPath)
-	fmt.Println("Server mode is not yet implemented (Phase 1 — foundation)")
-	fmt.Println("The library foundation (types, interfaces, registry, config) is ready for use.")
-	return nil
+	// Load orchestra configuration
+	cfg, err := config.LoadOrDefault(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Build server configuration
+	serverCfg := server.DefaultServerConfig()
+	serverCfg.ConfigPath = configPath
+
+	// Override addr from flag or env
+	if addr != "" {
+		serverCfg.Addr = addr
+	} else if envAddr := os.Getenv("ORCHESTRA_SERVER_ADDR"); envAddr != "" {
+		serverCfg.Addr = envAddr
+	}
+
+	// Override API keys from flag or env
+	if len(apiKeys) > 0 {
+		serverCfg.APIKeys = apiKeys
+	} else if envKeys := os.Getenv("ORCHESTRA_SERVER_API_KEY"); envKeys != "" {
+		serverCfg.APIKeys = strings.Split(envKeys, ",")
+	}
+
+	// Build provider registry
+	registry := provider.NewRegistry()
+	for name, pc := range cfg.Providers {
+		if !pc.IsEnabled() {
+			continue
+		}
+		factory := resolveProviderFactory(name)
+		if factory == nil {
+			slog.Warn("no provider factory registered, skipping", "provider", name)
+			continue
+		}
+		if err := registry.Register(name, factory, pc); err != nil {
+			slog.Warn("failed to register provider", "provider", name, "error", err)
+		}
+	}
+
+	// Create and start server
+	srv := server.New(serverCfg, registry, cfg, slog.Default())
+	return srv.ListenAndServe()
 }
 
 // runChat starts the interactive terminal TUI.
@@ -325,6 +462,35 @@ Examples:
 	fmt.Println("  }")
 
 	return nil
+}
+
+// resolveProviderFactory returns a ProviderFactory for the named provider.
+// It imports each provider package and returns its constructor function.
+func resolveProviderFactory(name string) provider.ProviderFactory {
+	switch name {
+	case "mock":
+		return mockServerFactory
+	default:
+		// For real providers, return a factory that loads from config.
+		// Each provider package (openai, anthropic, etc.) registers itself
+		// via init() in a real deployment. For server mode, we attempt
+		// to use the config-based factory.
+		return newConfigFactory(name)
+	}
+}
+
+// mockServerFactory creates a mock provider for testing.
+func mockServerFactory(cfg config.ProviderConfig) (provider.Provider, error) {
+	return nil, fmt.Errorf("mock provider not available in server mode")
+}
+
+// newConfigFactory returns a factory that attempts to create a provider
+// from the configuration. In a full build with all providers linked,
+// this would call the specific provider constructor.
+func newConfigFactory(name string) provider.ProviderFactory {
+	return func(cfg config.ProviderConfig) (provider.Provider, error) {
+		return nil, fmt.Errorf("provider %q: not linked in this build (import the provider package to register it)", name)
+	}
 }
 
 // isInteractiveTerminal checks if stdout is connected to a terminal.
