@@ -194,9 +194,9 @@ type generateRequest struct {
 
 // messageRequest is a single message in a generate request.
 type messageRequest struct {
-	Role       string            `json:"role"`
-	Content    string            `json:"content"`
-	Name       string            `json:"name,omitempty"`
+	Role       string             `json:"role"`
+	Content    string             `json:"content"`
+	Name       string             `json:"name,omitempty"`
 	ToolCalls  []message.ToolCall `json:"tool_calls,omitempty"`
 	ToolResult *toolResultRequest `json:"tool_result,omitempty"`
 }
@@ -210,11 +210,11 @@ type toolResultRequest struct {
 
 // generateOptionsRequest maps to provider.GenerateOptions.
 type generateOptionsRequest struct {
-	Temperature   *float64  `json:"temperature,omitempty"`
-	TopP          *float64  `json:"top_p,omitempty"`
-	MaxTokens     *int      `json:"max_tokens,omitempty"`
-	StopSequences []string  `json:"stop_sequences,omitempty"`
-	Seed          *int64    `json:"seed,omitempty"`
+	Temperature    *float64 `json:"temperature,omitempty"`
+	TopP           *float64 `json:"top_p,omitempty"`
+	MaxTokens      *int     `json:"max_tokens,omitempty"`
+	StopSequences  []string `json:"stop_sequences,omitempty"`
+	Seed           *int64   `json:"seed,omitempty"`
 	ResponseFormat string   `json:"response_format,omitempty"`
 }
 
@@ -464,10 +464,10 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	s.agentStore.Range(func(key, value any) bool {
 		entry := value.(*agentEntry)
 		agents = append(agents, map[string]any{
-			"id":       key,
-			"name":     entry.Name,
-			"provider": entry.Provider,
-			"model":    entry.Model,
+			"id":        key,
+			"name":      entry.Name,
+			"provider":  entry.Provider,
+			"model":     entry.Model,
 			"max_turns": entry.MaxTurns,
 		})
 		return true
@@ -659,10 +659,10 @@ func (s *Server) handleRunAgentStream(w http.ResponseWriter, r *http.Request) {
 
 // workflowRequest is the JSON body for POST /v1/workflows.
 type workflowRequest struct {
-	Name   string          `json:"name"`
-	Steps  []stepDef       `json:"steps"`
-	Edges  []edgeDef       `json:"edges,omitempty"`
-	Input  map[string]any  `json:"input"`
+	Name  string         `json:"name"`
+	Steps []stepDef      `json:"steps"`
+	Edges []edgeDef      `json:"edges,omitempty"`
+	Input map[string]any `json:"input"`
 }
 
 // stepDef defines a single step in a workflow request.
@@ -915,8 +915,8 @@ func (s *Server) buildWorkflow(req workflowRequest) (*orchestration.Workflow, er
 		}
 
 		step := &orchestration.Step{
-			ID:     sd.ID,
-			Agent:  a,
+			ID:    sd.ID,
+			Agent: a,
 			InputMap: func(ctx *orchestration.WorkflowContext) (string, error) {
 				// Try to get input from workflow context
 				if topic, ok := ctx.Get("topic").(string); ok && topic != "" {

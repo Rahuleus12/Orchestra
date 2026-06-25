@@ -72,11 +72,11 @@ type ServerConfig struct {
 // DefaultServerConfig returns a ServerConfig with sensible defaults.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		Addr:             ":8080",
-		ReadTimeout:      30 * time.Second,
-		WriteTimeout:     120 * time.Second,
-		IdleTimeout:      120 * time.Second,
-		ShutdownTimeout:  30 * time.Second,
+		Addr:               ":8080",
+		ReadTimeout:        30 * time.Second,
+		WriteTimeout:       120 * time.Second,
+		IdleTimeout:        120 * time.Second,
+		ShutdownTimeout:    30 * time.Second,
 		CORSAllowedOrigins: []string{"*"},
 	}
 }

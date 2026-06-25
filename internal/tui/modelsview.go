@@ -162,16 +162,16 @@ func NewModelsModel(theme *Theme, keyMap *KeyMap, km *KeyManager, fetcher ModelF
 	s.Style = theme.Styles.Spinner
 
 	return &ModelsModel{
-		Theme:           theme,
-		KeyMap:          keyMap,
-		KeyManager:      km,
-		ModelFetcher:    fetcher,
-		LoadingSpinner:  s,
-		SearchInput:     si,
-		AddKeyInput:     addInput,
+		Theme:            theme,
+		KeyMap:           keyMap,
+		KeyManager:       km,
+		ModelFetcher:     fetcher,
+		LoadingSpinner:   s,
+		SearchInput:      si,
+		AddKeyInput:      addInput,
 		AddKeyValueInput: addValueInput,
-		Width:           80,
-		Height:          24,
+		Width:            80,
+		Height:           24,
 	}
 }
 

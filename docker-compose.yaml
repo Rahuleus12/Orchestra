@@ -88,9 +88,9 @@ services:
     volumes:
       - ./configs/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-      - "8889:8889"   # Prometheus exporter metrics
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+      - "8889:8889" # Prometheus exporter metrics
     networks:
       - orchestra-net
 
@@ -119,8 +119,8 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "14268:14268"  # Jaeger collector HTTP
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Jaeger collector HTTP
     networks:
       - orchestra-net
 
