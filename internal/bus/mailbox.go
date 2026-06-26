@@ -230,6 +230,8 @@ func (m *Mailbox) Receive(ctx context.Context) (BusMessage, error) {
 		// Check for closed first
 		if m.closed.Load() {
 			m.mu.Unlock()
+			// Propagate the wake to any other blocked receivers (wake-chain).
+			m.signal()
 			return BusMessage{}, &MailboxError{
 				Type:    MailboxErrorClosed,
 				Message: "mailbox is closed",
@@ -252,7 +254,11 @@ func (m *Mailbox) Receive(ctx context.Context) (BusMessage, error) {
 		// Wait for a signal or context cancellation
 		select {
 		case <-m.notify:
-			// Woken up, drain signal and loop to check for message
+			// Woken up; rebalance the waiters counter (incremented above) and
+			// loop to check for a message.
+			m.mu.Lock()
+			m.waiters--
+			m.mu.Unlock()
 			m.drainSignal()
 			continue
 		case <-ctx.Done():
@@ -333,6 +339,8 @@ func (m *Mailbox) ReceiveWithFilter(ctx context.Context, filter MailboxFilter) (
 
 		if m.closed.Load() {
 			m.mu.Unlock()
+			// Propagate the wake to any other blocked receivers (wake-chain).
+			m.signal()
 			return BusMessage{}, &MailboxError{
 				Type:    MailboxErrorClosed,
 				Message: "mailbox is closed",
@@ -356,6 +364,9 @@ func (m *Mailbox) ReceiveWithFilter(ctx context.Context, filter MailboxFilter) (
 
 		select {
 		case <-m.notify:
+			m.mu.Lock()
+			m.waiters--
+			m.mu.Unlock()
 			m.drainSignal()
 			continue
 		case <-ctx.Done():
@@ -575,9 +586,11 @@ func (m *Mailbox) Close() error {
 	m.subscriptions = nil
 	m.mu.Unlock()
 
-	// Wake up any blocked receivers
+	// Wake up blocked receivers. The mailbox uses a capacity-1 signal
+	// channel, so a single signal starts a wake-chain: each receiver that
+	// wakes and observes m.closed re-signals to wake the next one (see
+	// Receive / ReceiveWithFilter).
 	m.signal()
-	m.signal() // Send multiple signals to wake multiple waiters
 
 	m.logger.Info(
 		"Mailbox closed",

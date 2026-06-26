@@ -1396,7 +1396,10 @@ func TestTemplateRegistry_LoadFromFS(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "notatemplate.json"), []byte("{}"), 0o644)
 
 	reg := NewTemplateRegistry()
-	err := reg.LoadFromFS(os.DirFS(dir), ".")
+	// Anchor the FS one level up and walk the temp dir by name. os.DirFS(dir)
+	// with root "." does not work on Windows (Go's os.Root-backed DirFS rejects
+	// "."), so this keeps the test portable across platforms.
+	err := reg.LoadFromFS(os.DirFS(filepath.Dir(dir)), filepath.Base(dir))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

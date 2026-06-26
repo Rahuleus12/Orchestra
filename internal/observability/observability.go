@@ -175,7 +175,7 @@ func (o *Orchestra) SetupError() error {
 // This is the recommended way to create loggers for different parts of
 // Orchestra (agents, workflows, providers, tools).
 func (o *Orchestra) ComponentLogger(component string) *slog.Logger {
-	return o.logger.With(slog.String("component", component))
+	return o.Logger().With(slog.String("component", component))
 }
 
 // setupLogger creates a slog.Logger based on the logging configuration.

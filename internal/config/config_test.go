@@ -807,6 +807,35 @@ func TestLoadFromEnv_ProviderEnabled(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvValidated_OK(t *testing.T) {
+	t.Setenv("ORCHESTRA_DEFAULT_PROVIDER", "openai")
+	t.Setenv("ORCHESTRA_LOGGING_LEVEL", "debug")
+
+	cfg, err := LoadFromEnvValidated()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DefaultProvider != "openai" {
+		t.Errorf("DefaultProvider = %q, want openai", cfg.DefaultProvider)
+	}
+}
+
+func TestLoadFromEnvValidated_Invalid(t *testing.T) {
+	// An invalid log level must be rejected by Validate, unlike the
+	// non-validating LoadFromEnv which silently accepts it.
+	t.Setenv("ORCHESTRA_LOGGING_LEVEL", "not-a-real-level")
+
+	if _, err := LoadFromEnvValidated(); err == nil {
+		t.Fatal("expected validation error for invalid log level, got nil")
+	}
+
+	// Sanity check: LoadFromEnv (non-validating) accepts it without error.
+	cfg := LoadFromEnv()
+	if cfg.Logging.Level != "not-a-real-level" {
+		t.Errorf("LoadFromEnv should preserve the value, got %q", cfg.Logging.Level)
+	}
+}
+
 // --- Merge ---
 
 func TestMerge_Empty(t *testing.T) {

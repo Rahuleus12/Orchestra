@@ -100,6 +100,8 @@ func (hc *HealthChecker) IsReady() bool {
 
 // SetVersion sets the version string reported in health responses.
 func (hc *HealthChecker) SetVersion(version string) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
 	hc.version = version
 }
 
@@ -110,11 +112,12 @@ func (hc *HealthChecker) CheckHealth() HealthResponse {
 	for k, v := range hc.checks {
 		checks[k] = v
 	}
+	version := hc.version
 	hc.mu.RUnlock()
 
 	response := HealthResponse{
 		Timestamp: time.Now(),
-		Version:   hc.version,
+		Version:   version,
 		Uptime:    time.Since(hc.startTime).Round(time.Second).String(),
 		Checks:    make([]HealthCheckResult, 0, len(checks)),
 		Status:    HealthStatusHealthy,

@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -434,12 +435,16 @@ func (h *Histogram) Percentile(p float64) float64 {
 		return 0
 	}
 
-	// Simple percentile calculation
-	idx := int(float64(len(h.values)) * p / 100.0)
-	if idx >= len(h.values) {
-		idx = len(h.values) - 1
+	// Percentile requires a sorted sample; h.values is in insertion order.
+	sorted := make([]float64, len(h.values))
+	copy(sorted, h.values)
+	slices.Sort(sorted)
+
+	idx := int(float64(len(sorted)) * p / 100.0)
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
 	}
-	return h.values[idx]
+	return sorted[idx]
 }
 
 // Name returns the histogram name.

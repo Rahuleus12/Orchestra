@@ -53,6 +53,9 @@ func LoadFromFile(path string) (*Config, error) {
 // prefixed with ORCHESTRA_. This is useful for containerized deployments
 // where configuration is injected via environment.
 //
+// Note: this function does not validate the resulting config. Use
+// LoadFromEnvValidated when you need invalid configuration to fail fast.
+//
 // Supported environment variables:
 //
 //	ORCHESTRA_DEFAULT_PROVIDER        -> Config.DefaultProvider
@@ -124,6 +127,18 @@ func LoadFromEnv() *Config {
 	applyEnvOverrides(cfg)
 
 	return cfg
+}
+
+// LoadFromEnvValidated is like LoadFromEnv but also runs Validate, returning an
+// error if the environment-derived configuration is invalid. Prefer this in
+// deployments where invalid config should fail fast (e.g. server startup)
+// instead of being silently accepted.
+func LoadFromEnvValidated() (*Config, error) {
+	cfg := LoadFromEnv()
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("validate config: %w", err)
+	}
+	return cfg, nil
 }
 
 // LoadOrDefault attempts to load configuration from the given file path.

@@ -236,6 +236,7 @@ func (rb *RequestBroadcast) Broadcast(
 	defer sub.Unsubscribe()
 
 	// Send requests to all target agents
+	sent := 0
 	for _, agentID := range targetAgents {
 		reqMsg := NewBusMessage(topic, requesterID, agentID, payload)
 		reqMsg.SetMetadata("correlation_id", correlationID)
@@ -251,6 +252,7 @@ func (rb *RequestBroadcast) Broadcast(
 			)
 			continue
 		}
+		sent++
 	}
 
 	rb.logger.Debug(
@@ -261,8 +263,10 @@ func (rb *RequestBroadcast) Broadcast(
 		"timeout", timeout,
 	)
 
-	// Collect responses
-	expectedCount := len(targetAgents)
+	// Collect responses. Only wait for agents we actually reached; otherwise
+	// the loop would block until the timeout for agents that never received
+	// the request.
+	expectedCount := sent
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -655,7 +659,7 @@ func (c *Consensus) Vote(ctx context.Context, request BusMessage, value string, 
 		return fmt.Errorf("request does not contain correlation_id metadata")
 	}
 
-	voteMsg := NewBusMessage(responseTopicStr, "voter", request.FromAgent, value)
+	voteMsg := NewBusMessage(responseTopicStr, request.ToAgent, "", value)
 	voteMsg.SetMetadata("correlation_id", correlationID)
 	voteMsg.SetMetadata("vote_value", value)
 	voteMsg.SetMetadata("vote_reason", reason)
@@ -1007,7 +1011,7 @@ func (a *Auction) Bid(ctx context.Context, request BusMessage, value float64, pr
 		return fmt.Errorf("request does not contain correlation_id metadata")
 	}
 
-	bidMsg := NewBusMessage(responseTopicStr, "bidder", request.FromAgent, value)
+	bidMsg := NewBusMessage(responseTopicStr, request.ToAgent, "", value)
 	bidMsg.SetMetadata("correlation_id", correlationID)
 	bidMsg.SetMetadata("bid_value", value)
 	bidMsg.SetMetadata("bid_proposal", proposal)

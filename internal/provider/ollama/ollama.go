@@ -692,7 +692,7 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 		}
 
 		// Process tool calls
-		for _, tc := range ollResp.Message.ToolCalls {
+		for i, tc := range ollResp.Message.ToolCalls {
 			args := "{}"
 			if tc.Function.Arguments != nil {
 				if b, err := json.Marshal(tc.Function.Arguments); err == nil {
@@ -700,7 +700,7 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 				}
 			}
 			toolCall := message.ToolCall{
-				ID:   fmt.Sprintf("ollama_%d", time.Now().UnixNano()),
+				ID:   fmt.Sprintf("ollama_%d_%d", time.Now().UnixNano(), i),
 				Type: "function",
 				Function: message.ToolCallFunction{
 					Name:      tc.Function.Name,

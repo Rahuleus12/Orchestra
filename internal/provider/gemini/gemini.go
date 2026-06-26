@@ -358,7 +358,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 	}
 
 	path := fmt.Sprintf(generateContentPath, model)
-	url := p.baseURL + path + "?key=" + p.apiKey
+	url := p.baseURL + path
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -366,6 +366,9 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 			fmt.Errorf("failed to create request: %w", err))
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	// Send the API key in a header instead of the URL so it does not leak via
+	// *url.Error in connection/timeout error messages.
+	httpReq.Header.Set("X-Goog-Api-Key", p.apiKey)
 
 	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {
@@ -420,7 +423,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 
 	path := fmt.Sprintf(streamContentPath, model)
-	url := p.baseURL + path + "&key=" + p.apiKey
+	url := p.baseURL + path
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -428,6 +431,9 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 			fmt.Errorf("failed to create request: %w", err))
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	// Send the API key in a header instead of the URL so it does not leak via
+	// *url.Error in connection/timeout error messages.
+	httpReq.Header.Set("X-Goog-Api-Key", p.apiKey)
 
 	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {

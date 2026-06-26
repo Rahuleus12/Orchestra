@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -190,12 +191,10 @@ func isRetryableError(err error) bool {
 		return false
 	}
 
-	// Check for context cancellation — never retry
-	if ctx := context.Cause(context.Background()); ctx != nil {
-		// If the error is a context error, don't retry
-		if err == context.Canceled || err == context.DeadlineExceeded {
-			return false
-		}
+	// Check for context cancellation/deadline — never retry. errors.Is
+	// also catches these when wrapped inside a ProviderError.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
 	}
 
 	// Check for ProviderError with retryable status codes
@@ -524,6 +523,12 @@ func (l *loggingProvider) Stream(ctx context.Context, req provider.GenerateReque
 			case outCh <- evt:
 			case <-ctx.Done():
 				logger.Warn("provider stream cancelled")
+				// Drain the inner channel so the inner provider's goroutine can
+				// finish sending and close innerCh instead of blocking forever.
+				go func() {
+					for range innerCh {
+					}
+				}()
 				return
 			}
 		}
@@ -772,12 +777,13 @@ type circuitBreakerProvider struct {
 	threshold    int
 	resetTimeout time.Duration
 
-	mu            sync.Mutex
-	state         CircuitState
-	stateChanged  time.Time
-	consecFails   int
-	totalRejected int64
-	lastFailure   time.Time
+	mu               sync.Mutex
+	state            CircuitState
+	stateChanged     time.Time
+	consecFails      int
+	totalRejected    int64
+	lastFailure      time.Time
+	halfOpenInflight int // number of probe requests in flight while half-open
 }
 
 func (cb *circuitBreakerProvider) Name() string { return cb.inner.Name() }
@@ -822,6 +828,12 @@ func (cb *circuitBreakerProvider) Stream(ctx context.Context, req provider.Gener
 			select {
 			case outCh <- evt:
 			case <-ctx.Done():
+				// Drain the inner channel so the inner provider's goroutine can
+				// finish and close ch instead of blocking forever.
+				go func() {
+					for range ch {
+					}
+				}()
 				return
 			}
 		}
@@ -848,6 +860,7 @@ func (cb *circuitBreakerProvider) beforeRequest() error {
 		if time.Since(cb.stateChanged) > cb.resetTimeout {
 			cb.state = CircuitHalfOpen
 			cb.stateChanged = time.Now()
+			cb.halfOpenInflight = 1 // this request is the single probe
 			return nil
 		}
 		cb.totalRejected++
@@ -855,7 +868,14 @@ func (cb *circuitBreakerProvider) beforeRequest() error {
 			cb.inner.Name(), cb.consecFails)
 
 	case CircuitHalfOpen:
-		// Allow one probe request through
+		// Allow only a single probe request through at a time while we test
+		// whether the dependency has recovered.
+		if cb.halfOpenInflight > 0 {
+			cb.totalRejected++
+			return fmt.Errorf("circuit breaker half-open for provider %q: probe already in flight",
+				cb.inner.Name())
+		}
+		cb.halfOpenInflight++
 		return nil
 
 	default:
@@ -891,6 +911,7 @@ func (cb *circuitBreakerProvider) recordFailure() {
 		// Probe failed — reopen circuit
 		cb.state = CircuitOpen
 		cb.stateChanged = time.Now()
+		cb.halfOpenInflight = 0
 	}
 }
 
@@ -905,6 +926,7 @@ func (cb *circuitBreakerProvider) recordSuccess() {
 		// Probe succeeded — close circuit
 		cb.state = CircuitClosed
 		cb.stateChanged = time.Now()
+		cb.halfOpenInflight = 0
 	}
 }
 

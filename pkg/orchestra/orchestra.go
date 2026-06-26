@@ -846,6 +846,13 @@ func LoadConfigFromEnv() *Config {
 	return config.LoadFromEnv()
 }
 
+// LoadConfigFromEnvValidated is like LoadConfigFromEnv but also validates the
+// resulting configuration, returning an error if it is invalid. Prefer this
+// for deployments where invalid configuration should fail fast.
+func LoadConfigFromEnvValidated() (*Config, error) {
+	return config.LoadFromEnvValidated()
+}
+
 // LoadConfigOrDefault attempts to load configuration from the given file path.
 // If the file does not exist, it returns the default configuration.
 func LoadConfigOrDefault(path string) (*Config, error) {

@@ -154,6 +154,44 @@ func NewCodeSearchToolWithRoot(root string) CodeSearchTool {
 	}
 }
 
+// resolveSearchPath resolves a (possibly relative) search path against the
+// tool's Root and rejects paths that escape the root via ".." or absolute
+// paths (unless AllowAbsolute is set). This mirrors the containment checks
+// used by the other filesystem tools.
+func (t CodeSearchTool) resolveSearchPath(userPath string) (string, error) {
+	root := t.Root
+	if root == "" {
+		root = "."
+	}
+	root = filepath.Clean(root)
+
+	if userPath != "" {
+		userPath = filepath.Clean(userPath)
+		if filepath.IsAbs(userPath) {
+			if !t.AllowAbsolute {
+				return "", fmt.Errorf("absolute paths not allowed: %s", userPath)
+			}
+			return userPath, nil
+		}
+		root = filepath.Join(root, userPath)
+	}
+	root = filepath.Clean(root)
+
+	// Containment check on absolute forms to catch ".." traversal.
+	absRoot, err := filepath.Abs(t.Root)
+	if err != nil {
+		return "", fmt.Errorf("resolve root: %w", err)
+	}
+	absResolved, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve path: %w", err)
+	}
+	if !strings.HasPrefix(absResolved, absRoot+string(filepath.Separator)) && absResolved != absRoot {
+		return "", fmt.Errorf("path traversal detected: %s resolves outside root %s", userPath, absRoot)
+	}
+	return root, nil
+}
+
 // Name returns the tool's identifier.
 func (t CodeSearchTool) Name() string { return "code_search" }
 
@@ -303,15 +341,11 @@ func (t CodeSearchTool) Execute(ctx context.Context, input json.RawMessage) (jso
 		return marshalCodeSearchError(fmt.Errorf("parse exclude_pattern: %w", err))
 	}
 
-	// Resolve search path
-	searchPath := t.Root
-	if searchPath == "" {
-		searchPath = "."
+	// Resolve search path (validated against the tool root to prevent traversal).
+	searchPath, err := t.resolveSearchPath(req.Path)
+	if err != nil {
+		return marshalCodeSearchError(err)
 	}
-	if req.Path != "" {
-		searchPath = filepath.Join(searchPath, req.Path)
-	}
-	searchPath = filepath.Clean(searchPath)
 
 	// Check if search path exists
 	info, err := os.Stat(searchPath)

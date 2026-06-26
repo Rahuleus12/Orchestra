@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -84,13 +85,52 @@ type HTTPResponseOutput struct {
 //   - Response body size is limited to prevent memory exhaustion
 //   - Timeouts prevent hanging on unresponsive servers
 //   - Redirects can be disabled to prevent SSRF amplification
+//   - By default, private/loopback/link-local addresses are blocked (SSRF)
 func NewHTTPRequestTool() HTTPRequestTool {
-	return HTTPRequestTool{}
+	return NewHTTPRequestToolWithConfig(HTTPClientConfig{})
+}
+
+// HTTPClientConfig configures the security behavior of HTTPRequestTool.
+//
+// The zero value is safe to use: private/loopback/link-local/multicast
+// addresses are blocked and TLS verification cannot be disabled per request.
+type HTTPClientConfig struct {
+	// AllowPrivateAddresses, when true, permits connections to non-public IPs
+	// (loopback, RFC1918 private, link-local, multicast, unspecified). Defaults
+	// to false (SSRF protection ON). Set to true only in trusted, isolated
+	// environments.
+	AllowPrivateAddresses bool
+
+	// AllowedHosts is an allowlist of hostnames that are always permitted,
+	// even if they would otherwise be blocked (e.g. an internal API gateway
+	// the agent is explicitly allowed to reach). Matching is case-insensitive.
+	AllowedHosts []string
+
+	// BlockedHosts is a denylist of hostnames that are always rejected,
+	// regardless of other settings. Matching is case-insensitive.
+	BlockedHosts []string
+
+	// AllowInsecureSkipVerify, when true, lets per-request
+	// HTTPRequestInput.InsecureSkipVerify disable TLS verification. Defaults to
+	// false (server-controlled; the request field is ignored).
+	AllowInsecureSkipVerify bool
+}
+
+// NewHTTPRequestToolWithConfig creates an http_request tool with custom
+// security configuration. Use this when you need to allow specific internal
+// hosts or opt into per-request InsecureSkipVerify.
+func NewHTTPRequestToolWithConfig(cfg HTTPClientConfig) HTTPRequestTool {
+	return HTTPRequestTool{config: cfg}
 }
 
 // HTTPRequestTool implements the http_request built-in tool.
 // It is safe for concurrent use.
-type HTTPRequestTool struct{}
+type HTTPRequestTool struct {
+	// config controls SSRF protection and TLS behavior. The zero value is
+	// safe to use: private/loopback/link-local addresses are blocked and TLS
+	// verification cannot be disabled per-request.
+	config HTTPClientConfig
+}
 
 // Name returns the tool's identifier.
 func (t HTTPRequestTool) Name() string { return "http_request" }
@@ -196,6 +236,13 @@ func (t HTTPRequestTool) Execute(ctx context.Context, input json.RawMessage) (js
 		return marshalError(fmt.Errorf("URL must use http or https scheme, got %q", parsedURL.Scheme))
 	}
 
+	// SSRF protection: check the hostname against allow/deny lists before
+	// making the request. (The connection-time dialer re-checks the resolved
+	// IP to defeat DNS rebinding and redirects to internal hosts.)
+	if err := t.checkHost(parsedURL.Hostname()); err != nil {
+		return marshalError(err)
+	}
+
 	// Apply defaults
 	if req.Method == "" {
 		req.Method = "GET"
@@ -235,19 +282,35 @@ func (t HTTPRequestTool) Execute(ctx context.Context, input json.RawMessage) (js
 
 	// Build the HTTP client
 	timeout := time.Duration(req.TimeoutSeconds) * time.Second
+
+	// InsecureSkipVerify is server-controlled: only honor the per-request
+	// flag when the operator explicitly opted in via AllowInsecureSkipVerify.
+	insecure := req.InsecureSkipVerify && t.config.AllowInsecureSkipVerify
+
+	transport := &http.Transport{
+		// Enforce SSRF protection at connection time so redirects and DNS
+		// rebinding cannot reach blocked addresses.
+		DialContext: t.guardedDialContext(),
+	}
+	if insecure {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
 	client := &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: transport,
 	}
 	if !req.FollowRedirects {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-	}
-	if req.InsecureSkipVerify {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+	} else {
+		// Validate every redirect destination to block SSRF via redirect.
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if err := t.checkHost(req.URL.Hostname()); err != nil {
+				return err
+			}
+			return nil
 		}
 	}
 
@@ -294,6 +357,87 @@ func hasBody(method string) bool {
 	default:
 		return false
 	}
+}
+
+// checkHost validates a hostname against the tool's allow/deny lists. This is
+// a fast pre-flight check; the connection-time dialer performs the full
+// private-address resolution check (defeating DNS rebinding and redirects).
+func (t HTTPRequestTool) checkHost(host string) error {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return fmt.Errorf("URL host is empty")
+	}
+
+	// Denylist takes precedence.
+	for _, blocked := range t.config.BlockedHosts {
+		if strings.EqualFold(blocked, host) {
+			return fmt.Errorf("host %q is blocked", host)
+		}
+	}
+	return nil
+}
+
+// guardedDialContext returns a DialContext that resolves the host and rejects
+// non-public IP addresses (unless AllowPrivateAddresses is set), defeating DNS
+// rebinding and redirects to internal services. It honors the allow/deny
+// lists on the resolved host name.
+func (t HTTPRequestTool) guardedDialContext() func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("ssrf: invalid address %q: %w", addr, err)
+		}
+
+		// Denylist takes precedence.
+		for _, b := range t.config.BlockedHosts {
+			if strings.EqualFold(b, host) {
+				return nil, fmt.Errorf("ssrf: host %q is blocked", host)
+			}
+		}
+
+		// Allowlist (or explicit opt-out) bypasses private-IP checks.
+		allowPrivate := t.config.AllowPrivateAddresses
+		for _, a := range t.config.AllowedHosts {
+			if strings.EqualFold(a, host) {
+				allowPrivate = true
+				break
+			}
+		}
+
+		if !allowPrivate {
+			ips, lookupErr := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if lookupErr != nil {
+				return nil, fmt.Errorf("ssrf: resolve %q: %w", host, lookupErr)
+			}
+			for _, ip := range ips {
+				if blocked, reason := ipIsBlocked(ip.IP); blocked {
+					return nil, fmt.Errorf("ssrf: %s resolves to non-public address %s (%s)", host, ip.IP, reason)
+				}
+			}
+		}
+
+		return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(host, port))
+	}
+}
+
+// ipIsBlocked reports whether an IP is a non-public address, returning a
+// human-readable reason. Loopback, private (RFC1918/RFC4193), link-local,
+// multicast, and unspecified addresses are blocked. This runs by default
+// (zero-value HTTPClientConfig means SSRF protection is ON).
+func ipIsBlocked(ip net.IP) (bool, string) {
+	switch {
+	case ip.IsUnspecified():
+		return true, "unspecified"
+	case ip.IsLoopback():
+		return true, "loopback"
+	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
+		return true, "link-local"
+	case ip.IsMulticast():
+		return true, "multicast"
+	case ip.IsPrivate():
+		return true, "private"
+	}
+	return false, ""
 }
 
 // extractHeaders converts http.Header to a simple map.

@@ -16,6 +16,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -1089,7 +1090,9 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	return readAll(resp.Body, 1024*1024) // Max 1MB error body
 }
 
-// readAll reads from r with a size limit.
+// readAll reads from r with a size limit. A read error other than io.EOF
+// (e.g. the connection dropping mid-body) is propagated to the caller along
+// with whatever was read so far.
 func readAll(r interface{ Read([]byte) (int, error) }, maxSize int) ([]byte, error) {
 	buf := make([]byte, 0, 512)
 	tmp := make([]byte, 256)
@@ -1102,7 +1105,10 @@ func readAll(r interface{ Read([]byte) (int, error) }, maxSize int) ([]byte, err
 			}
 		}
 		if err != nil {
-			return buf, nil //nolint: nilerr // Return what we have
+			if err == io.EOF {
+				return buf, nil
+			}
+			return buf, err
 		}
 	}
 }

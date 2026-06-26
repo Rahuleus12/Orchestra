@@ -4,6 +4,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -229,6 +230,12 @@ func (r *Registry) Resolve(modelRef string) (Provider, string, error) {
 		}
 	}
 	r.mu.RUnlock()
+
+	// Map iteration order is non-deterministic; sort by provider name so that
+	// resolution is stable across runs when multiple providers share a model.
+	slices.SortFunc(matches, func(a, b match) int {
+		return strings.Compare(a.name, b.name)
+	})
 
 	if len(matches) > 0 {
 		p, err := r.Get(matches[0].name)

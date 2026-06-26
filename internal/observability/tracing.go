@@ -99,10 +99,11 @@ func WithTimestamp(t time.Time) SpanEndOption {
 
 // Tracer creates spans for a specific component.
 type Tracer struct {
-	name   string
-	logger *slog.Logger
-	mu     sync.Mutex
-	spans  []*recordingSpan
+	name     string
+	logger   *slog.Logger
+	mu       sync.Mutex
+	spans    []*recordingSpan
+	provider *TracerProvider // back-reference so spans are also recorded on the provider
 }
 
 // TracerProvider creates and manages Tracers.
@@ -183,8 +184,9 @@ func (tp *TracerProvider) Tracer(name string, opts ...TracerOption) *Tracer {
 	}
 
 	t := &Tracer{
-		name:   name,
-		logger: tp.logger.With(slog.String("tracer", name)),
+		name:     name,
+		logger:   tp.logger.With(slog.String("tracer", name)),
+		provider: tp,
 	}
 	tp.tracers[name] = t
 	return t
@@ -236,7 +238,13 @@ func (t *Tracer) Start(ctx context.Context, spanName string, opts ...SpanStartOp
 	t.spans = append(t.spans, span)
 	t.mu.Unlock()
 
-	// Also store in provider for retrieval
+	// Also store in provider for retrieval via GetSpans().
+	if t.provider != nil {
+		t.provider.spanMu.Lock()
+		t.provider.spans = append(t.provider.spans, span)
+		t.provider.spanMu.Unlock()
+	}
+
 	t.logger.Debug(
 		"span started",
 		slog.String("span", spanName),

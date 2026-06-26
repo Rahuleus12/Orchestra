@@ -565,7 +565,8 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusNoContent, nil)
+	// 204 No Content must not have a body or Content-Type per RFC 7230.
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleRunAgentStream streams an agent run via Server-Sent Events.
@@ -889,8 +890,20 @@ func (s *Server) buildWorkflow(req workflowRequest) (*orchestration.Workflow, er
 
 	// Create agents for each step and add as workflow steps
 	for _, sd := range req.Steps {
+		// Build the model reference. If a provider is specified explicitly,
+		// honor it (resolving its configured default model when no model is
+		// given) instead of silently falling back to the global default.
 		modelRef := sd.Model
-		if modelRef == "" {
+		if sd.Provider != "" {
+			if modelRef == "" {
+				if pc, ok := s.config.Providers[sd.Provider]; ok && pc.DefaultModel != "" {
+					modelRef = pc.DefaultModel
+				} else {
+					modelRef = s.config.DefaultModel
+				}
+			}
+			modelRef = sd.Provider + "::" + modelRef
+		} else if modelRef == "" {
 			modelRef = s.config.DefaultModel
 		}
 

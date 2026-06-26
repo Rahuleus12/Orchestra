@@ -3,11 +3,14 @@ package tool
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/user/orchestra/internal/message"
@@ -518,14 +521,22 @@ func (e *Executor) ExecuteParallelAndCollect(ctx context.Context, calls []ToolCa
 // Helpers
 // ---------------------------------------------------------------------------
 
-// generateToolCallID creates a unique ID for a tool call.
+// generateToolCallID creates a unique ID for a tool call. It combines
+// crypto-random bytes with a process-wide counter so that IDs never collide
+// even when many calls are generated within the same nanosecond.
+var toolCallSeq uint64
+
 func generateToolCallID() string {
-	b := make([]byte, 12)
-	_ = runtime.Callers(0, nil) // Just to add some entropy
-	for i := range b {
-		b[i] = byte(time.Now().UnixNano() >> (uint(i) * 8))
+	seq := atomic.AddUint64(&toolCallSeq, 1)
+	var b [12]byte
+	// 8 bytes of process-unique counter ...
+	binary.BigEndian.PutUint64(b[:8], seq)
+	// ... plus 4 random bytes to reduce cross-process collision risk.
+	if _, err := rand.Read(b[8:]); err != nil {
+		// Fallback: fold the counter into the remaining bytes.
+		binary.BigEndian.PutUint32(b[8:], uint32(seq>>32)^uint32(time.Now().UnixNano()))
 	}
-	return fmt.Sprintf("call_%x", b)
+	return fmt.Sprintf("call_%x", b[:])
 }
 
 // ExecuteToolCalls is a package-level convenience function that executes

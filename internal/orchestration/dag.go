@@ -179,7 +179,14 @@ func (w *Workflow) GetMetadata(key string) (any, bool) {
 func (w *Workflow) Validate() error {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+	return w.validateLocked()
+}
 
+// validateLocked is Validate without acquiring the lock. The caller must hold
+// (at least) w.mu.RLock. It exists so public methods that already hold the
+// RLock can validate without re-entering the non-reentrant RWMutex (which
+// would deadlock if a writer is queued).
+func (w *Workflow) validateLocked() error {
 	if len(w.steps) == 0 {
 		return fmt.Errorf("workflow must have at least one step")
 	}
@@ -224,8 +231,13 @@ func (w *Workflow) hasCycleDFS(node string, visited, recStack map[string]bool) b
 func (w *Workflow) GetTopologicalOrder() ([]string, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
+	return w.getTopologicalOrderLocked()
+}
 
-	if err := w.Validate(); err != nil {
+// getTopologicalOrderLocked is GetTopologicalOrder without acquiring the lock.
+// The caller must hold w.mu.RLock.
+func (w *Workflow) getTopologicalOrderLocked() ([]string, error) {
+	if err := w.validateLocked(); err != nil {
 		return nil, err
 	}
 
@@ -277,7 +289,9 @@ func (w *Workflow) GetIndependentSteps() ([][]string, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	order, err := w.GetTopologicalOrder()
+	// Reuse the locked variant to avoid re-entering the RWMux (which is not
+	// reentrant and would deadlock if a writer were queued).
+	order, err := w.getTopologicalOrderLocked()
 	if err != nil {
 		return nil, err
 	}

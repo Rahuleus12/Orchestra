@@ -22,6 +22,7 @@ type SessionJournal struct {
 	// Compaction
 	compactor CompactionStrategy
 	compacted map[string]*message.CompactionInfo // checkpoint SHA → info
+	compactMu sync.Mutex                         // serializes compaction runs to avoid races on ordered/store
 
 	// Options
 	logger interface{} // *slog.Logger (avoid import cycle)
@@ -101,14 +102,20 @@ func (j *SessionJournal) Append(ctx context.Context, msg message.Message) (strin
 	j.ordered = append(j.ordered, hash)
 	j.head = hash
 
-	// Check if compaction should be triggered
+	// Check if compaction should be triggered.
+	//
+	// Compaction must not run concurrently with itself: two overlapping
+	// compactions would both read/modify ordered, store, and head and corrupt
+	// the chain. compactMu serializes compaction runs while releasing j.mu so
+	// the (potentially slow, LLM-backed) compaction does not block readers.
 	if j.compactor != nil && j.compactor.ShouldCompact(j) {
-		j.mu.Unlock() // Release lock for compaction
-		err := j.compactor.Compact(ctx, j)
-		j.mu.Lock() // Reacquire lock
-		if err != nil {
-			// Log error but don't fail the append
-			_ = err
+		j.mu.Unlock() // release the write lock before the (possibly slow) compaction
+		j.compactMu.Lock()
+		compactErr := j.compactor.Compact(ctx, j)
+		j.compactMu.Unlock()
+		j.mu.Lock() // reacquire the write lock
+		if compactErr != nil {
+			_ = compactErr // log error but don't fail the append
 		}
 	}
 
@@ -170,14 +177,17 @@ func (j *SessionJournal) ResolveChain(fromSHA string, maxDepth int) ([]message.M
 			break
 		}
 
+		// If this hash was folded into a compaction checkpoint, jump to the
+		// checkpoint instead of walking the (still-present) original messages.
+		// This keeps the resolved chain aligned with the post-compaction view.
+		if checkpointSHA := j.findCompactedHash(currentSHA); checkpointSHA != "" {
+			currentSHA = checkpointSHA
+			continue
+		}
+
 		msg, ok := j.store[currentSHA]
 		if !ok {
-			// Check if this hash was compacted into a checkpoint
-			currentSHA = j.findCompactedHash(currentSHA)
-			if currentSHA == "" {
-				break
-			}
-			continue
+			break
 		}
 
 		chain = append(chain, msg)
@@ -198,6 +208,15 @@ func (j *SessionJournal) findCompactedHash(sha string) string {
 		}
 	}
 	return ""
+}
+
+// FindCompactedCheckpoint returns the SHA of the compaction checkpoint that
+// folded in the given message hash, or "" if the message was not compacted.
+// It is safe for concurrent use.
+func (j *SessionJournal) FindCompactedCheckpoint(sha string) string {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	return j.findCompactedHash(sha)
 }
 
 // Recent returns the most recent N messages (post-compaction view).

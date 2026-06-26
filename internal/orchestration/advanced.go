@@ -177,6 +177,7 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 
 	startTime := time.Now()
 	iterationResults := make([]IterationResult, 0, cfg.MaxIterations)
+	iteration := 0
 
 	e.logger.Info(
 		"Starting refinement process",
@@ -238,7 +239,7 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		}
 
 		// If this is the last iteration, don't refine further
-		if iteration >= cfg.MaxIterations {
+		if i >= cfg.MaxIterations-1 {
 			break
 		}
 
@@ -257,6 +258,17 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		currentOutput = refineResult.FinalText()
 	}
 
+	// If no iteration produced a result (e.g. MaxIterations == 0 or the first
+	// evaluation failed), return the current output as-is rather than panicking.
+	if len(iterationResults) == 0 {
+		return &RefinementResult{
+			Output:           currentOutput,
+			Iterations:       0,
+			Duration:         time.Since(startTime),
+			IterationResults: iterationResults,
+		}, nil
+	}
+
 	// Get the final iteration result
 	finalResult := iterationResults[len(iterationResults)-1]
 
@@ -269,9 +281,6 @@ func (e *RefinementEngine) Execute(ctx context.Context, cfg *RefinementConfig, i
 		IterationResults: iterationResults,
 	}, nil
 }
-
-// iteration tracks the current refinement iteration.
-var iteration int
 
 // buildEvaluationPrompt creates the prompt for the evaluator.
 func buildEvaluationPrompt(criteria, output string) string {
@@ -597,9 +606,11 @@ Each step should be atomic and clearly defined. Steps should be ordered by depen
 
 // executePlan executes all steps in the plan.
 func (e *PlanningEngine) executePlan(ctx context.Context, cfg *PlanningConfig, plan *Plan) error {
-	for i, step := range plan.Steps {
+	for i := range plan.Steps {
+		step := &plan.Steps[i] // index back into the slice so mutations persist
+
 		// Check dependencies
-		if !e.checkDependencies(step, plan.Steps) {
+		if !e.checkDependencies(*step, plan.Steps) {
 			step.Status = StepStatusSkipped
 			continue
 		}

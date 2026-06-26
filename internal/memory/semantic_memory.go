@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/user/orchestra/internal/message"
 )
@@ -381,7 +382,5 @@ func (m *SemanticMemory) SetEmbeddingProvider(provider EmbeddingProvider) {
 // getCurrentTimestamp returns the current Unix timestamp in nanoseconds.
 // This is used for tracking message order.
 func getCurrentTimestamp() int64 {
-	// In a real implementation, use time.Now().UnixNano()
-	// For now, return a simple incrementing value based on message count
-	return 0
+	return time.Now().UnixNano()
 }

@@ -73,16 +73,12 @@ func NewLookupMessageTool() (tool.Tool, error) {
 			// Look up the message
 			msg, ok := journal.Get(input.SHA)
 			if !ok {
-				// Check if it was compacted
-				for _, info := range journal.compacted {
-					for _, compactedHash := range info.CompactedHashes {
-						if compactedHash == input.SHA {
-							return LookupMessageOutput{
-								Found: false,
-								Error: fmt.Sprintf("Message %s was compacted into a summary. The original content is no longer available.", input.SHA),
-							}, nil
-						}
-					}
+				// Check if it was compacted (thread-safe lookup)
+				if checkpoint := journal.FindCompactedCheckpoint(input.SHA); checkpoint != "" {
+					return LookupMessageOutput{
+						Found: false,
+						Error: fmt.Sprintf("Message %s was compacted into a summary. The original content is no longer available.", input.SHA),
+					}, nil
 				}
 				return LookupMessageOutput{
 					Found: false,

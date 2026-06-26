@@ -107,8 +107,9 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 			"steps", levelSteps,
 		)
 
-		// Execute steps in this level in parallel
-		levelResults := e.executeLevel(ctx, wfCtx, workflow, result, levelSteps)
+		// Execute steps in this level in parallel. Use the workflow context's
+		// cancellable context so WorkflowContext.Cancel() propagates to steps.
+		levelResults := e.executeLevel(wfCtx.Context(), wfCtx, workflow, result, levelSteps)
 
 		// Check for errors and apply failure strategy
 		for _, stepResult := range levelResults {
@@ -301,28 +302,25 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 	for attempt := 1; attempt <= retryPolicy.MaxAttempts; attempt++ {
 		stepResult.Attempts = attempt
 
-		// Create timeout context if specified
-		execCtx := ctx
-		if step.Timeout > 0 {
-			var cancel context.CancelFunc
-			execCtx, cancel = context.WithTimeout(ctx, step.Timeout)
-			defer cancel()
-		}
-
-		// Execute agent
+		// Each attempt runs in its own scope so the timeout context is always
+		// released (via defer) regardless of whether it succeeds, fails, or the
+		// context is cancelled. This avoids stacking live timeout timers across
+		// retries and avoids leaking the context on the success return path.
 		startTime := time.Now()
-		var agentResult *agent.AgentResult
-
-		// Check if agent has Run method (single turn) or RunConversation (multi-turn)
-		if input != "" {
-			// Run the agent with the input
-			agentResult, err = step.Agent.Run(execCtx, input)
-		} else {
-			// Run the agent without input (for agents with internal state or memory)
-			err = fmt.Errorf("no input provided for step %s", stepID)
-		}
-
+		agentResult, attemptErr := func() (*agent.AgentResult, error) {
+			execCtx := ctx
+			if step.Timeout > 0 {
+				cancelCtx, cancel := context.WithTimeout(ctx, step.Timeout)
+				defer cancel()
+				execCtx = cancelCtx
+			}
+			if input == "" {
+				return nil, fmt.Errorf("no input provided for step %s", stepID)
+			}
+			return step.Agent.Run(execCtx, input)
+		}()
 		duration := time.Since(startTime)
+		err = attemptErr
 
 		if err == nil {
 			// Success
@@ -383,9 +381,12 @@ func (e *Engine) executeStep(ctx context.Context, wfCtx *WorkflowContext, workfl
 			case <-time.After(delay):
 				// Continue to retry
 			case <-ctx.Done():
-				// Context cancelled during retry wait
+				// Context cancelled during retry wait; stop retrying.
 				lastError = ctx.Err()
-				break
+				stepResult.Status = StatusFailed
+				stepResult.Error = lastError
+				stepResult.Duration = time.Since(stepResult.Timestamp)
+				return stepResult
 			}
 		}
 	}

@@ -118,28 +118,32 @@ func (c *modelCache) Get(ctx context.Context, p *Provider) ([]provider.ModelInfo
 }
 
 // ForceRefresh fetches the model catalog from the OpenRouter API,
-// bypassing the cache.
+// bypassing the cache. The HTTP fetch is performed WITHOUT holding the cache
+// lock so that concurrent lookups are not blocked for the (possibly slow)
+// network round-trip; the lock is taken only to swap in the fresh data.
 func (c *modelCache) ForceRefresh(ctx context.Context, p *Provider) ([]provider.ModelInfo, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	models, err := fetchModels(ctx, p)
 	if err != nil {
 		// Return stale cache if available
-		if c.models != nil {
-			result := make([]provider.ModelInfo, len(c.models))
-			copy(result, c.models)
+		c.mu.RLock()
+		stale := c.models
+		c.mu.RUnlock()
+		if stale != nil {
+			result := make([]provider.ModelInfo, len(stale))
+			copy(result, stale)
 			return result, nil
 		}
 		return nil, err
 	}
 
+	c.mu.Lock()
 	c.models = models
 	c.expiry = time.Now().Add(c.ttl)
+	fresh := make([]provider.ModelInfo, len(c.models))
+	copy(fresh, c.models)
+	c.mu.Unlock()
 
-	result := make([]provider.ModelInfo, len(c.models))
-	copy(result, c.models)
-	return result, nil
+	return fresh, nil
 }
 
 // LookupCapabilities returns capabilities for a model from the cached catalog.

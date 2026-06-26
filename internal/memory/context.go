@@ -261,19 +261,22 @@ func (cm *ContextManager) truncateOldestPreservingSystem(msgs []message.Message,
 		return TruncateToTokenLimit(systemMsgs, maxTokens, cm.tokenizer)
 	}
 
-	// Add system messages and fit as many other messages as possible
-	result := make([]message.Message, len(systemMsgs))
-	copy(result, systemMsgs)
+	// Add system messages and fit as many other messages as possible.
+	// System messages stay at the front; keep the most recent non-system
+	// messages and drop the oldest when over budget.
+	result := make([]message.Message, 0, len(systemMsgs)+len(otherMsgs))
+	result = append(result, systemMsgs...)
 	remaining := maxTokens - systemTokens
 
-	// Add messages from the end (most recent first)
+	kept := make([]message.Message, 0)
 	for i := len(otherMsgs) - 1; i >= 0; i-- {
 		tokens := cm.tokenizer.CountTokensInMessage(otherMsgs[i])
 		if tokens <= remaining {
-			result = append([]message.Message{otherMsgs[i]}, result...)
+			kept = append([]message.Message{otherMsgs[i]}, kept...)
 			remaining -= tokens
 		}
 	}
+	result = append(result, kept...)
 
 	return result
 }

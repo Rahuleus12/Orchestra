@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -820,18 +821,27 @@ func (a *toolUseAccumulator) collect() []message.ToolCall {
 	if len(a.blocks) == 0 {
 		return nil
 	}
-	result := make([]message.ToolCall, 0, len(a.blocks))
-	for i := 0; i < len(a.blocks); i++ {
-		if b, ok := a.blocks[i]; ok {
-			result = append(result, message.ToolCall{
-				ID:   b.id,
-				Type: "function",
-				Function: message.ToolCallFunction{
-					Name:      b.name,
-					Arguments: b.json.String(),
-				},
-			})
-		}
+	// Blocks are keyed by their position in Anthropic's overall content
+	// array, which includes text/thinking blocks and may have gaps. Iterate
+	// the actual keys (sorted for deterministic order) instead of assuming a
+	// contiguous 0-based range.
+	keys := make([]int, 0, len(a.blocks))
+	for k := range a.blocks {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	result := make([]message.ToolCall, 0, len(keys))
+	for _, k := range keys {
+		b := a.blocks[k]
+		result = append(result, message.ToolCall{
+			ID:   b.id,
+			Type: "function",
+			Function: message.ToolCallFunction{
+				Name:      b.name,
+				Arguments: b.json.String(),
+			},
+		})
 	}
 	return result
 }

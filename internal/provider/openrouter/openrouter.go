@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -340,7 +341,7 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 	}
 
 	// Budget check: estimate cost before sending
-	if err := p.budgetCheck(model, 0); err != nil {
+	if err := p.budgetCheck(model, p.estimateRequestTokens(req)); err != nil {
 		return nil, provider.NewProviderError(providerName, model, err)
 	}
 
@@ -398,7 +399,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 
 	// Budget check
-	if err := p.budgetCheck(model, 0); err != nil {
+	if err := p.budgetCheck(model, p.estimateRequestTokens(req)); err != nil {
 		return nil, provider.NewProviderError(providerName, model, err)
 	}
 
@@ -1033,7 +1034,8 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	return readAll(resp.Body, 1024*1024)
 }
 
-// readAll reads from r with a size limit.
+// readAll reads from r with a size limit. A read error other than io.EOF is
+// propagated to the caller along with whatever was read so far.
 func readAll(r interface{ Read([]byte) (int, error) }, maxSize int) ([]byte, error) {
 	buf := make([]byte, 0, 512)
 	tmp := make([]byte, 256)
@@ -1046,7 +1048,10 @@ func readAll(r interface{ Read([]byte) (int, error) }, maxSize int) ([]byte, err
 			}
 		}
 		if err != nil {
-			return buf, nil
+			if err == io.EOF {
+				return buf, nil
+			}
+			return buf, err
 		}
 	}
 }
@@ -1054,6 +1059,24 @@ func readAll(r interface{ Read([]byte) (int, error) }, maxSize int) ([]byte, err
 // ---------------------------------------------------------------------------
 // Cost Helpers
 // ---------------------------------------------------------------------------
+
+// estimateRequestTokens returns a rough token estimate for a request, used
+// for budget checks before sending. It uses the common ~4-chars-per-token
+// heuristic for prompt content and adds the requested MaxTokens when set.
+func (p *Provider) estimateRequestTokens(req provider.GenerateRequest) int {
+	chars := 0
+	for _, msg := range req.Messages {
+		chars += len(msg.Text())
+		for _, tc := range msg.ToolCalls {
+			chars += len(tc.Function.Name) + len(tc.Function.Arguments)
+		}
+	}
+	estimate := chars / 4
+	if req.Options.MaxTokens != nil && *req.Options.MaxTokens > 0 {
+		estimate += *req.Options.MaxTokens
+	}
+	return estimate
+}
 
 // budgetCheck verifies that sending a request would not exceed configured budget limits.
 func (p *Provider) budgetCheck(model string, estimatedTokens int) error {
