@@ -1877,6 +1877,52 @@ func TestAgent_WithMemory_ContextIncludedInNextRun(t *testing.T) {
 	}
 }
 
+// TestAgent_WithMemory_StoresUserInputNotSystemPrompt is a regression test for a
+// bug where the agent stored conv.Messages[0] (the system prompt) into memory
+// instead of the actual user input. With a system prompt set, Messages[0] is
+// the system prompt, not the user's message.
+func TestAgent_WithMemory_StoresUserInputNotSystemPrompt(t *testing.T) {
+	mem := newSimpleMemory()
+	a, mp := newTestAgentWithMock(t,
+		WithMemory(mem),
+		WithSystemPrompt("You are a helpful assistant."),
+	)
+	mp.SetDefaultResponse(mock.MockResponse{
+		Message:      message.AssistantMessage("reply"),
+		Usage:        provider.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		FinishReason: provider.FinishReasonStop,
+	})
+
+	if _, err := a.Run(context.Background(), "the actual user question"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	stored, err := mem.GetAll(context.Background())
+	if err != nil {
+		t.Fatalf("GetAll failed: %v", err)
+	}
+
+	// Exactly two messages should be stored: the user input and the reply.
+	if len(stored) != 2 {
+		t.Fatalf("expected 2 stored messages, got %d", len(stored))
+	}
+
+	if stored[0].Role != message.RoleUser || stored[0].Text() != "the actual user question" {
+		t.Errorf("expected first stored message to be the user input, got role=%v text=%q",
+			stored[0].Role, stored[0].Text())
+	}
+	if stored[1].Role != message.RoleAssistant {
+		t.Errorf("expected second stored message to be the assistant reply, got role=%v", stored[1].Role)
+	}
+
+	// The system prompt must never leak into memory.
+	for _, m := range stored {
+		if m.Role == message.RoleSystem {
+			t.Errorf("system prompt must not be stored in memory: %q", m.Text())
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Middleware Integration Tests
 // ---------------------------------------------------------------------------

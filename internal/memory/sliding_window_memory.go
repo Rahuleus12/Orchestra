@@ -69,22 +69,34 @@ func (m *SlidingWindowMemory) Add(ctx context.Context, msg message.Message) erro
 // enforceConstraints ensures the memory stays within its configured limits.
 // It removes messages from the beginning (oldest first) until constraints are satisfied.
 func (m *SlidingWindowMemory) enforceConstraints() {
-	// Enforce message count limit
-	if m.maxMessages > 0 {
-		for len(m.messages) > m.maxMessages {
-			m.messages = m.messages[1:]
-		}
+	drop := 0
+
+	// Determine how many leading messages the message-count limit requires dropping.
+	if m.maxMessages > 0 && len(m.messages) > m.maxMessages {
+		drop = len(m.messages) - m.maxMessages
 	}
 
-	// Enforce token count limit
+	// Enforce token count limit. We can only re-count tokens after applying the
+	// message-count drop, but to keep the hot path O(n) we compute the drop from
+	// the current slice and let the token loop below trim further if needed.
+	if drop > 0 {
+		trimmed := make([]message.Message, len(m.messages)-drop)
+		copy(trimmed, m.messages[drop:])
+		m.messages = trimmed
+	}
+
+	// Enforce token count limit by dropping oldest messages one at a time.
+	// Each remaining drop re-counts tokens; copy into a fresh slice when done so
+	// the evicted messages can be garbage collected.
 	if m.maxTokens > 0 && m.tokenizer != nil {
 		for {
 			totalTokens := CountTokensInMessages(m.messages, m.tokenizer)
 			if totalTokens <= m.maxTokens || len(m.messages) == 0 {
 				break
 			}
-			// Remove the oldest message
-			m.messages = m.messages[1:]
+			trimmed := make([]message.Message, len(m.messages)-1)
+			copy(trimmed, m.messages[1:])
+			m.messages = trimmed
 		}
 	}
 }

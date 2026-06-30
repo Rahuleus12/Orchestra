@@ -24,6 +24,7 @@ import (
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/httpx"
 )
 
 // ---------------------------------------------------------------------------
@@ -38,10 +39,6 @@ const (
 	defaultModel        = "gpt-4o"
 	sseDataPrefix       = "data: "
 	sseDoneMarker       = "[DONE]"
-	httpTimeout         = 10 * time.Minute
-	maxIdleConns        = 100
-	maxIdleConnsPerHost = 100
-	idleConnTimeout     = 90 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -324,7 +321,8 @@ type Provider struct {
 	baseURL      string
 	orgID        string
 	defaultModel string
-	httpClient   *http.Client
+	httpClient   *http.Client // non-streaming requests (overall timeout)
+	streamClient *http.Client // streaming requests (no overall timeout)
 }
 
 // NewProvider creates a new OpenAI provider from the given configuration.
@@ -351,15 +349,16 @@ func NewProvider(cfg config.ProviderConfig) (*Provider, error) {
 		baseURL:      baseURL,
 		orgID:        cfg.OrganizationID,
 		defaultModel: dm,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        maxIdleConns,
-				MaxIdleConnsPerHost: maxIdleConnsPerHost,
-				IdleConnTimeout:     idleConnTimeout,
-			},
-		},
 	}
+
+	// Build a shared transport so the non-streaming and streaming clients
+	// reuse the same connection pool. The streaming client intentionally has
+	// no overall timeout (an http.Client.Timeout would kill long SSE streams);
+	// instead it relies on the request context plus the transport's
+	// ResponseHeaderTimeout.
+	transport := httpx.NewTransport()
+	p.httpClient = httpx.NewClient(transport, httpx.DefaultRequestTimeout)
+	p.streamClient = httpx.NewStreamingClient(transport)
 
 	return p, nil
 }
@@ -465,7 +464,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 	p.setHeaders(httpReq)
 
-	resp, err := p.httpClient.Do(httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, provider.NewProviderError(providerName, model,
 			fmt.Errorf("request failed: %w", err))

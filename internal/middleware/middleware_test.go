@@ -1450,3 +1450,96 @@ func TestCircuitBreaker_Stats(t *testing.T) {
 		t.Errorf("expected 2 consecutive failures, got %d", stats.ConsecFailures)
 	}
 }
+
+// TestCircuitBreaker_IgnoresClientCancellation ensures that a client-initiated
+// context cancellation is NOT counted as a provider failure. Otherwise a single
+// client that cancels requests could trip the breaker for all other users.
+func TestCircuitBreaker_IgnoresClientCancellation(t *testing.T) {
+	ep := &errProvider{
+		name: "cancelling",
+		err:  context.Canceled,
+	}
+
+	cb := middleware.WithCircuitBreaker(2, 30*time.Second)(ep)
+
+	type statsProvider interface {
+		Stats() middleware.CircuitBreakerStats
+	}
+	cbP := cb.(statsProvider)
+
+	// Issue several requests that all return context.Canceled.
+	for i := 0; i < 5; i++ {
+		cb.Generate(context.Background(), testRequest())
+	}
+
+	stats := cbP.Stats()
+	if stats.State != middleware.CircuitClosed {
+		t.Errorf("circuit should remain Closed when only client cancellations occur, got %v", stats.State)
+	}
+	if stats.ConsecFailures != 0 {
+		t.Errorf("cancellation must not count as failure; got %d consecutive failures", stats.ConsecFailures)
+	}
+}
+
+// TestCaching_DifferentToolResults_CacheMiss guards against a cache-key bug
+// where tool-result content was omitted from the hash. Two requests that differ
+// only in the tool result must NOT share a cache entry.
+func TestCaching_DifferentToolResults_CacheMiss(t *testing.T) {
+	mp := newTestProvider(t)
+	store := middleware.NewMemoryCacheStore()
+	p := middleware.WithCaching(store, 5*time.Minute)(mp)
+
+	mkReq := func(resultContent string) provider.GenerateRequest {
+		return provider.GenerateRequest{
+			Model: "mock-model",
+			Messages: []message.Message{{
+				Role: message.RoleTool,
+				ToolResult: &message.ToolResult{
+					ToolCallID: "call_1",
+					Content:    resultContent,
+				},
+			}},
+		}
+	}
+
+	if _, err := p.Generate(context.Background(), mkReq("result-a")); err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+	if _, err := p.Generate(context.Background(), mkReq("result-b")); err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+
+	if mp.GenerateCallCount() != 2 {
+		t.Errorf("expected 2 provider calls for different tool results, got %d (cache key collision)", mp.GenerateCallCount())
+	}
+}
+
+// TestMemoryCacheStore_EvictsExpiredEntries verifies that an expired entry is
+// removed from the store when accessed, rather than accumulating forever.
+func TestMemoryCacheStore_EvictsExpiredEntries(t *testing.T) {
+	store := middleware.NewMemoryCacheStore()
+	ctx := context.Background()
+
+	result := &provider.GenerateResult{
+		ID:           "evict",
+		Message:      message.AssistantMessage("x"),
+		FinishReason: provider.FinishReasonStop,
+		CreatedAt:    time.Now(),
+	}
+
+	store.Set(ctx, "k", result, 10*time.Millisecond)
+	if store.Len() != 1 {
+		t.Fatalf("expected 1 entry after Set, got %d", store.Len())
+	}
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Trigger the lazy eviction by reading the expired key.
+	_, ok := store.Get(ctx, "k")
+	if ok {
+		t.Fatal("expected miss after expiration")
+	}
+	if store.Len() != 0 {
+		t.Errorf("expected expired entry to be evicted (Len=0), got %d", store.Len())
+	}
+}

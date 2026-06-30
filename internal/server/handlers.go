@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -325,20 +326,53 @@ func (s *Server) handleGenerateStream(w http.ResponseWriter, r *http.Request) {
 
 	flusher, canFlush := w.(http.Flusher)
 
-	for event := range events {
-		data, err := json.Marshal(event)
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		if canFlush {
-			flusher.Flush()
-		}
-	}
+	streamSSE(w, flusher, canFlush, r.Context(), events)
+}
 
-	fmt.Fprintf(w, "data: [DONE]\n\n")
-	if canFlush {
-		flusher.Flush()
+// streamSSE writes events from a provider stream as Server-Sent Events. It
+// returns as soon as the client disconnects (ctx done) or the event channel is
+// closed, so that handler goroutines are not held open draining a stream that
+// nobody is reading. It also aborts on the first failed write, which is the
+// signal that the client connection is gone.
+//
+// The server-level WriteTimeout would otherwise close long-lived SSE
+// connections mid-stream (it covers the entire response body), so we clear the
+// per-connection write deadline here. Cancellation is handled by the request
+// context instead.
+func streamSSE[T any](w http.ResponseWriter, flusher http.Flusher, canFlush bool, ctx context.Context, events <-chan T) {
+	// Clear any write deadline inherited from the server's WriteTimeout so that
+	// legitimate long streams (multi-step agents, long workflows) are not killed
+	// mid-flight. http.ResponseController unwraps the ResponseWriter chain.
+	rc := http.NewResponseController(w)
+	_ = rc.SetWriteDeadline(time.Time{})
+
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				// Channel closed — stream complete.
+				fmt.Fprintf(w, "data: [DONE]\n\n")
+				if canFlush {
+					flusher.Flush()
+				}
+				return
+			}
+			data, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				// Client connection broken — stop writing.
+				return
+			}
+			if canFlush {
+				flusher.Flush()
+			}
+		case <-ctx.Done():
+			// Client disconnected — stop streaming promptly. The provider's
+			// upstream goroutine is keyed on this same ctx and will wind down.
+			return
+		}
 	}
 }
 
@@ -637,21 +671,7 @@ func (s *Server) handleRunAgentStream(w http.ResponseWriter, r *http.Request) {
 
 	flusher, canFlush := w.(http.Flusher)
 
-	for event := range eventCh {
-		data, err := json.Marshal(event)
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		if canFlush {
-			flusher.Flush()
-		}
-	}
-
-	fmt.Fprintf(w, "data: [DONE]\n\n")
-	if canFlush {
-		flusher.Flush()
-	}
+	streamSSE(w, flusher, canFlush, r.Context(), eventCh)
 }
 
 // ---------------------------------------------------------------------------
@@ -766,21 +786,7 @@ func (s *Server) handleStreamWorkflow(w http.ResponseWriter, r *http.Request) {
 
 	flusher, canFlush := w.(http.Flusher)
 
-	for event := range events {
-		data, err := json.Marshal(event)
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
-		if canFlush {
-			flusher.Flush()
-		}
-	}
-
-	fmt.Fprintf(w, "data: [DONE]\n\n")
-	if canFlush {
-		flusher.Flush()
-	}
+	streamSSE(w, flusher, canFlush, r.Context(), events)
 }
 
 // ---------------------------------------------------------------------------

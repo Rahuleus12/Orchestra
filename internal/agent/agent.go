@@ -448,10 +448,24 @@ func (a *Agent) RunConversation(ctx context.Context, messages []message.Message)
 		result.Output = genResult.Message
 		result.Duration = time.Since(start)
 
-		// Store the interaction in memory if configured
+		// Store the interaction in memory if configured.
+		// Find the last user message in the conversation: buildMessages
+		// prepends a system prompt and previously-retrieved memory messages,
+		// so conv.Messages[0] is not the user input.
 		if a.memory != nil {
-			_ = a.memory.Add(ctx, message.UserMessage(conv.Messages[0].Text()))
-			_ = a.memory.Add(ctx, genResult.Message)
+			for i := len(conv.Messages) - 1; i >= 0; i-- {
+				if conv.Messages[i].Role == message.RoleUser {
+					if err := a.memory.Add(ctx, conv.Messages[i]); err != nil {
+						a.logger.Warn("failed to store user message in memory",
+							slog.String("agent", a.name), slog.String("error", err.Error()))
+					}
+					break
+				}
+			}
+			if err := a.memory.Add(ctx, genResult.Message); err != nil {
+				a.logger.Warn("failed to store assistant message in memory",
+					slog.String("agent", a.name), slog.String("error", err.Error()))
+			}
 		}
 
 		a.logger.Debug(
@@ -795,7 +809,11 @@ func (a *Agent) buildMessages(ctx context.Context, input string) ([]message.Mess
 	// Memory context
 	if a.memory != nil && a.memory.Size() > 0 {
 		memMsgs, err := a.memory.GetRelevant(ctx, input, 10)
-		if err == nil && len(memMsgs) > 0 {
+		if err != nil {
+			a.logger.Warn("failed to retrieve memory",
+				slog.String("agent", a.name), slog.String("error", err.Error()))
+		}
+		if len(memMsgs) > 0 {
 			msgs = append(msgs, memMsgs...)
 		}
 	}

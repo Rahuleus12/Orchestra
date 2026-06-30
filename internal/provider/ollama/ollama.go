@@ -26,6 +26,7 @@ import (
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/httpx"
 )
 
 // ---------------------------------------------------------------------------
@@ -33,16 +34,12 @@ import (
 // ---------------------------------------------------------------------------
 
 const (
-	defaultBaseURL      = "http://localhost:11434"
-	providerName        = "ollama"
-	chatPath            = "/api/chat"
-	tagsPath            = "/api/tags"
-	defaultModel        = "llama3"
-	httpTimeout         = 10 * time.Minute
-	maxIdleConns        = 100
-	maxIdleConnsPerHost = 100
-	idleConnTimeout     = 90 * time.Second
-	detectTimeout       = 3 * time.Second
+	defaultBaseURL = "http://localhost:11434"
+	providerName   = "ollama"
+	chatPath       = "/api/chat"
+	tagsPath       = "/api/tags"
+	defaultModel   = "llama3"
+	detectTimeout  = 3 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -290,6 +287,9 @@ type Provider struct {
 	baseURL      string
 	defaultModel string
 	httpClient   *http.Client
+	// streamClient has no overall timeout and is used for long-lived
+	// streaming responses; httpClient's timeout would kill long streams.
+	streamClient *http.Client
 }
 
 // NewProvider creates a new Ollama provider from the given configuration.
@@ -306,18 +306,14 @@ func NewProvider(cfg config.ProviderConfig) (*Provider, error) {
 		dm = defaultModel
 	}
 
-	return &Provider{
+	p := &Provider{
 		baseURL:      baseURL,
 		defaultModel: dm,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        maxIdleConns,
-				MaxIdleConnsPerHost: maxIdleConnsPerHost,
-				IdleConnTimeout:     idleConnTimeout,
-			},
-		},
-	}, nil
+	}
+	transport := httpx.NewTransport()
+	p.httpClient = httpx.NewClient(transport, httpx.DefaultRequestTimeout)
+	p.streamClient = httpx.NewStreamingClient(transport)
+	return p, nil
 }
 
 // Factory is a provider.ProviderFactory that creates a new Ollama provider.
@@ -479,7 +475,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.httpClient.Do(httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, p.wrapConnectionError(err)
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/httpx"
 )
 
 // ---------------------------------------------------------------------------
@@ -32,17 +33,13 @@ import (
 // ---------------------------------------------------------------------------
 
 const (
-	defaultBaseURL      = "https://api.anthropic.com/v1"
-	providerName        = "anthropic"
-	messagesPath        = "/messages"
-	defaultModel        = "claude-sonnet-4-20250514"
-	apiVersionHeader    = "2023-06-01"
-	sseDataPrefix       = "data: "
-	sseEventPrefix      = "event: "
-	httpTimeout         = 10 * time.Minute
-	maxIdleConns        = 100
-	maxIdleConnsPerHost = 100
-	idleConnTimeout     = 90 * time.Second
+	defaultBaseURL   = "https://api.anthropic.com/v1"
+	providerName     = "anthropic"
+	messagesPath     = "/messages"
+	defaultModel     = "claude-sonnet-4-20250514"
+	apiVersionHeader = "2023-06-01"
+	sseDataPrefix    = "data: "
+	sseEventPrefix   = "event: "
 )
 
 // ---------------------------------------------------------------------------
@@ -315,7 +312,8 @@ type Provider struct {
 	apiKey       string
 	baseURL      string
 	defaultModel string
-	httpClient   *http.Client
+	httpClient   *http.Client // non-streaming requests (overall timeout)
+	streamClient *http.Client // streaming requests (no overall timeout)
 }
 
 // NewProvider creates a new Anthropic provider from the given configuration.
@@ -336,19 +334,22 @@ func NewProvider(cfg config.ProviderConfig) (*Provider, error) {
 		dm = defaultModel
 	}
 
-	return &Provider{
+	p := &Provider{
 		apiKey:       apiKey,
 		baseURL:      baseURL,
 		defaultModel: dm,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        maxIdleConns,
-				MaxIdleConnsPerHost: maxIdleConnsPerHost,
-				IdleConnTimeout:     idleConnTimeout,
-			},
-		},
-	}, nil
+	}
+
+	// Build a shared transport so the non-streaming and streaming clients
+	// reuse the same connection pool. The streaming client intentionally has
+	// no overall timeout (an http.Client.Timeout would kill long SSE streams);
+	// instead it relies on the request context plus the transport's
+	// ResponseHeaderTimeout.
+	transport := httpx.NewTransport()
+	p.httpClient = httpx.NewClient(transport, httpx.DefaultRequestTimeout)
+	p.streamClient = httpx.NewStreamingClient(transport)
+
+	return p, nil
 }
 
 // Factory is a provider.ProviderFactory that creates a new Anthropic provider.
@@ -461,7 +462,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	}
 	p.setHeaders(httpReq)
 
-	resp, err := p.httpClient.Do(httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, provider.NewProviderError(providerName, model,
 			fmt.Errorf("request failed: %w", err))

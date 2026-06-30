@@ -819,3 +819,62 @@ func TestHandleGenerateProviderError(t *testing.T) {
 		t.Errorf("expected status 500, got %d", resp.StatusCode)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CORS
+// ---------------------------------------------------------------------------
+
+// makeRequestWithOrigin issues a request with the given Origin header against
+// the server's handler chain and returns the recorder so headers can be
+// inspected.
+func makeRequestWithOrigin(t *testing.T, srv *Server, method, path, origin string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, nil)
+	if origin != "" {
+		req.Header.Set("Origin", origin)
+	}
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	return w
+}
+
+func TestCORS_WildcardReturnsLiteralStar(t *testing.T) {
+	srv := newTestServer(t, &mockProvider{name: "test"}, nil)
+	// DefaultServerConfig already sets CORSAllowedOrigins = ["*"].
+
+	w := makeRequestWithOrigin(t, srv, http.MethodGet, "/v1/health", "https://evil.example.com")
+
+	got := w.Header().Get("Access-Control-Allow-Origin")
+	if got != "*" {
+		t.Errorf("wildcard config must return literal %q, not reflected origin; got %q", "*", got)
+	}
+}
+
+func TestCORS_ExplicitAllowlistReflectsOrigin(t *testing.T) {
+	srv := newTestServer(t, &mockProvider{name: "test"}, nil)
+	srv.cfg.CORSAllowedOrigins = []string{"https://app.example.com"}
+
+	w := makeRequestWithOrigin(t, srv, http.MethodGet, "/v1/health", "https://app.example.com")
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Errorf("expected reflected allow-listed origin, got %q", got)
+	}
+}
+
+func TestCORS_DisallowedOriginGetsNoHeader(t *testing.T) {
+	srv := newTestServer(t, &mockProvider{name: "test"}, nil)
+	srv.cfg.CORSAllowedOrigins = []string{"https://app.example.com"}
+
+	w := makeRequestWithOrigin(t, srv, http.MethodGet, "/v1/health", "https://evil.example.com")
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("disallowed origin must not receive an Allow-Origin header; got %q", got)
+	}
+}
+
+func TestCORS_PreflightReturnsNoContent(t *testing.T) {
+	srv := newTestServer(t, &mockProvider{name: "test"}, nil)
+
+	w := makeRequestWithOrigin(t, srv, http.MethodOptions, "/v1/generate", "https://app.example.com")
+	if w.Code != http.StatusNoContent {
+		t.Errorf("preflight (OPTIONS) should return 204, got %d", w.Code)
+	}
+}

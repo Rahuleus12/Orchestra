@@ -11,7 +11,8 @@
 // Commands:
 //
 //	serve        Start the Orchestra server
-//	chat         Start the interactive TUI
+//	cli          Start the interactive TUI
+//	models       List and explore available models
 //	version      Print version information
 //	healthcheck  Run a health check
 package main
@@ -320,7 +321,7 @@ func runChat(args []string) error {
 			sessionDir = args[i]
 		case "--help", "-h":
 			fmt.Printf(`Usage:
-  orchestra chat [flags]
+  orchestra cli [flags]
 
 Start an interactive terminal UI for chatting with Orchestra agents.
 
@@ -329,7 +330,7 @@ Flags:
   -m, --model string       Start with a specific model
   -r, --resume string      Resume a previous session by ID
       --session-dir string  Directory for session storage (default: ~/.orchestra/sessions)
-  -h, --help               Show help for chat command
+  -h, --help               Show help for the cli command
 
 Environment Variables:
   NO_COLOR                 Disable colored output

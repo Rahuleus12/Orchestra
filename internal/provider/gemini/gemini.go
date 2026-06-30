@@ -24,6 +24,7 @@ import (
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/message"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/httpx"
 )
 
 // ---------------------------------------------------------------------------
@@ -38,10 +39,6 @@ const (
 	streamContentPath   = "/models/%s:streamGenerateContent?alt=sse"
 	modelsListPath      = "/models"
 	sseDataPrefix       = "data: "
-	httpTimeout         = 10 * time.Minute
-	maxIdleConns        = 100
-	maxIdleConnsPerHost = 100
-	idleConnTimeout     = 90 * time.Second
 )
 
 // ---------------------------------------------------------------------------
@@ -275,6 +272,7 @@ type Provider struct {
 	baseURL      string
 	defaultModel string
 	httpClient   *http.Client
+	streamClient *http.Client // used for SSE streams (no overall timeout)
 }
 
 // NewProvider creates a new Gemini provider from the given configuration.
@@ -295,19 +293,15 @@ func NewProvider(cfg config.ProviderConfig) (*Provider, error) {
 		dm = defaultModel
 	}
 
-	return &Provider{
+	p := &Provider{
 		apiKey:       apiKey,
 		baseURL:      baseURL,
 		defaultModel: dm,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        maxIdleConns,
-				MaxIdleConnsPerHost: maxIdleConnsPerHost,
-				IdleConnTimeout:     idleConnTimeout,
-			},
-		},
-	}, nil
+	}
+	transport := httpx.NewTransport()
+	p.httpClient = httpx.NewClient(transport, httpx.DefaultRequestTimeout)
+	p.streamClient = httpx.NewStreamingClient(transport)
+	return p, nil
 }
 
 // Factory is a provider.ProviderFactory that creates a new Gemini provider.
@@ -435,7 +429,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-
 	// *url.Error in connection/timeout error messages.
 	httpReq.Header.Set("X-Goog-Api-Key", p.apiKey)
 
-	resp, err := p.httpClient.Do(httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, provider.NewProviderError(providerName, model,
 			fmt.Errorf("request failed: %w", err))

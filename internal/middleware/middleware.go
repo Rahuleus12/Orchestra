@@ -588,14 +588,17 @@ func NewMemoryCacheStore() *MemoryCacheStore {
 }
 
 func (m *MemoryCacheStore) Get(_ context.Context, key string) (*provider.GenerateResult, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	entry, ok := m.items[key]
 	if !ok {
 		return nil, false
 	}
 	if time.Now().After(entry.expiresAt) {
+		// Entry has expired — delete it so it can be garbage collected
+		// instead of accumulating indefinitely.
+		delete(m.items, key)
 		return nil, false
 	}
 	return entry.result, true
@@ -621,6 +624,15 @@ func (m *MemoryCacheStore) Clear(_ context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.items = make(map[string]*cacheEntry)
+}
+
+// Len returns the number of entries currently held in the store, including
+// entries that have expired but have not yet been evicted. Useful for
+// monitoring and tests.
+func (m *MemoryCacheStore) Len() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.items)
 }
 
 // WithCaching returns a middleware that caches Generate results using the
@@ -684,14 +696,32 @@ func cacheKeyForRequest(providerName string, req provider.GenerateRequest) strin
 	h.Write([]byte(providerName))
 	h.Write([]byte(req.Model))
 
-	// Hash messages
+	// Hash messages. Every field that can change the model's output must be
+	// included, otherwise two requests that differ only in (e.g.) tool results
+	// or image inputs would collide and return stale cached responses.
 	for _, msg := range req.Messages {
 		h.Write([]byte(string(msg.Role)))
-		h.Write([]byte(msg.Text()))
+		h.Write([]byte(msg.Name))
+		for _, block := range msg.Content {
+			h.Write([]byte(block.Type))
+			h.Write([]byte(block.Text))
+			h.Write([]byte(block.ImageURL))
+			h.Write(block.FileData)
+			h.Write([]byte(block.MimeType))
+		}
 		for _, tc := range msg.ToolCalls {
 			h.Write([]byte(tc.ID))
 			h.Write([]byte(tc.Function.Name))
 			h.Write([]byte(tc.Function.Arguments))
+		}
+		if msg.ToolResult != nil {
+			h.Write([]byte(msg.ToolResult.ToolCallID))
+			h.Write([]byte(msg.ToolResult.Content))
+			var isErr byte
+			if msg.ToolResult.IsError {
+				isErr = 1
+			}
+			h.Write([]byte{isErr})
 		}
 	}
 
@@ -884,12 +914,20 @@ func (cb *circuitBreakerProvider) beforeRequest() error {
 }
 
 // afterRequest records the result of a request and updates circuit state.
+// Client-initiated cancellation (context.Canceled) and caller deadlines
+// (context.DeadlineExceeded) are NOT counted as provider failures, since
+// they reflect the caller's choice rather than the upstream being unhealthy.
+// Counting them would let a single client that cancels requests trip the
+// breaker for everyone.
 func (cb *circuitBreakerProvider) afterRequest(err error) {
-	if err != nil {
-		cb.recordFailure()
-	} else {
+	if err == nil {
 		cb.recordSuccess()
+		return
 	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	cb.recordFailure()
 }
 
 // recordFailure records a failed request. Must NOT be called with mu held

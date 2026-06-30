@@ -92,10 +92,6 @@ type Server struct {
 
 	// agentStore holds named agents that can be run on demand.
 	agentStore sync.Map // map[string]*agentEntry
-
-	// requestID counter for generating unique request IDs.
-	requestIDCounter uint64
-	requestIDMu      sync.Mutex
 }
 
 // agentEntry stores a named agent definition.
@@ -159,6 +155,10 @@ func (s *Server) ListenAndServe() error {
 			"auth_enabled", len(s.cfg.APIKeys) > 0,
 			"providers", s.registry.ListProviders(),
 		)
+		if len(s.cfg.APIKeys) == 0 {
+			s.logger.Warn("authentication is disabled — all endpoints are unauthenticated; " +
+				"set API keys via --api-key or ORCHESTRA_SERVER_API_KEY before binding to a public interface")
+		}
 		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
@@ -346,11 +346,18 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 }
 
 // corsMiddleware adds CORS headers to responses.
+//
+// Security note: when the configured allow-list contains the wildcard "*",
+// the literal "*" is returned rather than reflecting the request's Origin.
+// Returning "*" does not allow credentialed (Authorization-bearing)
+// cross-origin requests in browsers, which is the safe default. To enable
+// credentialed cross-origin access from specific sites, configure an explicit
+// allow-list of origins — those are reflected verbatim.
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if s.isOriginAllowed(origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
+		if allowed := s.corsAllowedOrigin(origin); allowed != "" {
+			w.Header().Set("Access-Control-Allow-Origin", allowed)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 			w.Header().Set("Access-Control-Max-Age", "86400")
@@ -366,17 +373,27 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// isOriginAllowed checks if the given origin is in the allowed list.
-func (s *Server) isOriginAllowed(origin string) bool {
-	if len(s.cfg.CORSAllowedOrigins) == 0 || origin == "" {
-		return false
+// corsAllowedOrigin returns the value to emit in Access-Control-Allow-Origin
+// for the given request origin, or "" if the origin is not allowed. A
+// configured wildcard "*" yields the literal "*" (never the reflected origin).
+func (s *Server) corsAllowedOrigin(origin string) string {
+	if origin == "" {
+		return ""
 	}
 	for _, allowed := range s.cfg.CORSAllowedOrigins {
-		if allowed == "*" || allowed == origin {
-			return true
+		switch {
+		case allowed == "*":
+			return "*"
+		case allowed == origin:
+			return origin
 		}
 	}
-	return false
+	return ""
+}
+
+// isOriginAllowed checks if the given origin is in the allowed list.
+func (s *Server) isOriginAllowed(origin string) bool {
+	return s.corsAllowedOrigin(origin) != ""
 }
 
 // validateAPIKey checks if the provided key matches any configured key

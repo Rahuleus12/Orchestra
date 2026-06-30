@@ -33,11 +33,15 @@ func (m *BufferMemory) Add(ctx context.Context, msg message.Message) error {
 
 	m.messages = append(m.messages, msg)
 
-	// Enforce size limit by removing oldest messages
+	// Enforce size limit by removing oldest messages. Copy into a fresh
+	// slice so the dropped elements (which may hold large payloads such as
+	// FileData) can be garbage collected rather than being retained by the
+	// original backing array.
 	if m.maxSize > 0 && len(m.messages) > m.maxSize {
-		// Remove the oldest message(s)
 		excess := len(m.messages) - m.maxSize
-		m.messages = m.messages[excess:]
+		trimmed := make([]message.Message, m.maxSize)
+		copy(trimmed, m.messages[excess:])
+		m.messages = trimmed
 	}
 
 	return nil
@@ -117,9 +121,12 @@ func (m *BufferMemory) SetMaxSize(maxSize int) {
 
 	m.maxSize = maxSize
 
-	// Enforce new size limit
+	// Enforce new size limit. Copy into a fresh slice so dropped messages
+	// (which may hold large payloads) are eligible for garbage collection.
 	if m.maxSize > 0 && len(m.messages) > m.maxSize {
 		excess := len(m.messages) - m.maxSize
-		m.messages = m.messages[excess:]
+		trimmed := make([]message.Message, m.maxSize)
+		copy(trimmed, m.messages[excess:])
+		m.messages = trimmed
 	}
 }
