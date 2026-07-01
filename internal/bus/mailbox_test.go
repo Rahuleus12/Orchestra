@@ -1148,3 +1148,53 @@ func TestMailbox_MultipleReceivers_WithFilter(t *testing.T) {
 		t.Errorf("expected 1 remaining message from agent-c, got %d", mailbox.Size())
 	}
 }
+
+// TestMailbox_Receive_NoLostWakeup is a regression test for a lost-wakeup bug
+// with multiple blocked receivers. The mailbox uses a capacity-1 signal
+// channel, so when several messages arrive in a burst the second signal() is
+// dropped. After consuming a message, a receiver must re-signal (wake-chain)
+// when other receivers are blocked and messages remain — otherwise a blocked
+// receiver stalls even though messages are queued.
+func TestMailbox_Receive_NoLostWakeup(t *testing.T) {
+	mailbox := NewMailbox("agent-1")
+	defer mailbox.Close()
+
+	const numReceivers = 4
+	received := make(chan BusMessage, numReceivers)
+
+	// Start several blocked receivers.
+	var wg sync.WaitGroup
+	for i := 0; i < numReceivers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			msg, err := mailbox.Receive(context.Background())
+			if err != nil {
+				return
+			}
+			received <- msg
+		}()
+	}
+
+	// Let all receivers block.
+	time.Sleep(30 * time.Millisecond)
+
+	// Send a burst of messages equal to the number of receivers.
+	for i := 0; i < numReceivers; i++ {
+		mailbox.Send(NewBusMessage("test", "sender", "agent-1", i))
+	}
+
+	// Every receiver should wake and receive exactly one message.
+	got := 0
+	deadline := time.After(2 * time.Second)
+	for got < numReceivers {
+		select {
+		case <-received:
+			got++
+		case <-deadline:
+			t.Fatalf("lost wakeup: expected %d messages received, got %d", numReceivers, got)
+		}
+	}
+
+	wg.Wait()
+}

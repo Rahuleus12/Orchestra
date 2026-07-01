@@ -83,10 +83,17 @@ type FunctionDef struct {
 
 // ToProviderDefinition converts this ToolDefinition to the provider package's
 // ToolDefinition format. This bridges the tool system to the provider layer.
+//
+// If the parameters are not valid JSON, an empty params map is used rather than
+// sending malformed schema to the LLM.
 func (td ToolDefinition) ToProviderDefinition() provider.ToolDefinition {
 	var params map[string]any
 	if len(td.Function.Parameters) > 0 {
-		_ = json.Unmarshal(td.Function.Parameters, &params)
+		if err := json.Unmarshal(td.Function.Parameters, &params); err != nil {
+			// Malformed schema — fall back to an empty map rather than sending
+			// a broken schema to the LLM.
+			params = map[string]any{}
+		}
 	}
 	return provider.ToolDefinition{
 		Type: td.Type,

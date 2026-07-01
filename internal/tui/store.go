@@ -318,9 +318,35 @@ func (s *SessionStore) save(session *Session) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
+	// Write atomically: write to a temp file in the same directory, then rename.
+	// os.Rename is atomic on POSIX and Windows (same volume), so a crash mid-write
+	// leaves the previous session file intact rather than a truncated/partial one.
 	path := s.sessionPath(session.ID)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	tmp, err := os.CreateTemp(s.Dir, ".session-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+
+	if _, err := tmp.Write(data); err != nil {
+		cleanup()
 		return fmt.Errorf("failed to write session: %w", err)
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		cleanup()
+		return fmt.Errorf("failed to set session file perms: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("failed to commit session file: %w", err)
 	}
 
 	return nil

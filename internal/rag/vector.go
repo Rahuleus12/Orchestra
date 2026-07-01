@@ -137,9 +137,11 @@ func (s *MemoryVectorStore) Add(ctx context.Context, vectors ...Vector) error {
 		if s.dimSize > 0 && len(v.Values) != s.dimSize {
 			return fmt.Errorf("vector %q has dimension %d, expected %d", v.ID, len(v.Values), s.dimSize)
 		}
+		// Track insertion order only for newly-seen IDs. Checking the map is
+		// O(1), unlike scanning the ordered slice (which made bulk Add O(n²)).
+		_, isNew := s.vectors[v.ID]
 		s.vectors[v.ID] = v
-		// Track insertion order
-		if !s.containsOrdered(v.ID) {
+		if !isNew {
 			s.ordered = append(s.ordered, v.ID)
 		}
 	}
@@ -148,6 +150,9 @@ func (s *MemoryVectorStore) Add(ctx context.Context, vectors ...Vector) error {
 }
 
 // containsOrdered checks if an ID is already in the ordered list.
+//
+// Deprecated: retained for reference; Add now uses the vectors map to detect
+// new IDs in O(1).
 func (s *MemoryVectorStore) containsOrdered(id string) bool {
 	for _, existing := range s.ordered {
 		if existing == id {

@@ -185,10 +185,18 @@ func (e *Engine) Execute(ctx context.Context, workflow *Workflow, input map[stri
 
 	// Set final status
 	if lastError != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
+		// Determine whether the failure was caused by cancellation. Check the
+		// workflow context (not the caller's parent ctx) so that an internal
+		// WorkflowContext.Cancel() is correctly classified as cancelled rather
+		// than failed. Also accept context.DeadlineExceeded as cancellation.
+		switch {
+		case errors.Is(wfCtx.Context().Err(), context.Canceled),
+			errors.Is(wfCtx.Context().Err(), context.DeadlineExceeded),
+			errors.Is(lastError, context.Canceled),
+			errors.Is(lastError, context.DeadlineExceeded):
 			result.Status = StatusCancelled
-			result.Error = ctx.Err()
-		} else {
+			result.Error = wfCtx.Context().Err()
+		default:
 			result.Status = StatusFailed
 			result.Error = lastError
 		}

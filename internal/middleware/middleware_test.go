@@ -1389,6 +1389,10 @@ func TestRetry_WithProviderError_StatusCodes(t *testing.T) {
 		{"401 not retryable", 401, false},
 		{"403 not retryable", 403, false},
 		{"404 not retryable", 404, false},
+		// StatusCode 0 means no HTTP response was received (transport-level
+		// failure: connection refused, DNS error, etc.). These are transient and
+		// must be retried.
+		{"0 (transport error) is retryable", 0, true},
 	}
 
 	for _, tt := range tests {

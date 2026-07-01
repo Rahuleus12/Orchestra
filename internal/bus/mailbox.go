@@ -243,6 +243,14 @@ func (m *Mailbox) Receive(ctx context.Context) (BusMessage, error) {
 			msg := m.messages[0]
 			m.messages = m.messages[1:]
 			m.consumed.Add(1)
+			// Wake-chain: if other receivers are blocked AND there are still
+			// messages queued, re-signal so one of them wakes to consume the
+			// next message. Without this, a capacity-1 notify channel can drop
+			// wakeups when multiple messages arrive before a receiver loops, and
+			// a blocked receiver would stall even though messages are available.
+			if m.waiters > 0 && len(m.messages) > 0 {
+				m.signal()
+			}
 			m.mu.Unlock()
 			return msg, nil
 		}

@@ -73,6 +73,20 @@ func (errorTool) Execute(_ context.Context, _ string) (string, error) {
 	return "", fmt.Errorf("tool execution failed")
 }
 
+// panicTool panics when executed, to verify the agent recovers instead of
+// crashing its execution loop.
+type panicTool struct{}
+
+func (panicTool) Name() string        { return "panic" }
+func (panicTool) Description() string { return "Always panics" }
+func (panicTool) Parameters() map[string]any {
+	return map[string]any{"type": "object"}
+}
+
+func (panicTool) Execute(_ context.Context, _ string) (string, error) {
+	panic("boom")
+}
+
 // slowTool takes a long time to execute, useful for cancellation tests.
 type slowTool struct {
 	duration time.Duration
@@ -528,6 +542,42 @@ func TestRun_ToolExecutionError(t *testing.T) {
 	}
 	if result.ToolCalls[0].Error == nil {
 		t.Error("expected tool execution error")
+	}
+}
+
+// TestRun_ToolPanicRecovered verifies that a panicking tool does not crash the
+// agent's execution loop. The panic is converted into an error tool result so
+// the model can react to it.
+func TestRun_ToolPanicRecovered(t *testing.T) {
+	a, mp := newTestAgentWithMock(t, WithTools(&panicTool{}), WithMaxTurns(5))
+
+	mp.AddResponse(mock.MockResponse{
+		Message: message.AssistantToolCallMessage([]message.ToolCall{
+			{ID: "call-1", Type: "function", Function: message.ToolCallFunction{Name: "panic", Arguments: "{}"}},
+		}),
+		Usage:        provider.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		FinishReason: provider.FinishReasonToolCall,
+	})
+	mp.AddResponse(mock.MockResponse{
+		Message:      message.AssistantMessage("Recovered from the panic."),
+		Usage:        provider.TokenUsage{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30},
+		FinishReason: provider.FinishReasonStop,
+	})
+
+	// If the panic propagated, this Run would crash the test process.
+	result, err := a.Run(context.Background(), "Use panic tool")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(result.ToolCalls))
+	}
+	if !result.ToolCalls[0].Result.IsError {
+		t.Error("expected panicking tool result to be marked as an error")
+	}
+	if !strings.Contains(result.ToolCalls[0].Result.Content, "panic") {
+		t.Errorf("expected error content to mention the panic, got %q", result.ToolCalls[0].Result.Content)
 	}
 }
 

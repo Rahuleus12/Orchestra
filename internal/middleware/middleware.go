@@ -201,6 +201,11 @@ func isRetryableError(err error) bool {
 	var pErr *provider.ProviderError
 	if asProviderError(err, &pErr) {
 		switch {
+		case pErr.StatusCode == 0:
+			// No HTTP response was received (transport-level failure such as a
+			// connection refused, DNS error, or TLS handshake failure). These are
+			// almost always transient, so retry.
+			return true
 		case pErr.StatusCode >= 500:
 			return true // Server errors are retryable
 		case pErr.StatusCode == 429:

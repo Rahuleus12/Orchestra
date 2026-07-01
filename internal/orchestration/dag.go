@@ -2,8 +2,10 @@ package orchestration
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"math"
+	randv2 "math/rand/v2"
 	"sync"
 	"time"
 
@@ -623,10 +625,14 @@ func alwaysTrue(ctx *WorkflowContext) bool {
 // Helper functions
 
 func generateWorkflowID() string {
-	return fmt.Sprintf("wf-%d", time.Now().UnixNano())
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("wf-%x-%d", b[:4], time.Now().UnixMilli()%10000)
 }
 
 func randFloat64() float64 {
-	// Simple deterministic pseudo-random for jitter
-	return float64(time.Now().UnixNano()%1000) / 1000.0
+	// math/rand/v2 is concurrency-safe and auto-seeded, so parallel steps
+	// that fail at the same instant get decorrelated backoff (the whole
+	// point of jitter).
+	return randv2.Float64()
 }

@@ -21,6 +21,7 @@ type Subscription struct {
 	id      string
 	topics  []string
 	handler Handler
+	ctx     context.Context
 	cancel  context.CancelFunc
 	active  atomic.Bool
 	bus     *InMemoryBus
@@ -295,8 +296,11 @@ func (b *InMemoryBus) Publish(ctx context.Context, topic string, msg BusMessage)
 		return nil
 	}
 
-	// Deliver to each subscriber
-	var deliveryErrors []error
+	// Deliver to each subscriber. Delivery is asynchronous and best-effort:
+	// Publish returns nil once delivery has been dispatched. Handler failures
+	// (including panics) are logged and counted in Stats().Errors rather than
+	// surfaced here, because a single slow/failing subscriber should not block
+	// or fail delivery to the others.
 	for _, sub := range targets {
 		if !sub.active.Load() {
 			continue
@@ -316,10 +320,6 @@ func (b *InMemoryBus) Publish(ctx context.Context, topic string, msg BusMessage)
 				b.deliverMessage(s, m)
 			}(sub, msgCopy)
 		}
-	}
-
-	if len(deliveryErrors) > 0 {
-		return fmt.Errorf("delivery errors: %v", deliveryErrors)
 	}
 
 	return nil
@@ -345,12 +345,13 @@ func (b *InMemoryBus) SubscribeWithFilter(topics []string, handler Handler, filt
 		return nil, fmt.Errorf("handler cannot be nil")
 	}
 
-	_, cancel := context.WithCancel(context.Background())
+	subCtx, cancel := context.WithCancel(context.Background())
 
 	sub := &Subscription{
 		id:      generateSubscriptionID(),
 		topics:  topics,
 		handler: handler,
+		ctx:     subCtx,
 		cancel:  cancel,
 		bus:     b,
 		filter:  filter,
@@ -452,41 +453,63 @@ func (b *InMemoryBus) Stats() BusStats {
 }
 
 // deliverMessage delivers a message to a subscriber's handler.
+//
+// A panicking handler is recovered so that a single faulty subscriber cannot
+// crash the entire process; the panic is logged and counted as an error.
 func (b *InMemoryBus) deliverMessage(sub *Subscription, msg BusMessage) {
 	if !sub.active.Load() {
 		return
 	}
 
-	// Create context with optional timeout
-	ctx := context.Background()
+	// Derive the handler context from the subscription's context so that
+	// Unsubscribe()/Close() (which call sub.cancel()) can interrupt a handler
+	// that is blocked on this context.
+	ctx := sub.ctx
 	var cancel context.CancelFunc
 	if b.handlerTimeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, b.handlerTimeout)
 		defer cancel()
 	}
 
-	// Execute handler
-	err := sub.handler(ctx, msg)
+	// Execute handler, recovering from panics so one bad subscriber can't
+	// take down the whole process.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				b.errors.Add(1)
+				b.logger.Error("Handler panic recovered",
+					"subscription_id", sub.id,
+					"message_id", msg.ID,
+					"topic", msg.Topic,
+					"panic", r,
+				)
+			}
+		}()
 
-	if err != nil {
-		b.errors.Add(1)
-		b.logger.Warn(
-			"Handler error",
-			"subscription_id", sub.id,
-			"message_id", msg.ID,
-			"topic", msg.Topic,
-			"error", err,
-		)
-	} else {
-		b.delivered.Add(1)
-	}
+		err := sub.handler(ctx, msg)
+		if err != nil {
+			b.errors.Add(1)
+			b.logger.Warn("Handler error",
+				"subscription_id", sub.id,
+				"message_id", msg.ID,
+				"topic", msg.Topic,
+				"error", err,
+			)
+		} else {
+			b.delivered.Add(1)
+		}
+	}()
 }
 
 // matchesTopics checks if any of the subscription's topics match the message topic.
 // Supports wildcard patterns:
-//   - "foo.*" matches "foo.bar", "foo.baz", etc.
-//   - "*" matches any single topic segment
-//   - "**" matches any number of topic segments (not yet implemented)
+//   - "foo.*" matches "foo.bar", "foo.baz", and "foo.bar.baz" (one or more
+//     trailing segments).
+//   - "*" matches any topic (one or more segments).
+//   - "**" matches any number of topic segments (equivalent to "*" today).
+//
+// Note: "*" matches one-or-more segments rather than strictly a single
+// segment; see TestInMemoryBus_WildcardTopics for the codified behavior.
 func (b *InMemoryBus) matchesTopics(subTopics []string, msgTopic string) bool {
 	for _, pattern := range subTopics {
 		if topicMatches(pattern, msgTopic) {

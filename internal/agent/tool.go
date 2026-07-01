@@ -202,7 +202,8 @@ func (r *ToolRegistry) ExecuteTool(ctx context.Context, toolName, arguments stri
 }
 
 // executeToolCall executes a tool call from the model and returns a ToolResult message.
-// If the tool is not found or execution fails, an error result is returned.
+// If the tool is not found, execution fails, or the tool panics, an error result
+// is returned rather than propagating the panic (which would crash the agent).
 func executeToolCall(ctx context.Context, registry *ToolRegistry, call message.ToolCall) message.Message {
 	if registry == nil {
 		// No tool registry — return an error result
@@ -217,10 +218,19 @@ func executeToolCall(ctx context.Context, registry *ToolRegistry, call message.T
 		return message.ToolResultMessage(call.ID, errMsg, true)
 	}
 
-	result, err := t.Execute(ctx, call.Function.Arguments)
-	if err != nil {
-		// Tool execution failed — return an error result
-		errMsg := fmt.Sprintf("tool %q execution failed: %v", call.Function.Name, err)
+	// Recover from panics so a faulty tool can't crash the agent's execution loop.
+	var result string
+	var execErr error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				execErr = fmt.Errorf("tool %q panicked: %v", call.Function.Name, r)
+			}
+		}()
+		result, execErr = t.Execute(ctx, call.Function.Arguments)
+	}()
+	if execErr != nil {
+		errMsg := fmt.Sprintf("tool %q execution failed: %v", call.Function.Name, execErr)
 		return message.ToolResultMessage(call.ID, errMsg, true)
 	}
 

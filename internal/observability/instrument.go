@@ -63,7 +63,7 @@ func (ip *InstrumentProvider) WrapGenerate(
 			ip.metrics.ProviderLatency.RecordDuration(duration)
 			ip.metrics.ProviderRequests.Inc()
 
-			if err == nil {
+			if err == nil && result != nil {
 				ip.metrics.TokensTotal.Add(
 					int64(result.Usage.PromptTokens + result.Usage.CompletionTokens),
 				)
@@ -88,22 +88,32 @@ func (ip *InstrumentProvider) WrapGenerate(
 			return nil, err
 		}
 
-		// Add result attributes to span
-		span.SetAttributes(
-			StringAttr("finish_reason", string(result.FinishReason)),
-			IntAttr("prompt_tokens", result.Usage.PromptTokens),
-			IntAttr("completion_tokens", result.Usage.CompletionTokens),
-			IntAttr("total_tokens", result.Usage.TotalTokens),
-		)
+		// Add result attributes to span. Guard against a misbehaving provider
+		// returning (nil, nil) so the instrumentation layer never panics.
+		if result != nil {
+			span.SetAttributes(
+				StringAttr("finish_reason", string(result.FinishReason)),
+				IntAttr("prompt_tokens", result.Usage.PromptTokens),
+				IntAttr("completion_tokens", result.Usage.CompletionTokens),
+				IntAttr("total_tokens", result.Usage.TotalTokens),
+			)
+		}
 		span.SetStatus(SpanStatusOK, "")
 
-		ip.logger.Debug(
-			"provider call completed",
-			slog.String("provider", providerName),
-			slog.String("model", req.Model),
-			slog.Int64("duration_ms", duration.Milliseconds()),
-			slog.Int("total_tokens", result.Usage.TotalTokens),
-		)
+		if result != nil {
+			ip.logger.Debug(
+				"provider call completed",
+				slog.String("provider", providerName),
+				slog.String("model", req.Model),
+				slog.Int64("duration_ms", duration.Milliseconds()),
+				slog.Int("total_tokens", result.Usage.TotalTokens),
+			)
+		} else {
+			ip.logger.Warn("provider returned nil result without error",
+				slog.String("provider", providerName),
+				slog.String("model", req.Model),
+			)
+		}
 
 		return result, nil
 	}

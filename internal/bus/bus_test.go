@@ -904,3 +904,97 @@ func TestInMemoryBus_HandlerTimeout(t *testing.T) {
 		t.Errorf("expected 1 error due to timeout, got %d", stats.Errors)
 	}
 }
+
+// TestInMemoryBus_HandlerPanicDoesNotCrashProcess verifies that a panicking
+// handler is recovered: the process survives, the panic is counted as an
+// error, and other subscribers still receive the message.
+func TestInMemoryBus_HandlerPanicDoesNotCrashProcess(t *testing.T) {
+	bus := NewInMemoryBus()
+	defer bus.Close()
+
+	// First subscriber panics.
+	panicSub, err := bus.Subscribe([]string{"test"}, func(ctx context.Context, msg BusMessage) error {
+		panic("boom")
+	})
+	if err != nil {
+		t.Fatalf("subscribe panic handler: %v", err)
+	}
+	_ = panicSub
+
+	// Second subscriber should still get the message despite the panic.
+	received := make(chan BusMessage, 1)
+	_, err = bus.Subscribe([]string{"test"}, func(ctx context.Context, msg BusMessage) error {
+		received <- msg
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("subscribe normal handler: %v", err)
+	}
+
+	// Publish — must not crash the process.
+	if err := bus.Publish(context.Background(), "test", BusMessage{Payload: "hello"}); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	select {
+	case <-received:
+		// good — other subscriber received the message
+	case <-time.After(time.Second):
+		t.Fatal("normal subscriber did not receive message (panic likely killed delivery)")
+	}
+
+	// Give the bus a moment to record the error.
+	time.Sleep(50 * time.Millisecond)
+	if stats := bus.Stats(); stats.Errors < 1 {
+		t.Errorf("expected at least 1 recorded error from recovered panic, got %d", stats.Errors)
+	}
+}
+
+// TestInMemoryBus_UnsubscribeCancelsInFlightHandler verifies that
+// Unsubscribe() interrupts a handler blocked on the delivered context. Before
+// the fix, the subscription's cancellable context was discarded (assigned to
+// "_"), so cancel() could not interrupt in-flight handlers and Close() would
+// hang forever if a handler never returned.
+func TestInMemoryBus_UnsubscribeCancelsInFlightHandler(t *testing.T) {
+	// Disable the handler timeout so the only way the handler can return is via
+	// subscription cancellation.
+	bus := NewInMemoryBus(WithHandlerTimeout(0))
+
+	handlerDone := make(chan error, 1)
+	sub, err := bus.Subscribe([]string{"test"}, func(ctx context.Context, msg BusMessage) error {
+		// Block until the context is cancelled.
+		<-ctx.Done()
+		handlerDone <- ctx.Err()
+		return ctx.Err()
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	// Publish a message to trigger the handler (runs in a bus goroutine).
+	if err := bus.Publish(context.Background(), "test", BusMessage{Payload: "hi"}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	// Give the handler a moment to start and block on ctx.Done().
+	time.Sleep(50 * time.Millisecond)
+
+	// Unsubscribe must cancel the handler's context.
+	if err := sub.Unsubscribe(); err != nil {
+		t.Fatalf("unsubscribe: %v", err)
+	}
+
+	select {
+	case err := <-handlerDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("expected handler to return context.Canceled, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not interrupted by Unsubscribe (subscription ctx not propagated)")
+	}
+
+	// Close must not hang (all handlers have exited).
+	if err := bus.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+}
