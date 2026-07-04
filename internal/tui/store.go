@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -55,6 +56,11 @@ type TokenUsageInfo struct {
 }
 
 // SessionStore manages session persistence.
+//
+// All methods are safe for concurrent use. Although a Bubble Tea app normally
+// only touches the store from its single-threaded Update loop, command
+// goroutines or tests may access it concurrently, so the map and active-session
+// pointer are guarded by a mutex.
 type SessionStore struct {
 	// Dir is the directory where sessions are stored.
 	Dir string
@@ -64,6 +70,8 @@ type SessionStore struct {
 
 	// ActiveSessionID is the ID of the currently active session.
 	ActiveSessionID string
+
+	mu sync.RWMutex
 }
 
 // NewSessionStore creates a new SessionStore with the given directory.
@@ -98,8 +106,10 @@ func (s *SessionStore) CreateSession(title, agentName, model string) *Session {
 		Metadata:  make(map[string]any),
 	}
 
+	s.mu.Lock()
 	s.Sessions[session.ID] = session
 	s.ActiveSessionID = session.ID
+	s.mu.Unlock()
 
 	// Persist the new session
 	_ = s.save(session)
@@ -109,20 +119,27 @@ func (s *SessionStore) CreateSession(title, agentName, model string) *Session {
 
 // GetSession returns a session by ID.
 func (s *SessionStore) GetSession(id string) (*Session, bool) {
+	s.mu.RLock()
 	session, ok := s.Sessions[id]
+	s.mu.RUnlock()
 	return session, ok
 }
 
 // GetActiveSession returns the currently active session.
 func (s *SessionStore) GetActiveSession() (*Session, bool) {
-	if s.ActiveSessionID == "" {
+	s.mu.RLock()
+	id := s.ActiveSessionID
+	s.mu.RUnlock()
+	if id == "" {
 		return nil, false
 	}
-	return s.GetSession(s.ActiveSessionID)
+	return s.GetSession(id)
 }
 
 // SetActiveSession sets the active session by ID.
 func (s *SessionStore) SetActiveSession(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.Sessions[id]; !ok {
 		return false
 	}
@@ -132,7 +149,10 @@ func (s *SessionStore) SetActiveSession(id string) bool {
 
 // AddMessage adds a message to the active session.
 func (s *SessionStore) AddMessage(role, content string, usage *TokenUsageInfo) error {
-	session, ok := s.GetActiveSession()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.Sessions[s.ActiveSessionID]
 	if !ok {
 		return errors.New("no active session")
 	}
@@ -161,34 +181,51 @@ func (s *SessionStore) AddMessage(role, content string, usage *TokenUsageInfo) e
 
 // DeleteSession deletes a session by ID.
 func (s *SessionStore) DeleteSession(id string) error {
+	s.mu.Lock()
 	if _, ok := s.Sessions[id]; !ok {
+		s.mu.Unlock()
 		return errors.New("session not found")
 	}
 
 	delete(s.Sessions, id)
+	s.mu.Unlock()
 
-	// Remove the file
+	// Remove the file (outside the lock to avoid blocking on IO)
 	path := s.sessionPath(id)
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to delete session file: %w", err)
 	}
 
-	// If we deleted the active session, clear it
+	// If we deleted the active session, clear it and pick the most recent.
+	s.mu.Lock()
 	if s.ActiveSessionID == id {
 		s.ActiveSessionID = ""
-		// Set to the most recent session if available
-		sessions := s.ListSessions()
-		if len(sessions) > 0 {
-			s.ActiveSessionID = sessions[0].ID
+		for _, sess := range s.Sessions {
+			if s.ActiveSessionID == "" || sess.UpdatedAt.After(s.lookupUpdatedLocked(s.ActiveSessionID)) {
+				s.ActiveSessionID = sess.ID
+			}
 		}
 	}
+	s.mu.Unlock()
 
 	return nil
 }
 
+// lookupUpdatedLocked returns the UpdatedAt for a session; assumes the caller
+// holds the read or write lock. Returns the zero time if not found.
+func (s *SessionStore) lookupUpdatedLocked(id string) time.Time {
+	if sess, ok := s.Sessions[id]; ok {
+		return sess.UpdatedAt
+	}
+	return time.Time{}
+}
+
 // ClearMessages removes all messages from the active session.
 func (s *SessionStore) ClearMessages() error {
-	session, ok := s.GetActiveSession()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.Sessions[s.ActiveSessionID]
 	if !ok {
 		return errors.New("no active session")
 	}
@@ -201,10 +238,12 @@ func (s *SessionStore) ClearMessages() error {
 
 // ListSessions returns all sessions sorted by most recently updated.
 func (s *SessionStore) ListSessions() []*Session {
+	s.mu.RLock()
 	sessions := make([]*Session, 0, len(s.Sessions))
 	for _, session := range s.Sessions {
 		sessions = append(sessions, session)
 	}
+	s.mu.RUnlock()
 
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
@@ -215,6 +254,7 @@ func (s *SessionStore) ListSessions() []*Session {
 
 // SearchSessions returns sessions whose title contains the query.
 func (s *SessionStore) SearchSessions(query string) []*Session {
+	s.mu.RLock()
 	var results []*Session
 	for _, session := range s.Sessions {
 		if containsFold(session.Title, query) ||
@@ -222,6 +262,7 @@ func (s *SessionStore) SearchSessions(query string) []*Session {
 			results = append(results, session)
 		}
 	}
+	s.mu.RUnlock()
 
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].UpdatedAt.After(results[j].UpdatedAt)

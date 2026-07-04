@@ -171,9 +171,15 @@ func (s *MemoryVectorStore) Search(ctx context.Context, query []float64, opts Se
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	results := make([]SearchResult, 0, len(s.vectors))
+	results := make([]SearchResult, 0, opts.TopK)
 
 	for _, v := range s.vectors {
+		// Respect cancellation for large stores; checking on each iteration is
+		// cheap relative to the cosine-similarity computation.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		// Apply metadata filters
 		if !matchesFilters(v.Metadata, opts.Filters) {
 			continue

@@ -12,6 +12,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive architecture documentation (`docs/ARCHITECTURE.md`)
 - Contributing guidelines (`docs/CONTRIBUTING.md`)
 - Example code files for major features
+- Shared `internal/provider/httpx` package for HTTP client/transport construction
+  across all providers (proxy support, HTTP/2, streaming-safe timeouts,
+  connection pooling)
+- `MemoryCacheStore.Len()` for cache-size monitoring
+- Workflow validation in the HTTP API (cycles now return 400, not 500)
+- Debug logging for malformed SSE events in Anthropic/Cohere providers (set log
+  level to debug to inspect dropped stream chunks)
+- Benchmarks for the caching Generate path and brute-force vector search
+- `SessionStore` is now safe for concurrent use (mutex-guarded map and
+  active-session pointer)
+
+### Fixed
+- **Agent memory storage**: stored the system prompt instead of the user's
+  input in memory, polluting recall and creating a feedback loop
+- **Cache key collisions**: the caching middleware omitted tool-result content
+  and content blocks (images/files) from the cache key, returning stale
+  responses when only tool results differed
+- **Circuit breaker**: counted client-initiated cancellation
+  (`context.Canceled`/`DeadlineExceeded`) as provider failures, allowing a
+  single cancelling client to trip the breaker for everyone
+- **Retry**: transport-level failures (connection refused, DNS, TLS — wrapped as
+  `ProviderError` with `StatusCode: 0`) were never retried; now treated as
+  transient
+- **Workflow cancellation status**: a cancelled workflow was reported as
+  `StatusFailed` instead of `StatusCancelled` because the engine checked the
+  caller's parent context rather than the workflow context
+- **Bus handler panics**: a panicking subscriber crashed the entire process;
+  now recovered, logged, and counted
+- **Bus subscription cancellation**: `Unsubscribe()`/`Close()` could not
+  interrupt in-flight handlers because the cancellable context was discarded
+- **Mailbox lost wakeups**: with multiple blocked receivers and a burst of
+  messages, a receiver could stall even though messages were queued
+  (capacity-1 signal channel dropped wakeups)
+- **Tool execution panics**: a panicking tool crashed the agent's execution
+  loop; now recovered into an error tool result
+- **Memory cache leak**: expired entries were never evicted from
+  `MemoryCacheStore`, causing unbounded growth in long-running services
+- **Memory backing-array leaks**: `BufferMemory`/`SlidingWindowMemory` reslicing
+  retained dropped messages (including large `FileData` payloads) in the
+  backing array
+- **Workflow ID collisions and non-random jitter**: derived from wall-clock
+  nanoseconds; now use `crypto/rand` and `math/rand/v2`
+- **Instrumentation nil-deref**: `WrapGenerate` panicked if a provider returned
+  `(nil, nil)`
+- **Non-atomic session writes**: TUI session saves could corrupt files on
+  crash; now write-then-rename atomically
+- **Vector store O(n²) Add**: `containsOrdered` scanned the ordered slice per
+  insert; now O(1) via the vectors map
+
+### Changed
+- All 7 providers use a dedicated streaming HTTP client with no overall
+  timeout (the previous single client's `Timeout` would kill long SSE streams);
+  the custom transports now honor `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`
+- SSE handlers in the HTTP server now stop promptly on client disconnect and
+  clear the server-level `WriteTimeout` so legitimate long streams aren't killed
+- CORS wildcard (`*`) now returns the literal `*` instead of reflecting the
+  request origin (prevents credentialed cross-origin requests by default)
+- Server logs a prominent warning at startup when authentication is disabled
+- Memory errors in the agent layer are now logged rather than silently dropped
+- `MemoryVectorStore.Search` respects context cancellation and pre-allocates
+  based on `TopK`
+- Retry middleware now explicitly detects `net.Error` (timeouts/temporary)
+  and `io.EOF` for generic (non-`ProviderError`) errors rather than blindly
+  retrying all generic errors
 
 ## [0.9.0] - 2024-12-15
 

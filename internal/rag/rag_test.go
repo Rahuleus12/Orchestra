@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -278,4 +279,42 @@ func TestKnowledgeBase(t *testing.T) {
 			t.Error("Size() = 0 after Add(), want > 0")
 		}
 	})
+}
+
+// BenchmarkMemoryVectorStore_Search measures the cost of a brute-force
+// similarity search over a moderately-sized store (1000 vectors of dim 128).
+// This is the hot path for RAG retrieval.
+func BenchmarkMemoryVectorStore_Search(b *testing.B) {
+	const dim = 128
+	const n = 1000
+	store := NewMemoryVectorStore(dim)
+
+	// Populate with deterministic-ish vectors.
+	vectors := make([]Vector, 0, n)
+	for i := 0; i < n; i++ {
+		vals := make([]float64, dim)
+		for j := 0; j < dim; j++ {
+			vals[j] = float64((i+j)%5) * 0.1
+		}
+		vectors = append(vectors, Vector{
+			ID:       fmt.Sprintf("v-%d", i),
+			Values:   vals,
+			Metadata: map[string]any{"content": fmt.Sprintf("doc %d", i)},
+		})
+	}
+	if err := store.Add(context.Background(), vectors...); err != nil {
+		b.Fatalf("populate: %v", err)
+	}
+
+	query := make([]float64, dim)
+	for j := 0; j < dim; j++ {
+		query[j] = 0.2
+	}
+	opts := SearchOptions{TopK: 5}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = store.Search(context.Background(), query, opts)
+	}
 }

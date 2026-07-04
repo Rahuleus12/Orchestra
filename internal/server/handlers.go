@@ -961,5 +961,11 @@ func (s *Server) buildWorkflow(req workflowRequest) (*orchestration.Workflow, er
 		}
 	}
 
+	// Validate the graph (detects cycles, etc.) before execution so callers
+	// get a clear 400 Bad Request instead of an opaque 500 during execution.
+	if err := wf.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid workflow: %w", err)
+	}
+
 	return wf, nil
 }

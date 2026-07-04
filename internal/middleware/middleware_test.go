@@ -1547,3 +1547,46 @@ func TestMemoryCacheStore_EvictsExpiredEntries(t *testing.T) {
 		t.Errorf("expected expired entry to be evicted (Len=0), got %d", store.Len())
 	}
 }
+
+// BenchmarkCaching_Generate exercises the full cached Generate path including
+// cache-key computation (hashing of messages, tool calls, tool results, and
+// content blocks). The key hash runs on every cached call, so it must stay
+// cheap relative to an LLM round-trip.
+func BenchmarkCaching_Generate(b *testing.B) {
+	mp := mock.NewProvider("test")
+	mp.SetDefaultResponse(mock.MockResponse{
+		Message:      message.AssistantMessage("cached"),
+		Usage:        provider.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		FinishReason: provider.FinishReasonStop,
+	})
+	store := middleware.NewMemoryCacheStore()
+	p := middleware.WithCaching(store, 5*time.Minute)(mp)
+
+	req := provider.GenerateRequest{
+		Model: "gpt-4o",
+		Messages: []message.Message{
+			message.SystemMessage("You are a helpful assistant."),
+			message.UserMessage("What is the capital of France?"),
+			message.AssistantMessage("The capital of France is Paris."),
+			message.UserMessage("And Germany?"),
+			{
+				Role: message.RoleTool,
+				ToolResult: &message.ToolResult{
+					ToolCallID: "call_1",
+					Content:    "Berlin",
+				},
+			},
+		},
+		Tools: []provider.ToolDefinition{
+			provider.FunctionTool("search", "Search the web", map[string]any{"type": "object"}),
+		},
+	}
+
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = p.Generate(ctx, req)
+	}
+}

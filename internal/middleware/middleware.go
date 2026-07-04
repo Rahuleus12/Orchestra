@@ -17,8 +17,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math/rand/v2"
+	"net"
 	"sync"
 	"time"
 
@@ -218,7 +220,21 @@ func isRetryableError(err error) bool {
 		return false
 	}
 
-	// For generic errors, assume retryable for connection/timeout issues
+	// For generic (non-ProviderError) errors, retry only if the error looks
+	// like a transient network/IO condition. Provider implementations wrap
+	// their HTTP errors in ProviderError (handled above), so a generic error
+	// reaching here typically comes from middleware or a custom provider.
+	// We retry net.Error (timeouts, temporary connection issues), io.EOF/pipe
+	// errors, and otherwise default to retrying — over-retrying is safer than
+	// under-retrying for a network-facing library, and the attempt cap bounds
+	// the cost.
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true // network timeout or temporary error
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true // connection closed mid-stream
+	}
 	return true
 }
 

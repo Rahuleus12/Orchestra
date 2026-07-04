@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -672,11 +673,13 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 		case "content_block_delta":
 			var raw map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(data), &raw); err != nil {
+				slog.Debug("anthropic: malformed content_block_delta event skipped", "error", err, "data", data)
 				continue
 			}
 
 			deltaBytes, ok := raw["delta"]
 			if !ok {
+				slog.Debug("anthropic: content_block_delta missing delta field", "data", data)
 				continue
 			}
 
@@ -685,6 +688,7 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 				Type string `json:"type"`
 			}
 			if err := json.Unmarshal(deltaBytes, &deltaType); err != nil {
+				slog.Debug("anthropic: content_block_delta with unparseable delta type skipped", "error", err, "data", data)
 				continue
 			}
 

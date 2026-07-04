@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -720,6 +721,8 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 						return
 					}
 				}
+			} else {
+				slog.Debug("cohere: malformed content-delta event skipped", "error", err, "data", data)
 			}
 
 		case "tool-plan":
