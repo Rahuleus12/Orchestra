@@ -18,16 +18,26 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/user/orchestra/internal/config"
 	"github.com/user/orchestra/internal/provider"
+	"github.com/user/orchestra/internal/provider/anthropic"
+	"github.com/user/orchestra/internal/provider/cohere"
+	"github.com/user/orchestra/internal/provider/gemini"
+	"github.com/user/orchestra/internal/provider/mistral"
+	"github.com/user/orchestra/internal/provider/ollama"
+	"github.com/user/orchestra/internal/provider/openai"
+	"github.com/user/orchestra/internal/provider/openrouter"
 	"github.com/user/orchestra/internal/server"
 	tui "github.com/user/orchestra/pkg/tui"
 )
@@ -439,30 +449,160 @@ Examples:
 		providerName = "openrouter"
 	}
 
-	fmt.Printf("Model discovery for provider: %s\n", providerName)
-	fmt.Println()
-
-	if query != "" {
-		fmt.Printf("Filter: %s\n", query)
-	}
-	if sortBy != "" {
-		fmt.Printf("Sort by: %s\n", sortBy)
-	}
 	if showDetails != "" {
 		fmt.Printf("Details for: %s\n", showDetails)
+		fmt.Println("Note: per-model details require the provider's API. Use --json for full output.")
+		return nil
 	}
 
-	fmt.Println("Note: Full model discovery requires the Orchestra library to be initialized")
-	fmt.Println("      with a valid API key. Set OPENROUTER_API_KEY to use the OpenRouter provider.")
-	fmt.Println()
-	fmt.Println("To use programmatically:")
-	fmt.Println("  p, _ := openrouter.NewProvider(config.ProviderConfig{APIKey: key})")
-	fmt.Println("  models, _ := p.Models(ctx)")
-	fmt.Println("  for _, m := range models {")
-	fmt.Println("    fmt.Println(m.ID, m.Name)")
-	fmt.Println("  }")
+	p, err := buildModelsProvider(providerName)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	models, err := p.Models(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list models for %q: %w", providerName, err)
+	}
+
+	// Apply query filter
+	if query != "" {
+		q := strings.ToLower(query)
+		filtered := models[:0]
+		for _, m := range models {
+			if strings.Contains(strings.ToLower(m.ID), q) || strings.Contains(strings.ToLower(m.Name), q) {
+				filtered = append(filtered, m)
+		}
+		}
+		models = filtered
+	}
+
+	// Apply sort
+	switch strings.ToLower(sortBy) {
+	case "name":
+		sort.Slice(models, func(i, j int) bool { return models[i].Name < models[j].Name })
+	case "context":
+		sort.Slice(models, func(i, j int) bool {
+			return models[i].Capabilities.ContextWindow > models[j].Capabilities.ContextWindow
+		})
+	default: // "id" or empty
+		sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+	}
+
+	// Output
+	if jsonOut(args) {
+		data, err := json.MarshalIndent(models, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal models: %w", err)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Printf("Models for provider: %s (%d)\n\n", providerName, len(models))
+	for _, m := range models {
+		flags := ""
+		if m.Capabilities.Streaming {
+			flags += "S"
+		}
+		if m.Capabilities.ToolCalling {
+			flags += "T"
+		}
+		if m.Capabilities.Vision {
+			flags += "V"
+		}
+		if flags != "" {
+			flags = " [" + flags + "]"
+		}
+		ctxStr := ""
+		if m.Capabilities.ContextWindow > 0 {
+			ctxStr = fmt.Sprintf(" (ctx %d)", m.Capabilities.ContextWindow)
+		}
+		fmt.Printf("  %-45s %s%s%s\n", m.ID, m.Name, flags, ctxStr)
+	}
+	if len(models) == 0 {
+		fmt.Println("  (no models returned)")
+	}
+	fmt.Println("\nFlags: S=streaming T=tool-calling V=vision")
 
 	return nil
+}
+
+// jsonOut reports whether the --json flag was passed.
+func jsonOut(args []string) bool {
+	for _, a := range args {
+		if a == "--json" {
+			return true
+		}
+	}
+	return false
+}
+
+// providerKeyEnvVar maps a provider name to the environment variables that may
+// hold its API key (first non-empty match wins). Ollama needs no key.
+func providerKeyEnvVar(name string) []string {
+	switch strings.ToLower(name) {
+	case "openai":
+		return []string{"OPENAI_API_KEY"}
+	case "anthropic":
+		return []string{"ANTHROPIC_API_KEY"}
+	case "openrouter":
+		return []string{"OPENROUTER_API_KEY"}
+	case "gemini", "google":
+		return []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"}
+	case "mistral":
+		return []string{"MISTRAL_API_KEY"}
+	case "cohere":
+		return []string{"COHERE_API_KEY"}
+	default:
+		return nil
+	}
+}
+
+// resolveProviderKey resolves an API key for the named provider from env vars.
+func resolveProviderKey(name string) string {
+	for _, envVar := range providerKeyEnvVar(name) {
+		if v := strings.TrimSpace(os.Getenv(envVar)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// buildModelsProvider constructs a provider for the `orchestra models` command,
+// resolving the API key from environment variables and the base URL from
+// <PROVIDER>_BASE_URL if set.
+func buildModelsProvider(name string) (provider.Provider, error) {
+	name = strings.ToLower(name)
+	apiKey := resolveProviderKey(name)
+	baseURL := strings.TrimSpace(os.Getenv(strings.ToUpper(name) + "_BASE_URL"))
+
+	cfg := config.ProviderConfig{
+		APIKey:  apiKey,
+		BaseURL: baseURL,
+	}
+
+	switch name {
+	case "openai":
+		return openai.NewProvider(cfg)
+	case "anthropic":
+		return anthropic.NewProvider(cfg)
+	case "openrouter":
+		return openrouter.NewProvider(cfg)
+	case "gemini", "google":
+		return gemini.NewProvider(cfg)
+	case "mistral":
+		return mistral.NewProvider(cfg)
+	case "cohere":
+		return cohere.NewProvider(cfg)
+	case "ollama":
+		return ollama.NewProvider(cfg)
+	default:
+		return nil, fmt.Errorf("unsupported provider %q", name)
+	}
 }
 
 // resolveProviderFactory returns a ProviderFactory for the named provider.

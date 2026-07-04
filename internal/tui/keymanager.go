@@ -44,6 +44,11 @@ type KeyManager struct {
 
 // NewKeyManager creates a new KeyManager. Keys are loaded from the given
 // directory. If the directory does not exist, it is created.
+//
+// In addition to keys persisted to disk, keys are also discovered from the
+// standard provider environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+// etc.) for any provider that does not already have a stored key. Env-var
+// keys are persisted so subsequent loads don't depend on the environment.
 func NewKeyManager(dir string) (*KeyManager, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create key directory: %w", err)
@@ -56,8 +61,12 @@ func NewKeyManager(dir string) (*KeyManager, error) {
 
 	if err := km.load(); err != nil {
 		// Non-fatal: start with empty keys
-		return km, nil
 	}
+
+	// Pick up any provider keys exposed via environment variables that aren't
+	// already stored on disk. This keeps the TUI in sync with the documented
+	// way of configuring providers (see the `orchestra` help text).
+	km.loadFromEnv()
 
 	return km, nil
 }
@@ -166,6 +175,60 @@ func KnownProviders() []string {
 	}
 }
 
+// providerEnvVars maps each provider name to the environment variables that
+// may hold its API key (first non-empty match wins), and an optional env var
+// for a custom base URL. Ollama is omitted because it needs no key.
+var providerEnvVars = []struct {
+	Provider    string
+	KeyVars     []string
+	BaseURLVar  string
+}{
+	{"openai", []string{"OPENAI_API_KEY"}, "OPENAI_BASE_URL"},
+	{"anthropic", []string{"ANTHROPIC_API_KEY"}, "ANTHROPIC_BASE_URL"},
+	{"openrouter", []string{"OPENROUTER_API_KEY"}, "OPENROUTER_BASE_URL"},
+	{"gemini", []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"}, "GEMINI_BASE_URL"},
+	{"mistral", []string{"MISTRAL_API_KEY"}, "MISTRAL_BASE_URL"},
+	{"cohere", []string{"COHERE_API_KEY"}, "COHERE_BASE_URL"},
+}
+
+// loadFromEnv populates keys from environment variables for any provider that
+// does not already have a key stored on disk. Discovered keys are persisted so
+// later loads are stable.
+func (km *KeyManager) loadFromEnv() {
+	km.mu.Lock()
+	defer km.mu.Unlock()
+
+	var changed bool
+	for _, p := range providerEnvVars {
+		if _, exists := km.keys[p.Provider]; exists {
+			continue
+		}
+		var apiKey string
+		for _, envVar := range p.KeyVars {
+			if v := strings.TrimSpace(os.Getenv(envVar)); v != "" {
+				apiKey = v
+				break
+			}
+		}
+		if apiKey == "" {
+			continue
+		}
+		km.keys[p.Provider] = &ProviderKey{
+			Provider: p.Provider,
+			APIKey:   apiKey,
+			BaseURL:  strings.TrimSpace(os.Getenv(p.BaseURLVar)),
+			AddedAt:  currentTimeString(),
+		}
+		changed = true
+	}
+
+	if changed {
+		// Best-effort persist; a failure here is non-fatal (the key is still
+		// available for this session in memory).
+		_ = km.saveLocked()
+	}
+}
+
 // load reads keys from disk.
 func (km *KeyManager) load() error {
 	path := km.filePath()
@@ -191,6 +254,13 @@ func (km *KeyManager) load() error {
 
 // save persists keys to disk.
 func (km *KeyManager) save() error {
+	km.mu.Lock()
+	defer km.mu.Unlock()
+	return km.saveLocked()
+}
+
+// saveLocked persists keys to disk; the caller must hold km.mu.
+func (km *KeyManager) saveLocked() error {
 	keys := make([]*ProviderKey, 0, len(km.keys))
 	for _, key := range km.keys {
 		keys = append(keys, key)
