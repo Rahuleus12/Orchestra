@@ -58,10 +58,29 @@ func newTestProvider(handler http.Handler) (*Provider, *httptest.Server) {
 // Provider Construction Tests
 // ---------------------------------------------------------------------------
 
-func TestNewProvider_RequiresAPIKey(t *testing.T) {
-	_, err := NewProvider(config.ProviderConfig{})
+func TestNewProvider_AllowsEmptyAPIKey(t *testing.T) {
+	// The /api/v1/models catalog endpoint is public, so NewProvider must not
+	// require a key. Generate/Stream enforce the key at call time.
+	p, err := NewProvider(config.ProviderConfig{})
+	if err != nil {
+		t.Fatalf("unexpected error for missing API key: %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected non-nil provider")
+	}
+}
+
+func TestNewProvider_GenerateRequiresAPIKey(t *testing.T) {
+	p, err := NewProvider(config.ProviderConfig{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, err = p.Generate(context.Background(), provider.GenerateRequest{
+		Model:    "openai/gpt-4o",
+		Messages: []message.Message{message.UserMessage("hi")},
+	})
 	if err == nil {
-		t.Fatal("expected error for missing API key")
+		t.Fatal("expected error for Generate without API key")
 	}
 	if !strings.Contains(err.Error(), "api_key") {
 		t.Errorf("error should mention api_key, got: %v", err)

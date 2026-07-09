@@ -178,8 +178,11 @@ func fetchModels(ctx context.Context, p *Provider) ([]provider.ModelInfo, error)
 		return nil, fmt.Errorf("failed to create models request: %w", err)
 	}
 
-	// Set auth headers (no Content-Type needed for GET)
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	// Set auth headers. The /api/v1/models endpoint is public, so the key is
+	// optional here — only send it if one is configured.
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

@@ -243,10 +243,9 @@ type Provider struct {
 // NewProvider creates a new OpenRouter provider from the given configuration.
 func NewProvider(cfg config.ProviderConfig) (*Provider, error) {
 	apiKey := cfg.APIKey
-	if apiKey == "" {
-		return nil, fmt.Errorf("openrouter: api_key is required")
-	}
-
+	// OpenRouter's /api/v1/models catalog endpoint is public and does not
+	// require an API key, so we allow construction without one. The key is
+	// enforced at Generate/Stream time where it is actually required.
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
 		baseURL = defaultBaseURL
@@ -334,6 +333,10 @@ func (p *Provider) Models(ctx context.Context) ([]provider.ModelInfo, error) {
 // Generate sends a non-streaming completion request to the OpenRouter API.
 func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (*provider.GenerateResult, error) {
 	model := p.resolveModel(req.Model)
+	if p.apiKey == "" {
+		return nil, provider.NewProviderError(providerName, model,
+			fmt.Errorf("api_key is required for Generate (set OPENROUTER_API_KEY)"))
+	}
 	if len(req.Messages) == 0 {
 		return nil, provider.NewProviderError(providerName, model,
 			fmt.Errorf("at least one message is required"))
@@ -392,6 +395,10 @@ func (p *Provider) Generate(ctx context.Context, req provider.GenerateRequest) (
 // a channel of StreamEvent values.
 func (p *Provider) Stream(ctx context.Context, req provider.GenerateRequest) (<-chan provider.StreamEvent, error) {
 	model := p.resolveModel(req.Model)
+	if p.apiKey == "" {
+		return nil, provider.NewProviderError(providerName, model,
+			fmt.Errorf("api_key is required for Stream (set OPENROUTER_API_KEY)"))
+	}
 	if len(req.Messages) == 0 {
 		return nil, provider.NewProviderError(providerName, model,
 			fmt.Errorf("at least one message is required"))

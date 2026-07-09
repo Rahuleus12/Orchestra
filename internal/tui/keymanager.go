@@ -179,9 +179,9 @@ func KnownProviders() []string {
 // may hold its API key (first non-empty match wins), and an optional env var
 // for a custom base URL. Ollama is omitted because it needs no key.
 var providerEnvVars = []struct {
-	Provider    string
-	KeyVars     []string
-	BaseURLVar  string
+	Provider   string
+	KeyVars    []string
+	BaseURLVar string
 }{
 	{"openai", []string{"OPENAI_API_KEY"}, "OPENAI_BASE_URL"},
 	{"anthropic", []string{"ANTHROPIC_API_KEY"}, "ANTHROPIC_BASE_URL"},

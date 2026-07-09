@@ -475,7 +475,7 @@ Examples:
 		for _, m := range models {
 			if strings.Contains(strings.ToLower(m.ID), q) || strings.Contains(strings.ToLower(m.Name), q) {
 				filtered = append(filtered, m)
-		}
+			}
 		}
 		models = filtered
 	}
