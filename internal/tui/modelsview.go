@@ -432,20 +432,32 @@ func (m *ModelsModel) selectPrev() {
 	}
 }
 
+// providerNeedsKeyForModels returns true if the provider requires an API key
+// to list its models. OpenRouter and Ollama expose public model endpoints.
+func providerNeedsKeyForModels(name string) bool {
+	switch strings.ToLower(name) {
+	case "openrouter", "ollama":
+		return false
+	default:
+		return true
+	}
+}
+
 func (m *ModelsModel) fetchModelsForSelectedProvider() tea.Cmd {
 	if m.SelectedProvider < 0 || m.SelectedProvider >= len(m.Providers) {
 		return nil
 	}
 
 	entry := m.Providers[m.SelectedProvider]
-	if !entry.HasKey {
-		m.Error = fmt.Sprintf("No API key configured for %s. Press 'a' to add one.", ProviderDisplayName(entry.Name))
-		return nil
-	}
 
-	key, ok := m.KeyManager.GetKey(entry.Name)
-	if !ok {
-		m.Error = fmt.Sprintf("Key not found for %s", entry.Name)
+	var apiKey, baseURL string
+	if entry.HasKey {
+		if key, ok := m.KeyManager.GetKey(entry.Name); ok {
+			apiKey = key.APIKey
+			baseURL = key.BaseURL
+		}
+	} else if providerNeedsKeyForModels(entry.Name) {
+		m.Error = fmt.Sprintf("No API key configured for %s. Press 'a' to add one.", ProviderDisplayName(entry.Name))
 		return nil
 	}
 
@@ -455,8 +467,6 @@ func (m *ModelsModel) fetchModelsForSelectedProvider() tea.Cmd {
 
 	// Capture values for the closure.
 	provider := entry.Name
-	apiKey := key.APIKey
-	baseURL := key.BaseURL
 	fetcher := m.ModelFetcher
 
 	return func() tea.Msg {
@@ -585,6 +595,10 @@ func (m *ModelsModel) renderProviderList(width int) string {
 		if entry.HasKey {
 			keyBadge := m.Theme.Styles.Success.Render("✓")
 			line = fmt.Sprintf(" %s %s %s", keyBadge, name, m.Theme.Styles.Dim.Render(entry.KeyMask))
+		} else if !providerNeedsKeyForModels(entry.Name) {
+			// Public model endpoint — can fetch without a key
+			publicBadge := m.Theme.Styles.Dim.Render("○")
+			line = fmt.Sprintf(" %s %s", publicBadge, name)
 		} else {
 			noKeyBadge := m.Theme.Styles.Dim.Render("✗")
 			line = fmt.Sprintf(" %s %s", noKeyBadge, m.Theme.Styles.Dim.Render(name))
@@ -642,7 +656,7 @@ func (m *ModelsModel) renderModelList(width int) string {
 	if len(m.Models) == 0 && m.Error == "" {
 		if m.SelectedProvider >= 0 && m.SelectedProvider < len(m.Providers) {
 			entry := m.Providers[m.SelectedProvider]
-			if entry.HasKey {
+			if entry.HasKey || !providerNeedsKeyForModels(entry.Name) {
 				b.WriteString(m.Theme.Styles.Muted.Render(fmt.Sprintf("  Press Enter or 'r' to fetch models from %s.\n", ProviderDisplayName(entry.Name))))
 			} else {
 				b.WriteString(m.Theme.Styles.Muted.Render(fmt.Sprintf("  No API key for %s.\n  Press 'a' to add a key.\n", ProviderDisplayName(entry.Name))))

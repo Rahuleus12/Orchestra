@@ -350,15 +350,24 @@ func (m *AppModel) setupCommandHandlers() {
 
 		provider := strings.TrimSpace(cmd.Args)
 		if provider != "" {
-			// Try to select the provider
+			// Try to select the specified provider
 			for i, p := range m.Models.Providers {
 				if p.Name == provider {
 					m.Models.SelectedProvider = i
 					break
 				}
 			}
+		} else if m.Models.SelectedProvider < 0 {
+			// Default to the first provider with a key, or OpenRouter (public
+			// model listing) if none have keys yet.
+			for i, p := range m.Models.Providers {
+				if p.HasKey || p.Name == "openrouter" {
+					m.Models.SelectedProvider = i
+					break
+				}
+			}
 		}
-		return "Switched to Keys & Models view. Press 'r' to fetch models for the selected provider.", nil
+		return "Switched to Keys & Models view.", nil
 	})
 }
 
@@ -384,6 +393,13 @@ func (m *AppModel) setupChatCallbacks() {
 		}
 		if response != "" {
 			m.Chat.AddMessage(ViewSystem, response)
+		}
+
+		// Auto-fetch models when entering the models view via /models.
+		if cmd.Type == CommandModels && m.ActiveView == ViewModels {
+			if fetchCmd := m.Models.fetchModelsForSelectedProvider(); fetchCmd != nil {
+				return fetchCmd
+			}
 		}
 		return nil
 	}
