@@ -506,41 +506,50 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Tab / Shift+Tab cycle views (the primary navigation method).
+		if key.Matches(msg, m.KeyMap.Global.NextView) {
+			m.switchView((m.ActiveView + 1) % 5)
+			return m, nil
+		}
+		if key.Matches(msg, m.KeyMap.Global.PrevView) {
+			m.switchView((m.ActiveView + 4) % 5) // +4 == -1 mod 5
+			return m, nil
+		}
+
+		// Esc returns to chat from any non-chat view (but not from within
+		// the chat input itself, where Esc does nothing special).
+		if key.Matches(msg, m.KeyMap.Global.BackToChat) && m.ActiveView != ViewChat {
+			m.switchView(ViewChat)
+			return m, nil
+		}
+
 		if key.Matches(msg, m.KeyMap.Global.Chat) {
-			m.ActiveView = ViewChat
+			m.switchView(ViewChat)
 			return m, nil
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Workflow) {
-			m.ActiveView = ViewWorkflow
+			m.switchView(ViewWorkflow)
 			return m, nil
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Sessions) {
-			m.ActiveView = ViewSessions
-			m.Sessions.Refresh()
+			m.switchView(ViewSessions)
 			return m, nil
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Logs) {
-			m.ActiveView = ViewLogs
+			m.switchView(ViewLogs)
 			return m, nil
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Models) {
-			m.ActiveView = ViewModels
-			m.Models.RefreshProviders()
+			m.switchView(ViewModels)
 			return m, nil
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.SwitchView) {
-			m.ActiveView = (m.ActiveView + 1) % 5
-			if m.ActiveView == ViewSessions {
-				m.Sessions.Refresh()
-			}
-			if m.ActiveView == ViewModels {
-				m.Models.RefreshProviders()
-			}
+			m.switchView((m.ActiveView + 1) % 5)
 			return m, nil
 		}
 	}
@@ -600,16 +609,27 @@ func (m *AppModel) View() string {
 	return b.String()
 }
 
+// switchView changes the active view and performs any per-view refresh logic.
+func (m *AppModel) switchView(view ViewID) {
+	m.ActiveView = view
+	switch view {
+	case ViewSessions:
+		m.Sessions.Refresh()
+	case ViewModels:
+		m.Models.RefreshProviders()
+	}
+}
+
 func (m *AppModel) renderTabBar() string {
 	tabs := []struct {
 		id    ViewID
 		label string
 	}{
-		{ViewChat, "💬 Chat"},
-		{ViewWorkflow, "🔄 Workflow"},
-		{ViewSessions, "📋 Sessions"},
-		{ViewLogs, "📊 Logs"},
-		{ViewModels, "🔑 Keys"},
+		{ViewChat, "1 Chat"},
+		{ViewWorkflow, "2 Workflow"},
+		{ViewSessions, "3 Sessions"},
+		{ViewLogs, "4 Logs"},
+		{ViewModels, "5 Keys"},
 	}
 
 	var parts []string
@@ -649,6 +669,10 @@ func (m *AppModel) renderActiveView() string {
 func (m *AppModel) renderStatusBar() string {
 	// Build status bar content
 	var parts []string
+
+	// Current view indicator
+	viewLabel := m.Theme.Styles.Muted.Render(fmt.Sprintf("[%s]", m.ActiveView.String()))
+	parts = append(parts, viewLabel)
 
 	// Agent/Model info
 	if m.AgentName != "" {

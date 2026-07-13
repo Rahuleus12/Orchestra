@@ -34,7 +34,16 @@ type GlobalKeyMap struct {
 	// ToggleTheme switches between light and dark themes.
 	ToggleTheme key.Binding
 
-	// SwitchView cycles through available views.
+	// NextView cycles to the next view (Tab).
+	NextView key.Binding
+
+	// PrevView cycles to the previous view (Shift+Tab).
+	PrevView key.Binding
+
+	// BackToChat returns to the chat view from any other view (Esc).
+	BackToChat key.Binding
+
+	// SwitchView cycles through available views (legacy ctrl+tab).
 	SwitchView key.Binding
 
 	// Chat switches to the chat view.
@@ -192,6 +201,18 @@ func NewKeyMap() *KeyMap {
 				key.WithKeys("ctrl+t"),
 				key.WithHelp("ctrl+t", "toggle theme"),
 			),
+			NextView: key.NewBinding(
+				key.WithKeys("tab"),
+				key.WithHelp("tab", "next view"),
+			),
+			PrevView: key.NewBinding(
+				key.WithKeys("shift+tab"),
+				key.WithHelp("shift+tab", "prev view"),
+			),
+			BackToChat: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back to chat"),
+			),
 			SwitchView: key.NewBinding(
 				key.WithKeys("ctrl+tab"),
 				key.WithHelp("ctrl+tab", "switch view"),
@@ -267,8 +288,8 @@ func NewKeyMap() *KeyMap {
 				key.WithHelp("ctrl+d", "toggle tool details"),
 			),
 			CopyMessage: key.NewBinding(
-				key.WithKeys("ctrl+c"),
-				key.WithHelp("ctrl+c", "copy message"),
+				key.WithKeys("ctrl+y"),
+				key.WithHelp("ctrl+y", "copy message"),
 			),
 		},
 		Workflow: WorkflowKeyMap{
@@ -281,8 +302,8 @@ func NewKeyMap() *KeyMap {
 				key.WithHelp("p", "pause"),
 			),
 			Cancel: key.NewBinding(
-				key.WithKeys("ctrl+c"),
-				key.WithHelp("ctrl+c", "cancel"),
+				key.WithKeys("ctrl+x"),
+				key.WithHelp("ctrl+x", "cancel"),
 			),
 			StepDetail: key.NewBinding(
 				key.WithKeys("d", "enter"),
@@ -379,8 +400,10 @@ func (k *KeyMap) Enabled() []key.Binding {
 	return []key.Binding{
 		k.Global.Quit,
 		k.Global.Help,
+		k.Global.NextView,
+		k.Global.PrevView,
+		k.Global.BackToChat,
 		k.Global.ToggleTheme,
-		k.Global.SwitchView,
 		k.Global.Chat,
 		k.Global.Workflow,
 		k.Global.Sessions,
@@ -392,8 +415,10 @@ func (k *KeyMap) Enabled() []key.Binding {
 // ShortHelp returns keybindings for the short help (status bar).
 func (k *KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
+		k.Global.NextView,
+		k.Global.PrevView,
+		k.Global.BackToChat,
 		k.Global.Help,
-		k.Global.ToggleTheme,
 		k.Global.Quit,
 	}
 }
@@ -401,10 +426,22 @@ func (k *KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns all keybindings for the full help overlay.
 func (k *KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Global.Quit, k.Global.Help, k.Global.ToggleTheme, k.Global.SwitchView},
-		{k.Global.Chat, k.Global.Workflow, k.Global.Sessions, k.Global.Logs},
+		// Navigation
+		{k.Global.NextView, k.Global.PrevView, k.Global.BackToChat, k.Global.SwitchView},
+		{k.Global.Chat, k.Global.Workflow, k.Global.Sessions, k.Global.Logs, k.Global.Models},
+		{k.Global.Quit, k.Global.Help, k.Global.ToggleTheme},
+		// Chat
 		{k.Chat.Send, k.Chat.NewLine, k.Chat.ClearInput, k.Chat.ClearHistory},
-		{k.Chat.EditMessage, k.Chat.Compact, k.Chat.Save, k.Chat.ScrollUp},
-		{k.Chat.ScrollDown, k.Chat.ToggleToolDetails, k.Chat.CopyMessage},
+		{k.Chat.ScrollUp, k.Chat.ScrollDown, k.Chat.ScrollTop, k.Chat.ScrollBottom},
+		{k.Chat.EditMessage, k.Chat.Compact, k.Chat.Save, k.Chat.CopyMessage, k.Chat.ToggleToolDetails},
+		// Workflow
+		{k.Workflow.Start, k.Workflow.Pause, k.Workflow.Cancel, k.Workflow.StepDetail},
+		{k.Workflow.SelectNext, k.Workflow.SelectPrev},
+		// Sessions
+		{k.Session.Open, k.Session.Delete, k.Session.Search, k.Session.Export, k.Session.NewSession},
+		{k.Session.SelectNext, k.Session.SelectPrev},
+		// Models
+		{k.Models.SelectNext, k.Models.SelectPrev, k.Models.Search, k.Models.CheckModels},
+		{k.Models.AddKey, k.Models.RemoveKey, k.Models.UseModel},
 	}
 }
