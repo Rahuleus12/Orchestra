@@ -34,6 +34,7 @@ import (
 	"github.com/user/orchestra/internal/provider/anthropic"
 	"github.com/user/orchestra/internal/provider/cohere"
 	"github.com/user/orchestra/internal/provider/gemini"
+	"github.com/user/orchestra/internal/provider/llamacpp"
 	"github.com/user/orchestra/internal/provider/mistral"
 	"github.com/user/orchestra/internal/provider/ollama"
 	"github.com/user/orchestra/internal/provider/openai"
@@ -111,11 +112,13 @@ Model Discovery:
   orchestra models --provider openrouter --details openai/gpt-4o  Show details
   orchestra models --provider openrouter --json     Output as JSON
   orchestra models --provider openrouter --sort cost  Sort by cost
+  orchestra models --provider llamacpp             List models from a local llama.cpp server (port 8080)
 
 Environment Variables:
   OPENAI_API_KEY          OpenAI API key
   ANTHROPIC_API_KEY       Anthropic API key
   OPENROUTER_API_KEY      OpenRouter API key
+  LLAMACPP_BASE_URL       llama.cpp server URL (default http://localhost:8080, no API key needed)
   NO_COLOR                Disable colored output
 
 Adding API Keys:
@@ -600,6 +603,8 @@ func buildModelsProvider(name string) (provider.Provider, error) {
 		return cohere.NewProvider(cfg)
 	case "ollama":
 		return ollama.NewProvider(cfg)
+	case "llamacpp", "llama.cpp", "llama-cpp":
+		return llamacpp.NewProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported provider %q", name)
 	}

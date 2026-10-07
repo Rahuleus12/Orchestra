@@ -155,6 +155,8 @@ func ProviderDisplayName(provider string) string {
 		return "Mistral"
 	case "ollama":
 		return "Ollama"
+	case "llamacpp", "llama.cpp":
+		return "llama.cpp"
 	case "cohere":
 		return "Cohere"
 	default:
@@ -171,6 +173,7 @@ func KnownProviders() []string {
 		"gemini",
 		"mistral",
 		"ollama",
+		"llamacpp",
 		"cohere",
 	}
 }

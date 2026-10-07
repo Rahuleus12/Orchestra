@@ -107,6 +107,14 @@ type AppModel struct {
 	// ModelName is the current model name.
 	ModelName string
 
+	// ProviderName is the provider the current model belongs to, if known
+	// (set when a model is chosen from the models view).
+	ProviderName string
+
+	// SystemPrompt is the system prompt sent with every chat request
+	// (set via the /system command).
+	SystemPrompt string
+
 	// Error is a temporary error to display.
 	Error string
 }
@@ -221,7 +229,23 @@ func NewAppModel(opts ...AppOption) (*AppModel, error) {
 	// Setup session callbacks
 	model.setupSessionCallbacks()
 
+	// Setup models view callbacks
+	model.setupModelsCallbacks()
+
 	return model, nil
+}
+
+// setupModelsCallbacks wires the models view's "use model" action (the 'u'
+// key) so that selecting a model in the browser makes it the active chat
+// model, mirroring the /model command.
+func (m *AppModel) setupModelsCallbacks() {
+	m.Models.OnSelectModel = func(providerName, modelName string) tea.Cmd {
+		m.ProviderName = providerName
+		m.ModelName = modelName
+		m.Models.StatusMessage = fmt.Sprintf("Model set to %s (%s) — start chatting or press /model to verify", modelName, ProviderDisplayName(providerName))
+		m.Logs.AddEntry(LogLevelInfo, "models", fmt.Sprintf("Model set to %s (%s) via model browser", modelName, providerName))
+		return nil
+	}
 }
 
 func (m *AppModel) setupCommandHandlers() {
@@ -277,8 +301,12 @@ func (m *AppModel) setupCommandHandlers() {
 	// /system command
 	m.CommandRegistry.Register(CommandSystem, func(cmd Command) (string, error) {
 		if cmd.Args == "" {
-			return "Current system prompt is empty.\nUse /system <prompt> to set it.", nil
+			if m.SystemPrompt == "" {
+				return "Current system prompt is empty.\nUse /system <prompt> to set it.", nil
+			}
+			return fmt.Sprintf("Current system prompt:\n  %s", m.SystemPrompt), nil
 		}
+		m.SystemPrompt = cmd.Args
 		return "System prompt updated.", nil
 	})
 
@@ -378,7 +406,8 @@ func (m *AppModel) setupChatCallbacks() {
 		if m.OnSubmitMessage != nil {
 			return m.OnSubmitMessage(content)
 		}
-		return nil
+		// Built-in runtime: send the conversation to the selected provider.
+		return m.startChatGeneration(content)
 	}
 
 	m.Chat.OnCommand = func(cmd Command) tea.Cmd {
@@ -552,6 +581,40 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.switchView((m.ActiveView + 1) % 5)
 			return m, nil
 		}
+
+	case chatChunkMsg:
+		// Streamed text can arrive while the user is in any view; handle it
+		// here so the response keeps accumulating regardless.
+		m.Chat.AppendStreamChunk(msg.text)
+		return m, waitChatStream(msg.stream)
+
+	case chatStreamDoneMsg:
+		text := m.Chat.StreamingContent
+		m.Chat.EndStreaming()
+		m.Chat.SetGenerating(false)
+		if msg.stream != nil && msg.stream.cancel != nil {
+			msg.stream.cancel()
+		}
+		if text != "" {
+			_ = m.SessionStore.AddMessage("assistant", text, msg.usage)
+			if msg.usage != nil && len(m.Chat.Messages) > 0 {
+				m.Chat.Messages[len(m.Chat.Messages)-1].TokenUsage = msg.usage
+			}
+		}
+		m.Logs.AddEntry(LogLevelInfo, "chat", "Assistant response complete")
+
+	case chatErrorMsg:
+		m.Chat.EndStreaming()
+		m.Chat.SetGenerating(false)
+		if msg.stream != nil && msg.stream.cancel != nil {
+			msg.stream.cancel()
+		}
+		errText := "unknown error"
+		if msg.err != nil {
+			errText = msg.err.Error()
+		}
+		m.Chat.AddMessage(ViewError, errText)
+		m.Logs.AddEntry(LogLevelError, "chat", fmt.Sprintf("Generation failed: %s", errText))
 	}
 
 	// Update active view

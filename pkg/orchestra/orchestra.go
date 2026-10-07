@@ -59,6 +59,7 @@ import (
 	"github.com/user/orchestra/internal/provider/anthropic"
 	"github.com/user/orchestra/internal/provider/cohere"
 	"github.com/user/orchestra/internal/provider/gemini"
+	"github.com/user/orchestra/internal/provider/llamacpp"
 	"github.com/user/orchestra/internal/provider/mistral"
 	"github.com/user/orchestra/internal/provider/mock"
 	"github.com/user/orchestra/internal/provider/ollama"
@@ -447,6 +448,11 @@ var GeminiFactory = gemini.Factory
 // Does not require an API key. Uses cfg.BaseURL (defaults to http://localhost:11434).
 var OllamaFactory = ollama.Factory
 
+// LlamaCppFactory creates a new llama.cpp provider from the given configuration.
+// Does not require an API key. Uses cfg.BaseURL (defaults to http://localhost:8080,
+// the llama-server default port) and detects the server via /health or /v1/models.
+var LlamaCppFactory = llamacpp.Factory
+
 // MistralFactory creates a new Mistral AI provider from the given configuration.
 // Requires cfg.APIKey to be set. Supports Mistral Large, Medium, Small, Nemo.
 var MistralFactory = mistral.Factory
@@ -475,6 +481,11 @@ func NewOllamaProvider(cfg ProviderConfig) (*ollama.Provider, error) {
 	return ollama.NewProvider(cfg)
 }
 
+// NewLlamaCppProvider creates a new llama.cpp provider directly.
+func NewLlamaCppProvider(cfg ProviderConfig) (*llamacpp.Provider, error) {
+	return llamacpp.NewProvider(cfg)
+}
+
 // NewMistralProvider creates a new Mistral provider directly.
 func NewMistralProvider(cfg ProviderConfig) (*mistral.Provider, error) {
 	return mistral.NewProvider(cfg)
@@ -500,6 +511,7 @@ func RegisterAllProviders(reg *Registry, configs map[string]ProviderConfig) {
 		"anthropic": AnthropicFactory,
 		"gemini":    GeminiFactory,
 		"ollama":    OllamaFactory,
+		"llamacpp":  LlamaCppFactory,
 		"mistral":   MistralFactory,
 		"cohere":    CohereFactory,
 	}

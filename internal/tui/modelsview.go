@@ -433,10 +433,11 @@ func (m *ModelsModel) selectPrev() {
 }
 
 // providerNeedsKeyForModels returns true if the provider requires an API key
-// to list its models. OpenRouter and Ollama expose public model endpoints.
+// to list its models. OpenRouter, Ollama, and llama.cpp expose keyless model
+// endpoints.
 func providerNeedsKeyForModels(name string) bool {
 	switch strings.ToLower(name) {
-	case "openrouter", "ollama":
+	case "openrouter", "ollama", "llamacpp", "llama.cpp":
 		return false
 	default:
 		return true

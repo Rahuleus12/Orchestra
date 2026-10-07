@@ -27,6 +27,12 @@ providers:
     base_url: http://localhost:11434
     default_model: llama3
 
+  # llama.cpp (llama-server) — detected at its default port 8080, no API key needed.
+  # base_url should point at the server root; /v1 is appended automatically.
+  llamacpp:
+    base_url: http://localhost:8080
+    default_model: local
+
   openrouter:
     api_key: ${OPENROUTER_API_KEY}
     base_url: https://openrouter.ai/api/v1

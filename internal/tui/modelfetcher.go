@@ -44,6 +44,8 @@ func (f *DefaultModelFetcher) FetchModels(ctx context.Context, provider, apiKey,
 		return f.fetchMistralModels(ctx, apiKey, baseURL)
 	case "ollama":
 		return f.fetchOllamaModels(ctx, baseURL)
+	case "llamacpp", "llama.cpp":
+		return f.fetchLlamaCppModels(ctx, baseURL)
 	case "cohere":
 		return f.fetchCohereModels(ctx, apiKey, baseURL)
 	default:
@@ -313,6 +315,61 @@ func (f *DefaultModelFetcher) fetchOllamaModels(ctx context.Context, baseURL str
 			Provider:          "ollama",
 			Description:       fmt.Sprintf("%s, %s", m.Detail.ParameterSize, m.Detail.Family),
 			SupportsStreaming: true,
+		})
+	}
+	return entries, nil
+}
+
+// fetchLlamaCppModels fetches models from a local llama.cpp server
+// (llama-server), which exposes an OpenAI-compatible /v1/models endpoint
+// listing the model(s) currently loaded. Default endpoint is
+// http://localhost:8080 (the llama-server default port).
+func (f *DefaultModelFetcher) fetchLlamaCppModels(ctx context.Context, baseURL string) ([]ModelEntry, error) {
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	root := strings.TrimRight(baseURL, "/")
+	url := root + "/v1/models"
+	if strings.HasSuffix(root, "/v1") {
+		url = root + "/models"
+	}
+
+	resp, err := f.doGet(ctx, url, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to llama.cpp: %w (is llama-server running on port 8080?)", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("llama.cpp returned HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	entries := make([]ModelEntry, 0, len(result.Data))
+	for _, m := range result.Data {
+		if m.ID == "" {
+			continue
+		}
+		entries = append(entries, ModelEntry{
+			ID:                  m.ID,
+			Name:                m.ID,
+			Provider:            "llamacpp",
+			Description:         "llama.cpp local model",
+			SupportsStreaming:   true,
+			SupportsToolCalling: true,
 		})
 	}
 	return entries, nil
