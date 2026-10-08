@@ -192,6 +192,10 @@ type orStreamDelta struct {
 	Role      string            `json:"role,omitempty"`
 	Content   string            `json:"content,omitempty"`
 	ToolCalls []orToolCallDelta `json:"tool_calls,omitempty"`
+
+	// Reasoning carries reasoning ("thinking") text emitted by reasoning
+	// models routed through OpenRouter.
+	Reasoning string `json:"reasoning,omitempty"`
 }
 
 // orToolCallDelta represents an incremental tool call update in a stream.
@@ -645,6 +649,16 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 
 		// Process choices
 		for _, choice := range chunk.Choices {
+			// Reasoning (thinking) deltas
+			if choice.Delta.Reasoning != "" {
+				if !sendEvent(ctx, ch, provider.StreamEvent{
+					Type:  provider.StreamEventThinking,
+					Chunk: choice.Delta.Reasoning,
+				}) {
+					return
+				}
+			}
+
 			// Content chunks
 			if choice.Delta.Content != "" {
 				if !sendEvent(ctx, ch, provider.StreamEvent{

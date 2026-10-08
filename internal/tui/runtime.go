@@ -45,6 +45,12 @@ type chatChunkMsg struct {
 	text   string
 }
 
+// chatThinkingMsg delivers one streamed thinking (reasoning) chunk.
+type chatThinkingMsg struct {
+	stream *chatStream
+	text   string
+}
+
 // chatStreamDoneMsg signals that the stream finished successfully.
 type chatStreamDoneMsg struct {
 	stream *chatStream
@@ -103,6 +109,10 @@ func waitChatStream(s *chatStream) tea.Cmd {
 			switch evt.Type {
 			case provider.StreamEventChunk:
 				return chatChunkMsg{stream: s, text: evt.Chunk}
+			case provider.StreamEventThinking:
+				if evt.Chunk != "" {
+					return chatThinkingMsg{stream: s, text: evt.Chunk}
+				}
 			case provider.StreamEventError:
 				if evt.Error != nil {
 					return chatErrorMsg{stream: s, err: evt.Error}

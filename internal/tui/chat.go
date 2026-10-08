@@ -54,6 +54,10 @@ type ChatMessage struct {
 
 	// Expanded indicates if tool details are shown.
 	Expanded bool
+
+	// Thinking holds the model's reasoning ("thinking") content that
+	// preceded the answer, when the provider reported it.
+	Thinking string
 }
 
 // ChatModel is the Bubble Tea model for the chat view.
@@ -81,6 +85,12 @@ type ChatModel struct {
 
 	// StreamingContent accumulates streamed content.
 	StreamingContent string
+
+	// StreamingThinking accumulates streamed thinking (reasoning) content.
+	StreamingThinking string
+
+	// ShowThinking controls whether thinking windows are rendered.
+	ShowThinking bool
 
 	// Width is the terminal width.
 	Width int
@@ -133,6 +143,7 @@ func NewChatModel(theme *Theme, keyMap *KeyMap) *ChatModel {
 		Spinner:         s,
 		Messages:        []ChatMessage{},
 		ShowToolDetails: false,
+		ShowThinking:    true,
 		Width:           80,
 		Height:          24,
 		ScrollOffset:    0,
@@ -212,6 +223,7 @@ func (m *ChatModel) AddToolMessage(name, input, output string, duration time.Dur
 func (m *ChatModel) StartStreaming() {
 	m.IsStreaming = true
 	m.StreamingContent = ""
+	m.StreamingThinking = ""
 }
 
 // AppendStreamChunk appends a chunk of streamed content.
@@ -219,13 +231,22 @@ func (m *ChatModel) AppendStreamChunk(chunk string) {
 	m.StreamingContent += chunk
 }
 
+// AppendThinkingChunk appends a chunk of streamed thinking content.
+func (m *ChatModel) AppendThinkingChunk(chunk string) {
+	m.StreamingThinking += chunk
+}
+
 // EndStreaming finalizes the streaming content and adds it as a message.
 func (m *ChatModel) EndStreaming() {
 	m.IsStreaming = false
 	if m.StreamingContent != "" {
 		m.AddMessage(ViewAssistant, m.StreamingContent)
+		if m.StreamingThinking != "" {
+			m.Messages[len(m.Messages)-1].Thinking = m.StreamingThinking
+		}
 	}
 	m.StreamingContent = ""
+	m.StreamingThinking = ""
 }
 
 // ClearHistory removes all messages from the chat history.
@@ -360,6 +381,10 @@ func (m *ChatModel) Update(msg tea.Msg) (*ChatModel, tea.Cmd) {
 			case key.Matches(msg, m.KeyMap.Chat.ToggleToolDetails):
 				m.ShowToolDetails = !m.ShowToolDetails
 				return m, nil
+
+			case key.Matches(msg, m.KeyMap.Chat.ToggleThinking):
+				m.ShowThinking = !m.ShowThinking
+				return m, nil
 			}
 		}
 
@@ -396,6 +421,12 @@ func (m *ChatModel) View() string {
 
 	// Render messages
 	b.WriteString(m.renderMessages())
+
+	// Render live thinking window while the model is reasoning
+	if m.IsStreaming && m.ShowThinking && m.StreamingThinking != "" {
+		b.WriteString(m.renderThinkingWindow(m.StreamingThinking, true))
+		b.WriteString("\n")
+	}
 
 	// Render streaming content if active
 	if m.IsStreaming && m.StreamingContent != "" {
@@ -467,6 +498,9 @@ func (m *ChatModel) messageHeight(msg ChatMessage) int {
 	if msg.Type == ViewTool {
 		lines += 2
 	}
+	if msg.Thinking != "" {
+		lines += len(msg.Thinking)/m.Width + 2
+	}
 	return lines + 1 // Add padding
 }
 
@@ -475,7 +509,7 @@ func (m *ChatModel) renderMessage(msg ChatMessage) string {
 	case ViewUser:
 		return m.renderUserMessage(msg.Content)
 	case ViewAssistant:
-		return m.renderAssistantMessage(msg.Content)
+		return m.renderAssistantWithThinking(msg)
 	case ViewSystem:
 		return m.renderSystemMessage(msg.Content)
 	case ViewTool:
@@ -509,6 +543,37 @@ func (m *ChatModel) renderAssistantMessage(content string) string {
 	return lipgloss.JoinVertical(lipgloss.Left, label, renderedContent)
 }
 
+// renderAssistantWithThinking renders an assistant message with its thinking
+// window: expanded when ShowThinking is on, otherwise a one-line hint.
+func (m *ChatModel) renderAssistantWithThinking(msg ChatMessage) string {
+	var b strings.Builder
+	if msg.Thinking != "" {
+		if m.ShowThinking {
+			b.WriteString(m.renderThinkingWindow(msg.Thinking, false))
+		} else {
+			hint := m.Theme.Styles.Dim.Render("💭 thought — ctrl+p to show")
+			b.WriteString(hint)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(m.renderAssistantMessage(msg.Content))
+	return b.String()
+}
+
+// renderThinkingWindow renders a thinking (reasoning) block. When live is
+// true the window is shown as actively streaming.
+func (m *ChatModel) renderThinkingWindow(content string, live bool) string {
+	var title string
+	if live {
+		title = m.Theme.Styles.Warning.Render(m.Spinner.View() + " Thinking...")
+	} else {
+		title = m.Theme.Styles.Dim.Render("💭 Thinking")
+	}
+
+	body := m.Theme.Styles.Dim.Render(indentText(content, "  "))
+	return lipgloss.JoinVertical(lipgloss.Left, title, body)
+}
+
 func (m *ChatModel) renderSystemMessage(content string) string {
 	label := m.Theme.Styles.SystemMsg.Render("System:")
 	return lipgloss.JoinVertical(lipgloss.Left, label, content)
@@ -531,6 +596,15 @@ func (m *ChatModel) renderErrorMessage(content string) string {
 func (m *ChatModel) renderGenerating() string {
 	s := m.Spinner.View()
 	return m.Theme.Styles.Muted.Render(s + " Generating...")
+}
+
+// indentText indents every line of s with the given prefix.
+func indentText(s, prefix string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *ChatModel) renderInput() string {

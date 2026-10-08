@@ -100,6 +100,9 @@ type ChatKeyMap struct {
 	// ToggleToolDetails expands/collapses tool call details.
 	ToggleToolDetails key.Binding
 
+	// ToggleThinking shows/hides model thinking (reasoning) content.
+	ToggleThinking key.Binding
+
 	// CopyMessage copies the selected message to clipboard.
 	CopyMessage key.Binding
 }
@@ -287,6 +290,10 @@ func NewKeyMap() *KeyMap {
 				key.WithKeys("ctrl+d"),
 				key.WithHelp("ctrl+d", "toggle tool details"),
 			),
+			ToggleThinking: key.NewBinding(
+				key.WithKeys("ctrl+p"),
+				key.WithHelp("ctrl+p", "toggle thinking"),
+			),
 			CopyMessage: key.NewBinding(
 				key.WithKeys("ctrl+y"),
 				key.WithHelp("ctrl+y", "copy message"),
@@ -380,7 +387,7 @@ func NewKeyMap() *KeyMap {
 				key.WithHelp("a", "add key"),
 			),
 			RemoveKey: key.NewBinding(
-				key.WithKeys("d"),
+				key.WithKeys("d", "delete"),
 				key.WithHelp("d", "remove key"),
 			),
 			CheckModels: key.NewBinding(
@@ -433,7 +440,7 @@ func (k *KeyMap) FullHelp() [][]key.Binding {
 		// Chat
 		{k.Chat.Send, k.Chat.NewLine, k.Chat.ClearInput, k.Chat.ClearHistory},
 		{k.Chat.ScrollUp, k.Chat.ScrollDown, k.Chat.ScrollTop, k.Chat.ScrollBottom},
-		{k.Chat.EditMessage, k.Chat.Compact, k.Chat.Save, k.Chat.CopyMessage, k.Chat.ToggleToolDetails},
+		{k.Chat.EditMessage, k.Chat.Compact, k.Chat.Save, k.Chat.CopyMessage, k.Chat.ToggleToolDetails, k.Chat.ToggleThinking},
 		// Workflow
 		{k.Workflow.Start, k.Workflow.Pause, k.Workflow.Cancel, k.Workflow.StepDetail},
 		{k.Workflow.SelectNext, k.Workflow.SelectPrev},

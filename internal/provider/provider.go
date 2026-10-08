@@ -171,6 +171,13 @@ const (
 	// depending on the provider.
 	StreamEventToolCall StreamEventType = "tool_call"
 
+	// StreamEventThinking is emitted for reasoning ("thinking") content
+	// produced by models with extended thinking enabled (e.g. Claude extended
+	// thinking, OpenRouter reasoning, Gemini thought parts, Ollama thinking
+	// models). Chunk carries an incremental fragment of the reasoning text;
+	// thinking content is not part of the assistant's visible answer.
+	StreamEventThinking StreamEventType = "thinking"
+
 	// StreamEventDone is emitted once when streaming completes successfully.
 	StreamEventDone StreamEventType = "done"
 
@@ -184,7 +191,8 @@ type StreamEvent struct {
 	// Type identifies the kind of event.
 	Type StreamEventType `json:"type" yaml:"type"`
 
-	// Chunk contains the text content for StreamEventChunk events.
+	// Chunk contains the text content for StreamEventChunk and
+	// StreamEventThinking events.
 	Chunk string `json:"chunk,omitempty" yaml:"chunk,omitempty"`
 
 	// ToolCall contains the tool call data for StreamEventToolCall events.

@@ -86,7 +86,8 @@ func (km *KeyManager) AddKey(provider, apiKey, baseURL, orgID string) error {
 		AddedAt:        currentTimeString(),
 	}
 
-	return km.save()
+	// Already holding the lock — persist via the unlocked variant.
+	return km.saveLocked()
 }
 
 // RemoveKey removes the API key for a provider.
@@ -97,7 +98,8 @@ func (km *KeyManager) RemoveKey(provider string) error {
 	provider = normalizeProvider(provider)
 	delete(km.keys, provider)
 
-	return km.save()
+	// Already holding the lock — persist via the unlocked variant.
+	return km.saveLocked()
 }
 
 // GetKey returns the API key for a provider.
@@ -255,13 +257,6 @@ func (km *KeyManager) load() error {
 	return nil
 }
 
-// save persists keys to disk.
-func (km *KeyManager) save() error {
-	km.mu.Lock()
-	defer km.mu.Unlock()
-	return km.saveLocked()
-}
-
 // saveLocked persists keys to disk; the caller must hold km.mu.
 func (km *KeyManager) saveLocked() error {
 	keys := make([]*ProviderKey, 0, len(km.keys))
@@ -281,6 +276,12 @@ func (km *KeyManager) saveLocked() error {
 // filePath returns the path to the keys file.
 func (km *KeyManager) filePath() string {
 	return filepath.Join(km.dir, "api_keys.json")
+}
+
+// FilePath returns the path to the file where keys are persisted, for
+// display in user-facing messages.
+func (km *KeyManager) FilePath() string {
+	return km.filePath()
 }
 
 func normalizeProvider(name string) string {

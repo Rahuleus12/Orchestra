@@ -108,6 +108,13 @@ type ModelsModel struct {
 	// AddKeyStep tracks the step in the add-key flow (0=provider, 1=key).
 	AddKeyStep int
 
+	// IsConfirmingDelete indicates the user is being asked to confirm
+	// removing the selected provider's key.
+	IsConfirmingDelete bool
+
+	// DeleteTargetProvider is the provider whose key is being deleted.
+	DeleteTargetProvider string
+
 	// Width is the terminal width.
 	Width int
 
@@ -262,6 +269,11 @@ func (m *ModelsModel) Update(msg tea.Msg) (*ModelsModel, tea.Cmd) {
 			return m.handleAddKeyKeys(msg)
 		}
 
+		// Handle delete-key confirmation
+		if m.IsConfirmingDelete {
+			return m.handleDeleteKeyKeys(msg)
+		}
+
 		// Handle search mode
 		if m.IsSearching {
 			return m.handleSearchKeys(msg)
@@ -289,13 +301,15 @@ func (m *ModelsModel) Update(msg tea.Msg) (*ModelsModel, tea.Cmd) {
 
 		case key.Matches(msg, m.KeyMap.Models.RemoveKey):
 			if m.SelectedProvider >= 0 && m.SelectedProvider < len(m.Providers) {
-				provider := m.Providers[m.SelectedProvider].Name
-				if m.Providers[m.SelectedProvider].HasKey {
-					_ = m.KeyManager.RemoveKey(provider)
-					m.RefreshProviders()
-					m.Models = nil
-					m.StatusMessage = fmt.Sprintf("Removed key for %s", ProviderDisplayName(provider))
+				entry := m.Providers[m.SelectedProvider]
+				if !entry.HasKey {
+					m.Error = fmt.Sprintf("No API key stored for %s", ProviderDisplayName(entry.Name))
+					return m, nil
 				}
+				// Ask for confirmation before removing — the key may be the
+				// only copy if it was deleted from the provider's dashboard.
+				m.IsConfirmingDelete = true
+				m.DeleteTargetProvider = entry.Name
 			}
 			return m, nil
 
@@ -394,6 +408,35 @@ func (m *ModelsModel) handleAddKeyKeys(msg tea.KeyMsg) (*ModelsModel, tea.Cmd) {
 		m.AddKeyValueInput, cmd = m.AddKeyValueInput.Update(msg)
 	}
 	return m, cmd
+}
+
+func (m *ModelsModel) handleDeleteKeyKeys(msg tea.KeyMsg) (*ModelsModel, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.KeyMap.Help.Close):
+		m.cancelDelete()
+		return m, nil
+
+	case key.Matches(msg, m.KeyMap.Chat.Send): // Enter confirms
+		provider := m.DeleteTargetProvider
+		if err := m.KeyManager.RemoveKey(provider); err != nil {
+			m.Error = fmt.Sprintf("Failed to remove key: %s", err)
+		} else {
+			m.RefreshProviders()
+			m.Models = nil
+			m.SelectedModel = 0
+			m.StatusMessage = fmt.Sprintf("Removed key for %s", ProviderDisplayName(provider))
+			m.Error = ""
+		}
+		m.cancelDelete()
+		return m, nil
+	}
+	return m, nil
+}
+
+// cancelDelete dismisses the delete confirmation dialog.
+func (m *ModelsModel) cancelDelete() {
+	m.IsConfirmingDelete = false
+	m.DeleteTargetProvider = ""
 }
 
 func (m *ModelsModel) selectNext() {
@@ -533,6 +576,12 @@ func (m *ModelsModel) View() string {
 	// Handle add-key overlay
 	if m.IsAddingKey {
 		b.WriteString(m.renderAddKeyOverlay())
+		return b.String()
+	}
+
+	// Handle delete-key confirmation overlay
+	if m.IsConfirmingDelete {
+		b.WriteString(m.renderDeleteKeyOverlay())
 		return b.String()
 	}
 
@@ -776,6 +825,30 @@ func (m *ModelsModel) renderAddKeyOverlay() string {
 	}
 
 	b.WriteString(m.Theme.Styles.Dim.Render("  Enter to confirm • Esc to cancel"))
+
+	return lipgloss.Place(m.Width, m.Height-4, lipgloss.Center, lipgloss.Center, box.Render(b.String()))
+}
+
+func (m *ModelsModel) renderDeleteKeyOverlay() string {
+	var b strings.Builder
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(m.Theme.Colors.Warning).
+		Padding(1, 2).
+		Width(m.Width - 8)
+
+	provider := ProviderDisplayName(m.DeleteTargetProvider)
+
+	b.WriteString(m.Theme.Styles.Title.Render("Delete API Key"))
+	b.WriteString("\n\n")
+	b.WriteString(fmt.Sprintf("  Remove the stored API key for %s?", m.Theme.Styles.Warning.Render(provider)))
+	b.WriteString("\n\n")
+	if m.KeyManager != nil {
+		b.WriteString(m.Theme.Styles.Muted.Render("  The key will be deleted from " + m.KeyManager.FilePath()))
+		b.WriteString("\n\n")
+	}
+	b.WriteString(m.Theme.Styles.Dim.Render("  Enter to delete • Esc to cancel"))
 
 	return lipgloss.Place(m.Width, m.Height-4, lipgloss.Center, lipgloss.Center, box.Render(b.String()))
 }

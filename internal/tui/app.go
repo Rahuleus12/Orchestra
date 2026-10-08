@@ -588,6 +588,10 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Chat.AppendStreamChunk(msg.text)
 		return m, waitChatStream(msg.stream)
 
+	case chatThinkingMsg:
+		m.Chat.AppendThinkingChunk(msg.text)
+		return m, waitChatStream(msg.stream)
+
 	case chatStreamDoneMsg:
 		text := m.Chat.StreamingContent
 		m.Chat.EndStreaming()
@@ -686,30 +690,37 @@ func (m *AppModel) switchView(view ViewID) {
 func (m *AppModel) renderTabBar() string {
 	tabs := []struct {
 		id    ViewID
+		keys  key.Binding
 		label string
 	}{
-		{ViewChat, "1 Chat"},
-		{ViewWorkflow, "2 Workflow"},
-		{ViewSessions, "3 Sessions"},
-		{ViewLogs, "4 Logs"},
-		{ViewModels, "5 Keys"},
+		{ViewChat, m.KeyMap.Global.Chat, "Chat"},
+		{ViewWorkflow, m.KeyMap.Global.Workflow, "Workflow"},
+		{ViewSessions, m.KeyMap.Global.Sessions, "Sessions"},
+		{ViewLogs, m.KeyMap.Global.Logs, "Logs"},
+		{ViewModels, m.KeyMap.Global.Models, "Keys"},
 	}
 
 	var parts []string
 	for _, tab := range tabs {
+		// Show the shortcut (e.g. "ctrl+1") next to each tab so the topbar
+		// documents how to jump to it.
+		shortcut := m.Theme.Styles.Dim.Render(tab.keys.Help().Key)
+		var label string
 		if tab.id == m.ActiveView {
-			parts = append(parts, m.Theme.Styles.ActiveTab.Render(tab.label))
+			label = m.Theme.Styles.ActiveTab.Render(tab.label)
 		} else {
-			parts = append(parts, m.Theme.Styles.InactiveTab.Render(tab.label))
+			label = m.Theme.Styles.InactiveTab.Render(tab.label)
 		}
+		parts = append(parts, shortcut, label)
 	}
+
+	bar := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 
 	// Add version on the right
 	versionStr := m.Theme.Styles.Dim.Render(fmt.Sprintf("v%s", m.Version))
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, parts...) +
-		strings.Repeat(" ", max(0, m.Width-len(lipgloss.JoinHorizontal(lipgloss.Top, parts...))-len(versionStr))) +
-		versionStr
+	padding := max(0, m.Width-lipgloss.Width(bar)-lipgloss.Width(versionStr))
+	return bar + strings.Repeat(" ", padding) + versionStr
 }
 
 func (m *AppModel) renderActiveView() string {

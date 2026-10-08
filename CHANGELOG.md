@@ -22,8 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmarks for the caching Generate path and brute-force vector search
 - `SessionStore` is now safe for concurrent use (mutex-guarded map and
   active-session pointer)
+- Streaming thinking (reasoning) support: providers now emit
+  `StreamEventThinking` events (Anthropic extended thinking, OpenRouter
+  `reasoning`, OpenAI-compatible `reasoning_content`, Gemini thought parts,
+  Ollama thinking models) and the TUI chat view shows a live thinking window
+  that is attached to the finished message (toggle with `ctrl+p`)
+- Delete-key confirmation dialog in the TUI keys view: pressing `d` on a
+  provider now asks for confirmation (Enter deletes, Esc cancels) instead of
+  deleting immediately
+- TUI topbar tabs now show their shortcut keys (ctrl+1 … ctrl+5)
 
 ### Fixed
+- **TUI key manager deadlock**: `KeyManager.AddKey`/`RemoveKey` re-acquired
+  the mutex they already held while persisting, freezing the TUI whenever a
+  key was added or removed; they now persist via the lock-free internal path
 - **Agent memory storage**: stored the system prompt instead of the user's
   input in memory, polluting recall and creating a feedback loop
 - **Cache key collisions**: the caching middleware omitted tool-result content

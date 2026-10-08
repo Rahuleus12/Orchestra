@@ -715,8 +715,15 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 				}
 
 			case "thinking_delta":
-				// Extended thinking delta — not emitted as text chunks
-				// but tracked internally if needed
+				var td antThinkingDelta
+				if err := json.Unmarshal(deltaBytes, &td); err == nil && td.Thinking != "" {
+					if !sendEvent(ctx, ch, provider.StreamEvent{
+						Type:  provider.StreamEventThinking,
+						Chunk: td.Thinking,
+					}) {
+						return
+					}
+				}
 			}
 
 		case "content_block_stop":

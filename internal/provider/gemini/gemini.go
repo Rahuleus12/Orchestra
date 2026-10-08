@@ -77,6 +77,10 @@ type gemPart struct {
 
 	// Function response (in user messages after tool execution)
 	FunctionResponse *gemFunctionResponse `json:"functionResponse,omitempty"`
+
+	// Thought marks this part as reasoning ("thinking") content emitted by
+	// Gemini thinking models rather than the visible answer.
+	Thought bool `json:"thought,omitempty"`
 }
 
 // gemInlineData represents inline binary data.
@@ -679,6 +683,19 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 		// Process candidates
 		for _, candidate := range gemResp.Candidates {
 			for _, part := range candidate.Content.Parts {
+				// Thinking (reasoning) chunks
+				if part.Thought {
+					if part.Text != "" {
+						if !sendEvent(ctx, ch, provider.StreamEvent{
+							Type:  provider.StreamEventThinking,
+							Chunk: part.Text,
+						}) {
+							return
+						}
+					}
+					continue
+				}
+
 				// Text chunks
 				if part.Text != "" {
 					if !sendEvent(ctx, ch, provider.StreamEvent{

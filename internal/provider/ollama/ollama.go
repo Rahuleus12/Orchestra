@@ -84,6 +84,10 @@ type ollMessage struct {
 	Content   string        `json:"content,omitempty"`
 	Images    []string      `json:"images,omitempty"`
 	ToolCalls []ollToolCall `json:"tool_calls,omitempty"`
+
+	// Thinking holds reasoning ("thinking") output from thinking models
+	// (e.g. deepseek-r1) when enabled on the server.
+	Thinking string `json:"thinking,omitempty"`
 }
 
 // ollToolCall represents a tool call in an assistant message.
@@ -675,6 +679,16 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 				Error: fmt.Errorf("failed to parse stream chunk: %w", err),
 			})
 			return
+		}
+
+		// Process thinking output
+		if ollResp.Message.Thinking != "" {
+			if !sendEvent(ctx, ch, provider.StreamEvent{
+				Type:  provider.StreamEventThinking,
+				Chunk: ollResp.Message.Thinking,
+			}) {
+				return
+			}
 		}
 
 		// Process content

@@ -193,6 +193,12 @@ type oaiStreamDelta struct {
 	Role      string             `json:"role,omitempty"`
 	Content   string             `json:"content,omitempty"`
 	ToolCalls []oaiToolCallDelta `json:"tool_calls,omitempty"`
+
+	// Reasoning / ReasoningContent carry reasoning ("thinking") text emitted
+	// by OpenAI-compatible reasoning models (OpenRouter uses "reasoning",
+	// DeepSeek-style APIs use "reasoning_content").
+	Reasoning        string `json:"reasoning,omitempty"`
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 // oaiToolCallDelta represents an incremental tool call update in a stream.
@@ -678,6 +684,24 @@ func (p *Provider) streamEvents(ctx context.Context, resp *http.Response, ch cha
 
 		// Process choices
 		for _, choice := range chunk.Choices {
+			// Reasoning (thinking) deltas
+			if reasoning := choice.Delta.Reasoning; reasoning != "" {
+				if !sendEvent(ctx, ch, provider.StreamEvent{
+					Type:  provider.StreamEventThinking,
+					Chunk: reasoning,
+				}) {
+					return
+				}
+			}
+			if reasoning := choice.Delta.ReasoningContent; reasoning != "" {
+				if !sendEvent(ctx, ch, provider.StreamEvent{
+					Type:  provider.StreamEventThinking,
+					Chunk: reasoning,
+				}) {
+					return
+				}
+			}
+
 			// Content chunks
 			if choice.Delta.Content != "" {
 				if !sendEvent(ctx, ch, provider.StreamEvent{
