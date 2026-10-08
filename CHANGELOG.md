@@ -30,9 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Delete-key confirmation dialog in the TUI keys view: pressing `d` on a
   provider now asks for confirmation (Enter deletes, Esc cancels) instead of
   deleting immediately
-- TUI topbar tabs now show their shortcut keys (ctrl+1 … ctrl+5)
+- TUI topbar tabs now show their shortcut keys (`alt+1` … `alt+5`); the
+  numbered views are also reachable via `ctrl+1` … `ctrl+5` on terminals with
+  the kitty keyboard protocol
 
 ### Fixed
+- **`ctrl+digit` view shortcuts never fired in most terminals**: terminals
+  encode ctrl+digit as legacy C0 control codes (ctrl+5 arrives as `ctrl+]`)
+  and Windows Terminal reserves the chord, so the binding never matched.
+  View switching now binds `alt+1` … `alt+5` (universally delivered) and the
+  topbar advertises them; `ctrl+digit` is kept as an alias for kitty-protocol
+  terminals
 - **TUI key manager deadlock**: `KeyManager.AddKey`/`RemoveKey` re-acquired
   the mutex they already held while persisting, freezing the TUI whenever a
   key was added or removed; they now persist via the lock-free internal path

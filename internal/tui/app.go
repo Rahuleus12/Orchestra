@@ -338,7 +338,7 @@ func (m *AppModel) setupCommandHandlers() {
 		if args == "" {
 			keys := m.KeyManager.ListKeys()
 			if len(keys) == 0 {
-				return "No API keys configured. Use /key <provider> <api_key> to add one, or press ctrl+5 for the Keys view.", nil
+				return "No API keys configured. Use /key <provider> <api_key> to add one, or press alt+5 for the Keys view.", nil
 			}
 			var b strings.Builder
 			b.WriteString("Configured API keys:\n\n")

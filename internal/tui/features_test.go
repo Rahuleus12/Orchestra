@@ -282,9 +282,45 @@ func TestTabBar_ShowsShortcutKeys(t *testing.T) {
 	}
 
 	view := m.renderTabBar()
-	for _, want := range []string{"ctrl+1", "ctrl+2", "ctrl+3", "ctrl+4", "ctrl+5", "Chat", "Workflow", "Sessions", "Logs", "Keys"} {
+	for _, want := range []string{"alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "Chat", "Workflow", "Sessions", "Logs", "Keys"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("tab bar missing %q, got: %s", want, view)
+		}
+	}
+}
+
+// TestAltDigitSwitchesViews verifies the alt+digit view shortcuts, which are
+// the universally deliverable chords (ctrl+digit does not reach the app in
+// most terminals — it arrives as a legacy C0 control code instead).
+func TestAltDigitSwitchesViews(t *testing.T) {
+	theme := DefaultTheme()
+	km := &KeyManager{keys: make(map[string]*ProviderKey), dir: t.TempDir()}
+	m := &AppModel{
+		Theme:      theme,
+		KeyMap:     NewKeyMap(),
+		Chat:       NewChatModel(theme, NewKeyMap()),
+		Logs:       NewLogModel(theme, NewKeyMap()),
+		Models:     NewModelsModel(theme, NewKeyMap(), km, NewDefaultModelFetcher()),
+		Width:      120,
+		Height:     40,
+		ActiveView: ViewChat,
+	}
+
+	switches := []struct {
+		digit rune
+		want  ViewID
+	}{
+		{'2', ViewWorkflow},
+		{'5', ViewModels},
+		{'1', ViewChat},
+	}
+	for _, s := range switches {
+		msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{s.digit}, Alt: true}
+		if _, cmd := m.Update(msg); cmd != nil {
+			_ = cmd()
+		}
+		if m.ActiveView != s.want {
+			t.Errorf("alt+%c: ActiveView = %v, want %v", s.digit, m.ActiveView, s.want)
 		}
 	}
 }

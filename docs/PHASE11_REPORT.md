@@ -149,12 +149,19 @@ Phase 11 implements a fully interactive terminal TUI for Orchestra, built using 
 |-----|--------|
 | `?` | Toggle help overlay |
 | `ctrl+t` | Toggle light/dark theme |
-| `ctrl+1` | Switch to Chat view |
-| `ctrl+2` | Switch to Workflow view |
-| `ctrl+3` | Switch to Sessions view |
-| `ctrl+4` | Switch to Logs view |
-| `ctrl+tab` | Cycle through views |
-| `ctrl+c` | Quit (with confirmation) |
+| `tab` / `shift+tab` | Cycle views |
+| `alt+1` (`ctrl+1`) | Switch to Chat view |
+| `alt+2` (`ctrl+2`) | Switch to Workflow view |
+| `alt+3` (`ctrl+3`) | Switch to Sessions view |
+| `alt+4` (`ctrl+4`) | Switch to Logs view |
+| `alt+5` (`ctrl+5`) | Switch to Keys view |
+| `esc` | Back to Chat view |
+| `ctrl+c` | Quit |
+
+Note: `alt+digit` is the reliable chord — most terminals cannot deliver
+`ctrl+digit` to applications (it arrives as a legacy control code, and
+Windows Terminal reserves it). `ctrl+digit` works on terminals with the
+kitty keyboard protocol (kitty, WezTerm, Ghostty, …).
 
 ### Chat Keys
 | Key | Action |
@@ -166,7 +173,8 @@ Phase 11 implements a fully interactive terminal TUI for Orchestra, built using 
 | `ctrl+m` | Compact conversation |
 | `ctrl+s` | Save conversation |
 | `↑/↓` | Scroll messages |
-| `t` | Toggle tool details |
+| `ctrl+d` | Toggle tool details |
+| `ctrl+p` | Toggle model thinking window |
 
 ### Workflow Keys
 | Key | Action |

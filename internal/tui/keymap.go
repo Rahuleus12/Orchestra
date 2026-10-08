@@ -220,25 +220,30 @@ func NewKeyMap() *KeyMap {
 				key.WithKeys("ctrl+tab"),
 				key.WithHelp("ctrl+tab", "switch view"),
 			),
+			// alt+digit is the primary chord: ctrl+digit is not deliverable in
+			// most terminals (it arrives as a legacy C0 control code — ctrl+5
+			// becomes "ctrl+]" — and Windows Terminal reserves ctrl+digit for
+			// its own tab management). ctrl+digit is kept for terminals with
+			// the kitty keyboard protocol.
 			Chat: key.NewBinding(
-				key.WithKeys("ctrl+1"),
-				key.WithHelp("ctrl+1", "chat"),
+				key.WithKeys("alt+1", "ctrl+1"),
+				key.WithHelp("alt+1", "chat"),
 			),
 			Workflow: key.NewBinding(
-				key.WithKeys("ctrl+2"),
-				key.WithHelp("ctrl+2", "workflow"),
+				key.WithKeys("alt+2", "ctrl+2"),
+				key.WithHelp("alt+2", "workflow"),
 			),
 			Sessions: key.NewBinding(
-				key.WithKeys("ctrl+3"),
-				key.WithHelp("ctrl+3", "sessions"),
+				key.WithKeys("alt+3", "ctrl+3"),
+				key.WithHelp("alt+3", "sessions"),
 			),
 			Logs: key.NewBinding(
-				key.WithKeys("ctrl+4"),
-				key.WithHelp("ctrl+4", "logs"),
+				key.WithKeys("alt+4", "ctrl+4"),
+				key.WithHelp("alt+4", "logs"),
 			),
 			Models: key.NewBinding(
-				key.WithKeys("ctrl+5"),
-				key.WithHelp("ctrl+5", "keys"),
+				key.WithKeys("alt+5", "ctrl+5"),
+				key.WithHelp("alt+5", "keys"),
 			),
 		},
 		Chat: ChatKeyMap{
