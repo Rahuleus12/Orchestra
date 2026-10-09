@@ -44,6 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TUI key manager deadlock**: `KeyManager.AddKey`/`RemoveKey` re-acquired
   the mutex they already held while persisting, freezing the TUI whenever a
   key was added or removed; they now persist via the lock-free internal path
+- **TUI views stuck on "Loading..."**: only the initially active view ever
+  received the window-size message that marks a view ready, so switching to
+  Workflow/Sessions/Logs/Keys showed "Loading..." until a manual terminal
+  resize; every view is now marked ready on the first resize event
+- **TUI modal states left stuck open**: global key handling intercepted Esc
+  (and Tab/?) before the keys and sessions views could close their dialogs
+  and search inputs, switching views with the dialog still open and eating
+  subsequent keystrokes; dialogs and search modes now consume keys first
+- **Keys view stuck in "Fetching models..."**: a model fetch result that
+  arrived while the user was browsing another view was dropped, leaving the
+  loading state forever; fetch results are now routed regardless of the
+  active view
 - **Agent memory storage**: stored the system prompt instead of the user's
   input in memory, polluting recall and creating a feedback loop
 - **Cache key collisions**: the caching middleware omitted tool-result content

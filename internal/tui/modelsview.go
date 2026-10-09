@@ -330,6 +330,13 @@ func (m *ModelsModel) Update(msg tea.Msg) (*ModelsModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// DialogOpen reports whether a modal dialog or input mode is active in the
+// keys view that should consume all keys (including Esc/Tab/?) before global
+// navigation can act on them.
+func (m *ModelsModel) DialogOpen() bool {
+	return m.IsAddingKey || m.IsConfirmingDelete || m.IsSearching
+}
+
 func (m *ModelsModel) handleSearchKeys(msg tea.KeyMsg) (*ModelsModel, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.KeyMap.Help.Close), key.Matches(msg, m.KeyMap.Chat.Send):

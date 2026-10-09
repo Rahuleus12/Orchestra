@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -282,10 +283,179 @@ func TestTabBar_ShowsShortcutKeys(t *testing.T) {
 	}
 
 	view := m.renderTabBar()
-	for _, want := range []string{"alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "Chat", "Workflow", "Sessions", "Logs", "Keys"} {
+	// Shortcut hints must come straight from the keymap so the topbar can
+	// never drift from the actual bindings.
+	for _, b := range []key.Binding{m.KeyMap.Global.Chat, m.KeyMap.Global.Workflow, m.KeyMap.Global.Sessions, m.KeyMap.Global.Logs, m.KeyMap.Global.Models} {
+		want := b.Help().Key
+		if !strings.Contains(view, want) {
+			t.Errorf("tab bar missing shortcut %q, got: %s", want, view)
+		}
+	}
+	for _, want := range []string{"Chat", "Workflow", "Sessions", "Logs", "Keys"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("tab bar missing %q, got: %s", want, view)
 		}
+	}
+}
+
+// --- Stuck-loading fixes ---------------------------------------------------
+
+// newAppTestModel builds an AppModel with all five views wired, for testing
+// app-level message routing.
+func newAppTestModel(t *testing.T) *AppModel {
+	t.Helper()
+	theme := DefaultTheme()
+	km := &KeyManager{keys: make(map[string]*ProviderKey), dir: t.TempDir()}
+	store, err := NewSessionStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewSessionStore() error = %v", err)
+	}
+	m := &AppModel{
+		Theme:        theme,
+		KeyMap:       NewKeyMap(),
+		Chat:         NewChatModel(theme, NewKeyMap()),
+		Workflow:     NewWorkflowModel(theme, NewKeyMap()),
+		Sessions:     NewSessionModel(theme, NewKeyMap(), store),
+		Logs:         NewLogModel(theme, NewKeyMap()),
+		Models:       NewModelsModel(theme, NewKeyMap(), km, NewDefaultModelFetcher()),
+		SessionStore: store,
+		KeyManager:   km,
+		Width:        120,
+		Height:       40,
+		ActiveView:   ViewChat,
+	}
+	return m
+}
+
+// TestWindowSizeMsg_ReadiesAllViews verifies that a window resize marks every
+// view ready — previously only the active view became ready, so switching
+// tabs showed "Loading..." forever.
+func TestWindowSizeMsg_ReadiesAllViews(t *testing.T) {
+	m := newAppTestModel(t)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = updated.(*AppModel)
+
+	for _, tc := range []struct {
+		name  string
+		ready bool
+	}{
+		{"Chat", m.Chat.Ready},
+		{"Workflow", m.Workflow.Ready},
+		{"Sessions", m.Sessions.Ready},
+		{"Logs", m.Logs.Ready},
+		{"Models", m.Models.Ready},
+	} {
+		if !tc.ready {
+			t.Errorf("%s view should be Ready after WindowSizeMsg", tc.name)
+		}
+	}
+
+	// Every view must render content, not the "Loading..." placeholder.
+	for _, view := range []struct {
+		name string
+		out  string
+	}{
+		{"Workflow", m.Workflow.View()},
+		{"Sessions", m.Sessions.View()},
+		{"Logs", m.Logs.View()},
+		{"Models", m.Models.View()},
+	} {
+		if strings.Contains(view.out, "Loading...") {
+			t.Errorf("%s view stuck on Loading...", view.name)
+		}
+	}
+}
+
+// TestModelsView_EscClosesDialogNotSwitchView verifies that Esc inside a
+// keys-view dialog cancels the dialog instead of jumping to chat and leaving
+// it stuck open.
+func TestModelsView_EscClosesDialogNotSwitchView(t *testing.T) {
+	m := newAppTestModel(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = updated.(*AppModel)
+	_ = m.KeyManager.AddKey("openai", "sk-test", "", "")
+	m.Models.RefreshProviders()
+	m.ActiveView = ViewModels
+
+	// Open the delete dialog.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*AppModel)
+	if !m.Models.IsConfirmingDelete {
+		t.Fatal("expected delete dialog")
+	}
+
+	// Esc must close the dialog, not switch to chat.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = updated.(*AppModel)
+	if m.ActiveView != ViewModels {
+		t.Errorf("ActiveView = %v, want ViewModels (Esc was hijacked)", m.ActiveView)
+	}
+	if m.Models.IsConfirmingDelete {
+		t.Error("delete dialog should be closed after Esc")
+	}
+
+	// Same for the add-key dialog.
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m = updated.(*AppModel)
+	if !m.Models.IsAddingKey {
+		t.Fatal("expected add-key dialog")
+	}
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = updated.(*AppModel)
+	if m.ActiveView != ViewModels {
+		t.Errorf("ActiveView = %v, want ViewModels", m.ActiveView)
+	}
+	if m.Models.IsAddingKey {
+		t.Error("add-key dialog should be closed after Esc")
+	}
+}
+
+// TestModelsFetchResult_RoutedWhenInactive verifies that a fetch result that
+// arrives while the user is in another view still clears the loading state —
+// previously it was dropped and the keys view stayed in "Fetching models...".
+func TestModelsFetchResult_RoutedWhenInactive(t *testing.T) {
+	m := newAppTestModel(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = updated.(*AppModel)
+	m.ActiveView = ViewChat
+	m.Models.IsLoading = true
+
+	updated, _ = m.Update(modelsFetchResultMsg{
+		Provider: "openai",
+		Models:   []ModelEntry{{ID: "gpt-test", Provider: "openai"}},
+	})
+	m = updated.(*AppModel)
+
+	if m.Models.IsLoading {
+		t.Error("IsLoading should be false after the fetch result")
+	}
+	if len(m.Models.Models) != 1 || m.Models.Models[0].ID != "gpt-test" {
+		t.Errorf("models not stored: %+v", m.Models.Models)
+	}
+}
+
+// TestSessionsView_EscClosesSearch verifies Esc closes the sessions search
+// input instead of switching views with the input stuck focused.
+func TestSessionsView_EscClosesSearch(t *testing.T) {
+	m := newAppTestModel(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = updated.(*AppModel)
+	m.ActiveView = ViewSessions
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m = updated.(*AppModel)
+	if !m.Sessions.IsSearching {
+		t.Fatal("expected sessions search mode")
+	}
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = updated.(*AppModel)
+	if m.ActiveView != ViewSessions {
+		t.Errorf("ActiveView = %v, want ViewSessions", m.ActiveView)
+	}
+	if m.Sessions.IsSearching {
+		t.Error("search mode should be closed after Esc")
 	}
 }
 

@@ -181,6 +181,13 @@ func (m *SessionModel) Update(msg tea.Msg) (*SessionModel, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// DialogOpen reports whether a modal input mode is active in the sessions
+// view that should consume all keys (including Esc) before global navigation
+// can act on them.
+func (m *SessionModel) DialogOpen() bool {
+	return m.IsSearching
+}
+
 func (m *SessionModel) handleSearchKeys(msg tea.KeyMsg) (*SessionModel, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.KeyMap.Help.Close):

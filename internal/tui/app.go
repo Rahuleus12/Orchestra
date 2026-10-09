@@ -512,16 +512,35 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 		m.Chat.SetSize(m.Width, m.Height-3)
+		m.Chat.Ready = true
 		m.Workflow.SetSize(m.Width, m.Height-3)
+		m.Workflow.Ready = true
 		m.Sessions.SetSize(m.Width, m.Height-3)
+		m.Sessions.Ready = true
 		m.Logs.SetSize(m.Width, m.Height-3)
+		m.Logs.Ready = true
 		m.Models.SetSize(m.Width, m.Height-3)
+		m.Models.Ready = true
 
 	case tea.KeyMsg:
 		// Handle global keys first
 		if key.Matches(msg, m.KeyMap.Global.Quit) {
 			m.Quitting = true
 			return m, tea.Quit
+		}
+
+		// Modal states (dialogs, search inputs) must consume keys before
+		// global navigation — otherwise Esc/Tab/? switch views and leave
+		// the dialog stuck open in the background.
+		if m.ActiveView == ViewModels && m.Models.DialogOpen() {
+			var cmd tea.Cmd
+			m.Models, cmd = m.Models.Update(msg)
+			return m, cmd
+		}
+		if m.ActiveView == ViewSessions && m.Sessions.DialogOpen() {
+			var cmd tea.Cmd
+			m.Sessions, cmd = m.Sessions.Update(msg)
+			return m, cmd
 		}
 
 		if key.Matches(msg, m.KeyMap.Global.Help) {
@@ -619,6 +638,14 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Chat.AddMessage(ViewError, errText)
 		m.Logs.AddEntry(LogLevelError, "chat", fmt.Sprintf("Generation failed: %s", errText))
+
+	case modelsFetchResultMsg:
+		// A model fetch can finish after the user navigated away from the
+		// keys view; always route the result to it so it never stays stuck
+		// in "Fetching models...".
+		var mcmd tea.Cmd
+		m.Models, mcmd = m.Models.Update(msg)
+		return m, mcmd
 	}
 
 	// Update active view
