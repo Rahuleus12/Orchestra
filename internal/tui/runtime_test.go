@@ -65,6 +65,12 @@ func driveStream(t *testing.T, m *AppModel, first tea.Cmd) {
 		case chatThinkingMsg:
 			_, next := m.Update(evt)
 			cur = next()
+		case chatToolTurnMsg:
+			_, next := m.Update(evt)
+			cur = next()
+		case chatToolResultsMsg:
+			_, next := m.Update(evt)
+			cur = next()
 		case chatStreamDoneMsg:
 			_, _ = m.Update(evt)
 			return

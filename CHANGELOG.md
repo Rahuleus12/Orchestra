@@ -33,6 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TUI topbar tabs now show their shortcut keys (`alt+1` … `alt+5`); the
   numbered views are also reachable via `ctrl+1` … `ctrl+5` on terminals with
   the kitty keyboard protocol
+- Tool calling in the TUI chat: the model's tool requests are now executed
+  and fed back to the model until it produces a final answer. Chat uses the
+  read-only builtin tools (calculator, file_read, code_search, list_directory,
+  web_search, json_transform, http_request, sql_query, git read operations,
+  diagnostics) rooted at the working directory — shell execution and file
+  writes are excluded because the TUI runs tools without confirmation. The
+  conversation carries assistant tool-call and tool-result messages across
+  turns, tool executions are shown as tool messages in the chat (toggle
+  details with `ctrl+d`) and in the logs, a runaway loop is capped at 8 tool
+  turns, and `/tools` lists the configured tools
 
 ### Fixed
 - **`ctrl+digit` view shortcuts never fired in most terminals**: terminals

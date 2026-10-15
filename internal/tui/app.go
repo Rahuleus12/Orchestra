@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/user/orchestra/internal/message"
+	"github.com/user/orchestra/internal/tool"
 )
 
 // ViewID identifies the current active view.
@@ -115,6 +118,10 @@ type AppModel struct {
 	// (set via the /system command).
 	SystemPrompt string
 
+	// ChatTools holds the tools available to chat (read-only builtin set).
+	// Nil disables tool calling.
+	ChatTools *tool.ToolRegistry
+
 	// Error is a temporary error to display.
 	Error string
 }
@@ -214,6 +221,7 @@ func NewAppModel(opts ...AppOption) (*AppModel, error) {
 	model.Logs = NewLogModel(theme, keyMap)
 	model.Models = NewModelsModel(theme, keyMap, keyManager, modelFetcher)
 	model.KeyManager = keyManager
+	model.ChatTools = newChatToolRegistry()
 
 	// Apply options
 	for _, opt := range opts {
@@ -277,7 +285,16 @@ func (m *AppModel) setupCommandHandlers() {
 
 	// /tools command
 	m.CommandRegistry.Register(CommandTools, func(cmd Command) (string, error) {
-		return "Available tools:\n  (No tools configured)", nil
+		if m.ChatTools == nil || m.ChatTools.Size() == 0 {
+			return "Available tools:\n  (No tools configured)", nil
+		}
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("Available tools (%d, read-only):\n", m.ChatTools.Size()))
+		for _, t := range m.ChatTools.List() {
+			b.WriteString(fmt.Sprintf("  %s — %s\n", t.Name(), firstLine(t.Description())))
+		}
+		b.WriteString("\nThe model can call these automatically when it needs them.")
+		return b.String(), nil
 	})
 
 	// /agent command
@@ -626,6 +643,37 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.Logs.AddEntry(LogLevelInfo, "chat", "Assistant response complete")
 
+	case chatToolTurnMsg:
+		// The model ended its turn by requesting tool calls. Record the
+		// assistant tool-call message in the provider conversation, then
+		// execute the tools asynchronously.
+		s := msg.stream
+		turnText := m.Chat.StreamingContent
+		m.Chat.EndStreaming()
+		assistantMsg := message.AssistantMessage(turnText)
+		assistantMsg.ToolCalls = msg.toolCalls
+		s.conv = append(s.conv, assistantMsg)
+		s.pendingToolCalls = nil
+		s.turns++
+		m.Logs.AddEntry(LogLevelInfo, "chat", fmt.Sprintf("Model requested %d tool call(s): %s", len(msg.toolCalls), chatToolNames(msg.toolCalls)))
+		return m, executeChatTools(s, msg.toolCalls)
+
+	case chatToolResultsMsg:
+		// Surface each tool result in the chat + logs, append it to the
+		// provider conversation, and continue the generation.
+		s := msg.stream
+		for _, r := range msg.results {
+			m.Chat.AddToolMessage(r.Name, r.Args, r.Output, r.Duration, r.IsError)
+			s.conv = append(s.conv, message.ToolResultMessage(r.CallID, r.Output, r.IsError))
+			if r.IsError {
+				m.Logs.AddEntry(LogLevelError, "chat", fmt.Sprintf("Tool %s failed: %s", r.Name, r.Output))
+			} else {
+				m.Logs.AddEntry(LogLevelInfo, "chat", fmt.Sprintf("Tool %s completed in %s", r.Name, r.Duration.Truncate(time.Millisecond)))
+			}
+		}
+		m.Chat.StartStreaming()
+		return m, continueChatStream(s)
+
 	case chatErrorMsg:
 		m.Chat.EndStreaming()
 		m.Chat.SetGenerating(false)
@@ -849,4 +897,23 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// chatToolNames returns a comma-separated list of tool names for logging.
+func chatToolNames(calls []message.ToolCall) string {
+	names := make([]string, 0, len(calls))
+	for _, c := range calls {
+		names = append(names, c.Function.Name)
+	}
+	return strings.Join(names, ", ")
+}
+
+// firstLine returns the first non-empty line of s.
+func firstLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

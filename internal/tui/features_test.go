@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/user/orchestra/internal/message"
+	"github.com/user/orchestra/internal/tool"
+	"github.com/user/orchestra/internal/tool/builtin"
 )
 
 // --- Keys view: delete key confirmation -----------------------------------
@@ -266,6 +270,290 @@ func TestStreamThinking_ReasoningShownInWindow(t *testing.T) {
 	}
 }
 
+// --- Tool calling -----------------------------------------------------------
+
+// capturedMessage mirrors the subset of the OpenAI wire format the tool-call
+// tests need to assert on.
+type capturedMessage struct {
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content"`
+	ToolCallID string          `json:"tool_call_id"`
+}
+
+// capturedRequest mirrors a chat completions request.
+type capturedRequest struct {
+	Tools    []map[string]any  `json:"tools"`
+	Messages []capturedMessage `json:"messages"`
+}
+
+// sseToolCallChunk builds one OpenAI-style streaming chunk requesting a tool
+// call (llama.cpp/OpenRouter/OpenAI wire format).
+func sseToolCallChunk(id, name, args string) string {
+	chunk := map[string]any{
+		"id": "chatcmpl-test", "object": "chat.completion.chunk", "created": 1, "model": "test-model",
+		"choices": []map[string]any{{
+			"index": 0,
+			"delta": map[string]any{
+				"tool_calls": []map[string]any{{
+					"index": 0, "id": id, "type": "function",
+					"function": map[string]any{"name": name, "arguments": args},
+				}},
+			},
+			"finish_reason": nil,
+		}},
+	}
+	b, _ := json.Marshal(chunk)
+	return "data: " + string(b) + "\n\n"
+}
+
+// TestToolCalls_EndToEnd drives the full loop: the model requests a
+// calculator call, the TUI executes it, feeds the result back, and the model
+// produces the final answer using it.
+func TestToolCalls_EndToEnd(t *testing.T) {
+	var requests []capturedRequest
+
+	turn := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tools    json.RawMessage `json:"tools"`
+			Messages json.RawMessage `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		var parsed capturedRequest
+		_ = json.Unmarshal(req.Messages, &parsed.Messages)
+		if len(req.Tools) > 0 && string(req.Tools) != "null" {
+			_ = json.Unmarshal(req.Tools, &parsed.Tools)
+		}
+		requests = append(requests, parsed)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		var events []string
+		if turn == 0 {
+			// First turn: the model requests the calculator.
+			events = []string{
+				sseToolCallChunk("call_1", "calculator", "{\"expression\":\"2+2\"}"),
+				sseChunk("test-model", "", "tool_calls"),
+				"data: [DONE]\n\n",
+			}
+		} else {
+			// Second turn: the model answers using the tool result.
+			events = []string{
+				sseChunk("test-model", "2 + 2 = ", ""),
+				sseChunk("test-model", "4", ""),
+				sseChunk("test-model", "", "stop"),
+				"data: [DONE]\n\n",
+			}
+		}
+		for _, evt := range events {
+			fmt.Fprint(w, evt)
+		}
+		turn++
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m := newRuntimeTestModel(t)
+	reg := tool.NewRegistry()
+	if err := reg.Register(builtin.NewCalculatorTool()); err != nil {
+		t.Fatalf("register calculator: %v", err)
+	}
+	m.ChatTools = reg
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "What is 2+2?")
+	cmd := m.Chat.OnSubmit("What is 2+2?")
+	if cmd == nil {
+		t.Fatal("OnSubmit returned nil cmd")
+	}
+	driveStream(t, m, cmd)
+
+	// The provider must have received tool definitions on the first request.
+	if len(requests) != 2 {
+		t.Fatalf("expected 2 provider requests (tool turn + final answer), got %d", len(requests))
+	}
+	if len(requests[0].Tools) == 0 {
+		t.Error("first request must include tool definitions")
+	}
+
+	// The follow-up request must carry the assistant tool call and the tool
+	// result with the matching call ID.
+	var sawToolResult bool
+	for _, msg := range requests[1].Messages {
+		if msg.Role == "tool" {
+			sawToolResult = true
+			if msg.ToolCallID != "call_1" {
+				t.Errorf("tool result tool_call_id = %q, want call_1", msg.ToolCallID)
+			}
+			if !strings.Contains(fmt.Sprint(msg.Content), "4") {
+				t.Errorf("tool result content = %v, want calculator output containing 4", msg.Content)
+			}
+		}
+	}
+	if !sawToolResult {
+		t.Error("follow-up request missing tool result message")
+	}
+
+	// The chat must show the tool execution and the final answer.
+	var sawToolMsg, sawAnswer bool
+	for _, msg := range m.Chat.Messages {
+		if msg.Type == ViewTool && msg.ToolName == "calculator" {
+			sawToolMsg = true
+			if !strings.Contains(msg.Content, "4") {
+				t.Errorf("tool message content = %q, want calculator output", msg.Content)
+			}
+		}
+		if msg.Type == ViewAssistant && strings.Contains(msg.Content, "2 + 2 = 4") {
+			sawAnswer = true
+		}
+	}
+	if !sawToolMsg {
+		t.Error("chat missing tool message for calculator")
+	}
+	if !sawAnswer {
+		t.Error("chat missing final assistant answer")
+	}
+	if m.Chat.IsStreaming || m.Chat.IsGenerating {
+		t.Error("streaming flags should be cleared after the tool loop")
+	}
+}
+
+// TestToolCalls_DisabledWhenNoRegistry verifies tool-call turns fall back to
+// normal completion when no tool registry is configured.
+func TestToolCalls_DisabledWhenNoRegistry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, sseToolCallChunk("call_1", "calculator", "{}"))
+		fmt.Fprint(w, sseChunk("test-model", "", "tool_calls"))
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m := newRuntimeTestModel(t) // ChatTools left nil
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "hi")
+	cmd := m.Chat.OnSubmit("hi")
+	driveStream(t, m, cmd)
+
+	// Without a registry the stream simply ends; no tool messages appear and
+	// the loop must not hang.
+	if m.Chat.IsStreaming || m.Chat.IsGenerating {
+		t.Error("generation should be finished")
+	}
+	for _, msg := range m.Chat.Messages {
+		if msg.Type == ViewTool {
+			t.Error("no tool should execute without a registry")
+		}
+	}
+}
+
+// TestExecuteChatToolCall_Safety verifies unknown tools, panics, and errors
+// become error results instead of crashing.
+func TestExecuteChatToolCall_Safety(t *testing.T) {
+	reg := tool.NewRegistry()
+	boom := tool.NewToolFunc("boom", "always panics", func(ctx context.Context, input json.RawMessage) (json.RawMessage, error) {
+		panic("boom")
+	})
+	if err := reg.Register(boom); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Unknown tool.
+	out, isErr := executeChatToolCall(ctx, reg, message.ToolCall{
+		ID: "x", Type: "function", Function: message.ToolCallFunction{Name: "nope"},
+	})
+	if !isErr || !strings.Contains(out, "not found") {
+		t.Errorf("unknown tool: out=%q isErr=%v", out, isErr)
+	}
+
+	// Panicking tool.
+	out, isErr = executeChatToolCall(ctx, reg, message.ToolCall{
+		ID: "x", Type: "function", Function: message.ToolCallFunction{Name: "boom"},
+	})
+	if !isErr || !strings.Contains(out, "panicked") {
+		t.Errorf("panicking tool: out=%q isErr=%v", out, isErr)
+	}
+
+	// Nil registry.
+	out, isErr = executeChatToolCall(ctx, nil, message.ToolCall{
+		ID: "x", Type: "function", Function: message.ToolCallFunction{Name: "anything"},
+	})
+	if !isErr || !strings.Contains(out, "no tools registered") {
+		t.Errorf("nil registry: out=%q isErr=%v", out, isErr)
+	}
+}
+
+// TestToolCall_MaxTurns verifies the loop gives up after maxChatToolTurns
+// instead of spinning forever with a model that always requests tools.
+func TestToolCall_MaxTurns(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, sseToolCallChunk(fmt.Sprintf("call_%d", calls), "calculator", "{\"expression\":\"1+1\"}"))
+		fmt.Fprint(w, sseChunk("test-model", "", "tool_calls"))
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m := newRuntimeTestModel(t)
+	reg := tool.NewRegistry()
+	if err := reg.Register(builtin.NewCalculatorTool()); err != nil {
+		t.Fatalf("register calculator: %v", err)
+	}
+	m.ChatTools = reg
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "hi")
+	cmd := m.Chat.OnSubmit("hi")
+	driveStream(t, m, cmd)
+
+	// Initial request + maxChatToolTurns continuations.
+	if calls > maxChatToolTurns+1 {
+		t.Errorf("provider called %d times, want at most %d", calls, maxChatToolTurns+1)
+	}
+}
+
+// TestToolsCommand_ListsRegistry verifies /tools lists the real chat tools.
+func TestToolsCommand_ListsRegistry(t *testing.T) {
+	m := newAppTestModel(t)
+	reg := tool.NewRegistry()
+	if err := reg.Register(builtin.NewCalculatorTool()); err != nil {
+		t.Fatalf("register calculator: %v", err)
+	}
+	m.ChatTools = reg
+
+	cmd := m.CommandRegistry.Parse("/tools")
+	if cmd == nil || cmd.Type != CommandTools {
+		t.Fatal("Parse(/tools) failed")
+	}
+	out, err := m.CommandRegistry.Execute(*cmd)
+	if err != nil {
+		t.Fatalf("Execute(/tools) error = %v", err)
+	}
+	if !strings.Contains(out, "calculator") {
+		t.Errorf("/tools output missing calculator, got: %s", out)
+	}
+
+	// Without a registry it still works.
+	m.ChatTools = nil
+	out, err = m.CommandRegistry.Execute(*cmd)
+	if err != nil || !strings.Contains(out, "No tools configured") {
+		t.Errorf("/tools with nil registry: out=%q err=%v", out, err)
+	}
+}
+
 // --- Topbar shortcut keys ---------------------------------------------------
 
 func TestTabBar_ShowsShortcutKeys(t *testing.T) {
@@ -311,19 +599,21 @@ func newAppTestModel(t *testing.T) *AppModel {
 		t.Fatalf("NewSessionStore() error = %v", err)
 	}
 	m := &AppModel{
-		Theme:        theme,
-		KeyMap:       NewKeyMap(),
-		Chat:         NewChatModel(theme, NewKeyMap()),
-		Workflow:     NewWorkflowModel(theme, NewKeyMap()),
-		Sessions:     NewSessionModel(theme, NewKeyMap(), store),
-		Logs:         NewLogModel(theme, NewKeyMap()),
-		Models:       NewModelsModel(theme, NewKeyMap(), km, NewDefaultModelFetcher()),
-		SessionStore: store,
-		KeyManager:   km,
-		Width:        120,
-		Height:       40,
-		ActiveView:   ViewChat,
+		Theme:           theme,
+		KeyMap:          NewKeyMap(),
+		CommandRegistry: NewCommandRegistry(),
+		Chat:            NewChatModel(theme, NewKeyMap()),
+		Workflow:        NewWorkflowModel(theme, NewKeyMap()),
+		Sessions:        NewSessionModel(theme, NewKeyMap(), store),
+		Logs:            NewLogModel(theme, NewKeyMap()),
+		Models:          NewModelsModel(theme, NewKeyMap(), km, NewDefaultModelFetcher()),
+		SessionStore:    store,
+		KeyManager:      km,
+		Width:           120,
+		Height:          40,
+		ActiveView:      ViewChat,
 	}
+	m.setupCommandHandlers()
 	return m
 }
 

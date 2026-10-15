@@ -2,9 +2,11 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -19,7 +21,14 @@ import (
 	"github.com/user/orchestra/internal/provider/ollama"
 	"github.com/user/orchestra/internal/provider/openai"
 	"github.com/user/orchestra/internal/provider/openrouter"
+	"github.com/user/orchestra/internal/tool"
+	"github.com/user/orchestra/internal/tool/builtin"
 )
+
+// maxChatToolTurns caps how many consecutive tool-call rounds the chat will
+// execute for a single user message before giving up, so a model stuck in a
+// tool loop cannot spin forever.
+const maxChatToolTurns = 8
 
 // ---------------------------------------------------------------------------
 // Chat generation runtime
@@ -28,15 +37,27 @@ import (
 // waits for the next provider stream event and returns it as a message.
 // AppModel.Update handles the message and schedules the next wait, which
 // keeps the UI responsive while chunks arrive.
+//
+// Tool calling follows the same pattern: when the model finishes a turn by
+// requesting tool calls, the runtime executes them (asynchronously, as a
+// tea.Cmd), feeds the results back as tool messages, and starts the next
+// streaming turn until the model produces a final answer.
 // ---------------------------------------------------------------------------
 
 // chatStream carries the state of an in-flight chat generation between
-// successive wait commands.
+// successive wait commands. conv holds the provider conversation for the
+// current generation, including any assistant tool-call turns and tool
+// results appended while the tool loop runs.
 type chatStream struct {
 	provider provider.Provider
 	model    string
 	events   <-chan provider.StreamEvent
 	cancel   context.CancelFunc
+
+	conv             []message.Message
+	tools            *tool.ToolRegistry
+	pendingToolCalls []message.ToolCall
+	turns            int
 }
 
 // chatChunkMsg delivers one streamed text chunk.
@@ -55,6 +76,30 @@ type chatThinkingMsg struct {
 type chatStreamDoneMsg struct {
 	stream *chatStream
 	usage  *TokenUsageInfo
+}
+
+// chatToolTurnMsg signals that the model finished a turn by requesting tool
+// calls instead of a final answer.
+type chatToolTurnMsg struct {
+	stream    *chatStream
+	toolCalls []message.ToolCall
+}
+
+// chatToolResultsMsg delivers completed tool executions for the current
+// tool-call turn.
+type chatToolResultsMsg struct {
+	stream  *chatStream
+	results []chatToolResult
+}
+
+// chatToolResult is the display + conversation record of one executed tool.
+type chatToolResult struct {
+	CallID   string
+	Name     string
+	Args     string
+	Output   string
+	Duration time.Duration
+	IsError  bool
 }
 
 // chatErrorMsg signals that the generation failed.
@@ -81,10 +126,20 @@ func (m *AppModel) startChatGeneration(content string) tea.Cmd {
 
 	m.Chat.SetGenerating(true)
 
+	conv := m.chatHistory()
+
 	ctx, cancel := context.WithCancel(context.Background())
+	s := &chatStream{
+		provider: p,
+		model:    model,
+		cancel:   cancel,
+		conv:     conv,
+		tools:    m.ChatTools,
+	}
 	events, err := p.Stream(ctx, provider.GenerateRequest{
 		Model:    model,
-		Messages: m.chatHistory(),
+		Messages: s.conv,
+		Tools:    chatToolDefs(s.tools),
 	})
 	if err != nil {
 		cancel()
@@ -96,7 +151,7 @@ func (m *AppModel) startChatGeneration(content string) tea.Cmd {
 
 	m.Logs.AddEntry(LogLevelInfo, "chat", fmt.Sprintf("Sending message via %s (model %s)", p.Name(), model))
 
-	s := &chatStream{provider: p, model: model, events: events, cancel: cancel}
+	s.events = events
 	m.Chat.StartStreaming()
 	return waitChatStream(s)
 }
@@ -113,20 +168,127 @@ func waitChatStream(s *chatStream) tea.Cmd {
 				if evt.Chunk != "" {
 					return chatThinkingMsg{stream: s, text: evt.Chunk}
 				}
+			case provider.StreamEventToolCall:
+				// Providers emit fully-assembled tool calls; collect them
+				// on the stream until the done event arrives.
+				if evt.ToolCall != nil {
+					s.pendingToolCalls = append(s.pendingToolCalls, *evt.ToolCall)
+				}
 			case provider.StreamEventError:
 				if evt.Error != nil {
 					return chatErrorMsg{stream: s, err: evt.Error}
 				}
 			case provider.StreamEventDone:
-				return chatStreamDoneMsg{stream: s, usage: toTokenUsageInfo(evt.Usage)}
-			default:
-				// StreamEventStart and tool-call events carry no displayable
-				// text for plain chat; keep waiting for the next event.
+				usage := toTokenUsageInfo(evt.Usage)
+				if len(s.pendingToolCalls) > 0 && s.tools != nil && s.turns < maxChatToolTurns {
+					return chatToolTurnMsg{stream: s, toolCalls: s.pendingToolCalls}
+				}
+				return chatStreamDoneMsg{stream: s, usage: usage}
 			}
 		}
 		// Channel closed without an explicit done event.
-		return chatStreamDoneMsg{}
+		return chatStreamDoneMsg{stream: s}
 	}
+}
+
+// continueChatStream starts the next streaming turn of an in-flight
+// generation, carrying the accumulated conversation (now including tool
+// results) back to the provider.
+func continueChatStream(s *chatStream) tea.Cmd {
+	if s.cancel != nil {
+		s.cancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	events, err := s.provider.Stream(ctx, provider.GenerateRequest{
+		Model:    s.model,
+		Messages: s.conv,
+		Tools:    chatToolDefs(s.tools),
+	})
+	if err != nil {
+		cancel()
+		return func() tea.Msg {
+			return chatErrorMsg{stream: s, err: fmt.Errorf("continue generation: %w", err)}
+		}
+	}
+	s.events = events
+	s.cancel = cancel
+	return waitChatStream(s)
+}
+
+// executeChatTools runs the model's requested tool calls sequentially and
+// returns the results as a message. Tool errors (unknown tool, execution
+// failure, panic) are captured as error results so the model can recover —
+// a faulty tool must never crash the TUI.
+func executeChatTools(s *chatStream, calls []message.ToolCall) tea.Cmd {
+	return func() tea.Msg {
+		results := make([]chatToolResult, 0, len(calls))
+		ctx := context.Background()
+		for _, call := range calls {
+			start := time.Now()
+			output, isErr := executeChatToolCall(ctx, s.tools, call)
+			results = append(results, chatToolResult{
+				CallID:   call.ID,
+				Name:     call.Function.Name,
+				Args:     call.Function.Arguments,
+				Output:   output,
+				Duration: time.Since(start),
+				IsError:  isErr,
+			})
+		}
+		return chatToolResultsMsg{stream: s, results: results}
+	}
+}
+
+// executeChatToolCall runs a single tool call, mirroring the agent runtime's
+// semantics.
+func executeChatToolCall(ctx context.Context, registry *tool.ToolRegistry, call message.ToolCall) (output string, isErr bool) {
+	if registry == nil {
+		return fmt.Sprintf("tool %q not found (no tools registered)", call.Function.Name), true
+	}
+
+	t, err := registry.Get(call.Function.Name)
+	if err != nil {
+		return fmt.Sprintf("tool %q not found", call.Function.Name), true
+	}
+
+	var result json.RawMessage
+	var execErr error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				execErr = fmt.Errorf("tool %q panicked: %v", call.Function.Name, r)
+			}
+		}()
+		result, execErr = t.Execute(ctx, json.RawMessage(call.Function.Arguments))
+	}()
+	if execErr != nil {
+		return fmt.Sprintf("tool %q execution failed: %v", call.Function.Name, execErr), true
+	}
+	return string(result), false
+}
+
+// chatToolDefs converts the chat tool registry into provider definitions
+// (nil when tools are disabled).
+func chatToolDefs(reg *tool.ToolRegistry) []provider.ToolDefinition {
+	if reg == nil || reg.Size() == 0 {
+		return nil
+	}
+	return reg.ProviderDefinitions()
+}
+
+// newChatToolRegistry builds the tool registry available to TUI chat: the
+// read-only builtin set. Shell execution and file writes are intentionally
+// excluded because the TUI executes tool calls without confirmation.
+func newChatToolRegistry() *tool.ToolRegistry {
+	root, err := os.Getwd()
+	if err != nil {
+		root = ""
+	}
+	reg, err := builtin.NewReadOnlyToolsRegistry(root)
+	if err != nil {
+		return nil
+	}
+	return reg
 }
 
 // chatHistory converts the visible chat (plus the configured system prompt)
