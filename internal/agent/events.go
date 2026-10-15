@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/user/orchestra/internal/message"
@@ -137,4 +138,18 @@ func (r *AgentResult) ToolCallsByTurn(turn int) []ToolExecution {
 // FinalText returns the text content of the final output message.
 func (r *AgentResult) FinalText() string {
 	return r.Output.Text()
+}
+
+// MarshalJSON serializes the error text (Error is json:"-" because error
+// does not implement json.Marshaler cleanly); clients need the message.
+func (e AgentEvent) MarshalJSON() ([]byte, error) {
+	type alias AgentEvent
+	text := ""
+	if e.Error != nil {
+		text = e.Error.Error()
+	}
+	return json.Marshal(struct {
+		alias
+		ErrorText string `json:"error,omitempty"`
+	}{alias(e), text})
 }

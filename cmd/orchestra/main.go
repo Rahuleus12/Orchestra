@@ -616,12 +616,30 @@ func resolveProviderFactory(name string) provider.ProviderFactory {
 	switch name {
 	case "mock":
 		return mockServerFactory
+	case "openai":
+		return linked(openai.NewProvider)
+	case "anthropic":
+		return linked(anthropic.NewProvider)
+	case "google", "gemini":
+		return linked(gemini.NewProvider)
+	case "ollama":
+		return linked(ollama.NewProvider)
+	case "mistral":
+		return linked(mistral.NewProvider)
+	case "cohere":
+		return linked(cohere.NewProvider)
+	case "openrouter":
+		return linked(openrouter.NewProvider)
 	default:
-		// For real providers, return a factory that loads from config.
-		// Each provider package (openai, anthropic, etc.) registers itself
-		// via init() in a real deployment. For server mode, we attempt
-		// to use the config-based factory.
 		return newConfigFactory(name)
+	}
+}
+
+// linked adapts a concrete provider constructor to the ProviderFactory
+// signature: constructors return *Provider, the factory returns the interface.
+func linked[A provider.Provider](fn func(config.ProviderConfig) (A, error)) provider.ProviderFactory {
+	return func(cfg config.ProviderConfig) (provider.Provider, error) {
+		return fn(cfg)
 	}
 }
 
