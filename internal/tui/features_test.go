@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -306,6 +308,33 @@ func sseToolCallChunk(id, name, args string) string {
 	return "data: " + string(b) + "\n\n"
 }
 
+// driveUntilIdle pumps the tea.Cmd chain through AppModel.Update until the
+// chain ends or goes idle (e.g. while a tool approval dialog is pending).
+// Reports whether the stream finished with chatStreamDoneMsg.
+func driveUntilIdle(t *testing.T, m *AppModel, first tea.Cmd) bool {
+	t.Helper()
+	cur := first
+	for i := 0; i < 100; i++ {
+		if cur == nil {
+			return false
+		}
+		switch evt := cur().(type) {
+		case chatChunkMsg, chatThinkingMsg, chatToolTurnMsg, chatToolResultsMsg:
+			_, next := m.Update(evt)
+			cur = next
+		case chatStreamDoneMsg:
+			_, _ = m.Update(evt)
+			return true
+		case chatErrorMsg:
+			t.Fatalf("unexpected stream error: %v", evt.err)
+		default:
+			t.Fatalf("unexpected message type %T", cur)
+		}
+	}
+	t.Fatal("stream did not finish within 100 messages")
+	return false
+}
+
 // TestToolCalls_EndToEnd drives the full loop: the model requests a
 // calculator call, the TUI executes it, feeds the result back, and the model
 // produces the final answer using it.
@@ -551,6 +580,213 @@ func TestToolsCommand_ListsRegistry(t *testing.T) {
 	out, err = m.CommandRegistry.Execute(*cmd)
 	if err != nil || !strings.Contains(out, "No tools configured") {
 		t.Errorf("/tools with nil registry: out=%q err=%v", out, err)
+	}
+}
+
+// newFileToolsTestModel builds a runtime test model whose chat registry
+// includes the file_write tool rooted at a temp directory.
+func newFileToolsTestModel(t *testing.T) (*AppModel, string) {
+	t.Helper()
+	root := t.TempDir()
+	m := newRuntimeTestModel(t)
+	reg := tool.NewRegistry()
+	if err := reg.Register(builtin.NewFileWriteToolWithRoot(root)); err != nil {
+		t.Fatalf("register file_write: %v", err)
+	}
+	m.ChatTools = reg
+	return m, root
+}
+
+// TestToolCalls_WriteFile_Approved verifies the full approval flow: the
+// model requests file_write, the user approves with Enter, the file is
+// created, and the loop continues to the final answer.
+func TestToolCalls_WriteFile_Approved(t *testing.T) {
+	var requests []capturedRequest
+	turn := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages json.RawMessage `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		var parsed capturedRequest
+		_ = json.Unmarshal(req.Messages, &parsed.Messages)
+		requests = append(requests, parsed)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		if turn == 0 {
+			fmt.Fprint(w, sseToolCallChunk("call_w", "file_write", `{"path":"notes/hello.txt","content":"hello world","create_dirs":true}`))
+			fmt.Fprint(w, sseChunk("test-model", "", "tool_calls"))
+		} else {
+			fmt.Fprint(w, sseChunk("test-model", "Done! File created.", ""))
+			fmt.Fprint(w, sseChunk("test-model", "", "stop"))
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		turn++
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m, root := newFileToolsTestModel(t)
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "create hello.txt")
+	started := m.Chat.OnSubmit("create hello.txt")
+	if driveUntilIdle(t, m, started) {
+		t.Fatal("stream ended without waiting for approval")
+	}
+
+	// The approval dialog must be pending and nothing written yet.
+	if m.ToolApproval == nil || m.Chat.ApprovalText == "" {
+		t.Fatal("expected a pending tool approval dialog")
+	}
+	if !strings.Contains(m.Chat.ApprovalText, "file_write") {
+		t.Errorf("approval summary missing tool name, got: %q", m.Chat.ApprovalText)
+	}
+	target := filepath.Join(root, "notes", "hello.txt")
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("file must not exist before approval")
+	}
+
+	// Approve with Enter and drive the rest of the loop.
+	updated, approveCmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*AppModel)
+	if m.ToolApproval != nil {
+		t.Error("approval should be cleared after Enter")
+	}
+	if !driveUntilIdle(t, m, approveCmd) {
+		t.Fatal("stream did not finish after approval")
+	}
+
+	// The file must exist with the requested content.
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("expected file at %s: %v", target, err)
+	}
+	if string(data) != "hello world" {
+		t.Errorf("file content = %q, want %q", data, "hello world")
+	}
+
+	// The follow-up request must carry the successful tool result.
+	var sawToolResult bool
+	for _, msg := range requests[1].Messages {
+		if msg.Role == "tool" && msg.ToolCallID == "call_w" {
+			sawToolResult = true
+			if strings.Contains(string(msg.Content), "error") {
+				t.Errorf("tool result reported an error: %s", msg.Content)
+			}
+		}
+	}
+	if !sawToolResult {
+		t.Error("follow-up request missing tool result")
+	}
+	if m.Chat.IsStreaming || m.Chat.IsGenerating {
+		t.Error("generation flags should be cleared")
+	}
+}
+
+// TestToolCalls_WriteFile_Denied verifies denial feeds a denial result back
+// to the model and writes nothing.
+func TestToolCalls_WriteFile_Denied(t *testing.T) {
+	turn := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if turn == 0 {
+			fmt.Fprint(w, sseToolCallChunk("call_d", "file_write", `{"path":"evil.txt","content":"nope"}`))
+			fmt.Fprint(w, sseChunk("test-model", "", "tool_calls"))
+		} else {
+			fmt.Fprint(w, sseChunk("test-model", "Understood, skipping.", ""))
+			fmt.Fprint(w, sseChunk("test-model", "", "stop"))
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		turn++
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m, root := newFileToolsTestModel(t)
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "do it")
+	started := m.Chat.OnSubmit("do it")
+	if driveUntilIdle(t, m, started) {
+		t.Fatal("stream ended without waiting for approval")
+	}
+	if m.ToolApproval == nil {
+		t.Fatal("expected pending approval")
+	}
+
+	// Deny with Esc.
+	updated, denyCmd := m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m = updated.(*AppModel)
+	if !driveUntilIdle(t, m, denyCmd) {
+		t.Fatal("stream did not finish after denial")
+	}
+
+	// Nothing may be written.
+	if _, err := os.Stat(filepath.Join(root, "evil.txt")); !os.IsNotExist(err) {
+		t.Error("denied file_write must not create the file")
+	}
+
+	// The tool message in the chat must record the denial.
+	var sawDenied bool
+	for _, msg := range m.Chat.Messages {
+		if msg.Type == ViewTool && strings.Contains(msg.Content, "user denied") {
+			sawDenied = true
+		}
+	}
+	if !sawDenied {
+		t.Error("chat missing denial tool message")
+	}
+}
+
+// TestToolCalls_ReadOnlyNoApproval verifies read-only tools still run without
+// prompting.
+func TestToolCalls_ReadOnlyNoApproval(t *testing.T) {
+	turn := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if turn == 0 {
+			fmt.Fprint(w, sseToolCallChunk("call_c", "calculator", `{"expression":"6*7"}`))
+			fmt.Fprint(w, sseChunk("test-model", "", "tool_calls"))
+		} else {
+			fmt.Fprint(w, sseChunk("test-model", "42", ""))
+			fmt.Fprint(w, sseChunk("test-model", "", "stop"))
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		turn++
+	}))
+	defer srv.Close()
+
+	t.Setenv("LLAMACPP_BASE_URL", srv.URL)
+
+	m := newRuntimeTestModel(t)
+	reg := tool.NewRegistry()
+	if err := reg.Register(builtin.NewCalculatorTool()); err != nil {
+		t.Fatalf("register calculator: %v", err)
+	}
+	m.ChatTools = reg
+	m.ProviderName = "llamacpp"
+	m.ModelName = "test-model"
+
+	m.Chat.AddMessage(ViewUser, "6*7?")
+	if !driveUntilIdle(t, m, m.Chat.OnSubmit("6*7?")) {
+		t.Fatal("read-only tool turn should complete without approval")
+	}
+	if m.ToolApproval != nil {
+		t.Error("calculator must not require approval")
+	}
+	var sawTool bool
+	for _, msg := range m.Chat.Messages {
+		if msg.Type == ViewTool && msg.ToolName == "calculator" {
+			sawTool = true
+		}
+	}
+	if !sawTool {
+		t.Error("chat missing calculator tool message")
 	}
 }
 

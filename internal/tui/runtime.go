@@ -239,6 +239,24 @@ func executeChatTools(s *chatStream, calls []message.ToolCall) tea.Cmd {
 	}
 }
 
+// denyChatTools synthesizes denial results for tool calls the user refused
+// to approve, so the model learns the call was rejected and can adapt.
+func denyChatTools(s *chatStream, calls []message.ToolCall) tea.Cmd {
+	return func() tea.Msg {
+		results := make([]chatToolResult, 0, len(calls))
+		for _, call := range calls {
+			results = append(results, chatToolResult{
+				CallID:  call.ID,
+				Name:    call.Function.Name,
+				Args:    call.Function.Arguments,
+				Output:  "user denied tool execution",
+				IsError: true,
+			})
+		}
+		return chatToolResultsMsg{stream: s, results: results}
+	}
+}
+
 // executeChatToolCall runs a single tool call, mirroring the agent runtime's
 // semantics.
 func executeChatToolCall(ctx context.Context, registry *tool.ToolRegistry, call message.ToolCall) (output string, isErr bool) {
@@ -276,9 +294,30 @@ func chatToolDefs(reg *tool.ToolRegistry) []provider.ToolDefinition {
 	return reg.ProviderDefinitions()
 }
 
+// mutatingChatTools lists builtin tools that modify the system. The chat
+// never executes these without explicit user approval in the TUI.
+var mutatingChatTools = map[string]bool{
+	builtin.FileWriteToolName: true,
+	builtin.FileEditToolName:  true,
+	builtin.ShellExecToolName: true,
+}
+
+// requiresToolApproval reports whether any of the calls modify the system
+// (write files, edit files, run commands) and therefore need user consent.
+func requiresToolApproval(calls []message.ToolCall) bool {
+	for _, c := range calls {
+		if mutatingChatTools[normalizeProvider(c.Function.Name)] {
+			return true
+		}
+	}
+	return false
+}
+
 // newChatToolRegistry builds the tool registry available to TUI chat: the
-// read-only builtin set. Shell execution and file writes are intentionally
-// excluded because the TUI executes tool calls without confirmation.
+// read-only builtin set plus file write/edit and shell execution. Mutating
+// tools are gated behind a per-turn approval dialog (see requiresToolApproval
+// and AppModel.Update), and filesystem access is restricted to the working
+// directory.
 func newChatToolRegistry() *tool.ToolRegistry {
 	root, err := os.Getwd()
 	if err != nil {
@@ -287,6 +326,15 @@ func newChatToolRegistry() *tool.ToolRegistry {
 	reg, err := builtin.NewReadOnlyToolsRegistry(root)
 	if err != nil {
 		return nil
+	}
+	for _, t := range []tool.Tool{
+		builtin.NewFileWriteToolWithRoot(root),
+		builtin.NewFileEditToolWithRoot(root),
+		builtin.NewShellExecToolWithRoot(root),
+	} {
+		if err := reg.Register(t); err != nil {
+			return nil
+		}
 	}
 	return reg
 }

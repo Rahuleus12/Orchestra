@@ -92,6 +92,11 @@ type ChatModel struct {
 	// ShowThinking controls whether thinking windows are rendered.
 	ShowThinking bool
 
+	// ApprovalText holds the summary of tool calls awaiting user approval.
+	// Non-empty renders an approval prompt above the input; key handling
+	// lives in AppModel.Update.
+	ApprovalText string
+
 	// Width is the terminal width.
 	Width int
 
@@ -436,6 +441,16 @@ func (m *ChatModel) View() string {
 	// Render generating indicator
 	if m.IsGenerating && !m.IsStreaming {
 		b.WriteString(m.renderGenerating())
+	}
+
+	// Render tool approval prompt if pending
+	if m.ApprovalText != "" {
+		b.WriteString("\n")
+		prompt := m.Theme.Styles.Warning.Render("⚠ Tool approval required") + "\n" +
+			m.Theme.Styles.Dim.Render(indentText(strings.TrimRight(m.ApprovalText, "\n"), "  ")) + "\n" +
+			m.Theme.Styles.Help.Render("  Enter/y approve • Esc/n deny")
+		b.WriteString(prompt)
+		b.WriteString("\n")
 	}
 
 	// Render input area

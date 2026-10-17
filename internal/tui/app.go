@@ -118,12 +118,23 @@ type AppModel struct {
 	// (set via the /system command).
 	SystemPrompt string
 
-	// ChatTools holds the tools available to chat (read-only builtin set).
-	// Nil disables tool calling.
+	// ChatTools holds the tools available to chat (read-only builtin set
+	// plus write tools gated behind approval). Nil disables tool calling.
 	ChatTools *tool.ToolRegistry
+
+	// ToolApproval holds mutating tool calls awaiting user approval in the
+	// chat view. Non-nil renders the approval prompt and intercepts keys.
+	ToolApproval *pendingToolApproval
 
 	// Error is a temporary error to display.
 	Error string
+}
+
+// pendingToolApproval is a batch of tool calls (all from one assistant turn)
+// waiting for the user to approve or deny execution.
+type pendingToolApproval struct {
+	stream *chatStream
+	calls  []message.ToolCall
 }
 
 // AppOption is a functional option for configuring the AppModel.
@@ -289,11 +300,16 @@ func (m *AppModel) setupCommandHandlers() {
 			return "Available tools:\n  (No tools configured)", nil
 		}
 		var b strings.Builder
-		b.WriteString(fmt.Sprintf("Available tools (%d, read-only):\n", m.ChatTools.Size()))
+		b.WriteString(fmt.Sprintf("Available tools (%d):\n", m.ChatTools.Size()))
 		for _, t := range m.ChatTools.List() {
-			b.WriteString(fmt.Sprintf("  %s — %s\n", t.Name(), firstLine(t.Description())))
+			marker := ""
+			if mutatingChatTools[t.Name()] {
+				marker = "  [approval required]"
+			}
+			b.WriteString(fmt.Sprintf("  %s — %s%s\n", t.Name(), firstLine(t.Description()), marker))
 		}
-		b.WriteString("\nThe model can call these automatically when it needs them.")
+		b.WriteString("\nThe model calls these automatically; tools marked")
+		b.WriteString(" [approval required] ask before running.")
 		return b.String(), nil
 	})
 
@@ -546,6 +562,26 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// A pending tool approval is modal in the chat view: approve with
+		// Enter/y, deny with Esc/n. Other keys are swallowed so nothing is
+		// typed into the input or triggers navigation by accident.
+		if m.ToolApproval != nil {
+			approval := m.ToolApproval
+			switch msg.String() {
+			case "enter", "y":
+				m.ToolApproval = nil
+				m.Chat.ApprovalText = ""
+				m.Logs.AddEntry(LogLevelInfo, "chat", "Approved: "+chatToolNames(approval.calls))
+				return m, executeChatTools(approval.stream, approval.calls)
+			case "esc", "n":
+				m.ToolApproval = nil
+				m.Chat.ApprovalText = ""
+				m.Logs.AddEntry(LogLevelInfo, "chat", "Denied: "+chatToolNames(approval.calls))
+				return m, denyChatTools(approval.stream, approval.calls)
+			}
+			return m, nil
+		}
+
 		// Modal states (dialogs, search inputs) must consume keys before
 		// global navigation — otherwise Esc/Tab/? switch views and leave
 		// the dialog stuck open in the background.
@@ -646,7 +682,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case chatToolTurnMsg:
 		// The model ended its turn by requesting tool calls. Record the
 		// assistant tool-call message in the provider conversation, then
-		// execute the tools asynchronously.
+		// execute the tools — after user approval when they are mutating.
 		s := msg.stream
 		turnText := m.Chat.StreamingContent
 		m.Chat.EndStreaming()
@@ -656,6 +692,12 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.pendingToolCalls = nil
 		s.turns++
 		m.Logs.AddEntry(LogLevelInfo, "chat", fmt.Sprintf("Model requested %d tool call(s): %s", len(msg.toolCalls), chatToolNames(msg.toolCalls)))
+
+		if requiresToolApproval(msg.toolCalls) {
+			m.ToolApproval = &pendingToolApproval{stream: s, calls: msg.toolCalls}
+			m.Chat.ApprovalText = toolApprovalSummary(msg.toolCalls)
+			return m, nil
+		}
 		return m, executeChatTools(s, msg.toolCalls)
 
 	case chatToolResultsMsg:
@@ -906,6 +948,24 @@ func chatToolNames(calls []message.ToolCall) string {
 		names = append(names, c.Function.Name)
 	}
 	return strings.Join(names, ", ")
+}
+
+// toolApprovalSummary renders the tool calls awaiting approval as a compact,
+// plain-text listing for the chat view's approval prompt. Long arguments
+// (e.g. file content) are truncated.
+func toolApprovalSummary(calls []message.ToolCall) string {
+	var b strings.Builder
+	for _, c := range calls {
+		args := strings.Join(strings.Fields(c.Function.Arguments), " ")
+		if len(args) > 160 {
+			args = args[:157] + "..."
+		}
+		b.WriteString(c.Function.Name)
+		b.WriteString("  ")
+		b.WriteString(args)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // firstLine returns the first non-empty line of s.
